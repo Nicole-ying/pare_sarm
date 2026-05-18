@@ -1,0 +1,54 @@
+# Default experiment configuration for multi_reward framework.
+
+# ── LLM settings ──
+model: "deepseek-reasoner"
+temperature: 0.6
+
+# ── Training ──
+total_timesteps: 2000000
+n_envs: 8
+normalize: true
+seed: null
+device: "cpu"
+max_episode_steps: null
+
+# ── PPO hyperparameters ──
+ppo:
+  policy: "MlpPolicy"
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.0
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+
+# ── Evaluation ──
+evaluation:
+  freq: 200000
+  episodes: 10
+
+# ── Checkpoint ──
+checkpoint:
+  freq: 200000
+
+# ── Iteration ──
+rounds: 5
+
+# ── Diagnostician settings ──
+diagnostician:
+  max_react_steps: 5
+  temperature_a: 0.6
+  temperature_b: 0.4
+
+# ── Moderator settings ──
+moderator:
+  max_revision_rounds: 2
+
+# ── GIF recording ──
+gif_steps: []
+gif_fps: 30
+gif_max_steps: 2000

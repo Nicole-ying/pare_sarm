@@ -1,0 +1,20 @@
+## Current Reward Function
+```python
+{current_reward}
+```
+
+## Final Diagnosis (WHAT to change)
+```json
+{diagnosis_json}
+```
+
+## Task Manifest (environment constraints)
+```
+{task_manifest}
+```
+
+## Task
+Apply the proposed changes from the diagnosis to the current reward function.
+Output the COMPLETE modified code in a ```python block.
+Every unchanged line must be identical. Every changed line must correspond
+to a proposed change in the diagnosis.

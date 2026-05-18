@@ -1,0 +1,15 @@
+# Prompt compaction policy for multi_reward framework.
+# Limits context size that each agent receives.
+
+diagnostician:
+  max_lines_markdown: 90
+  max_lines_memory: 70
+  max_history_entries: 3
+
+implementor:
+  max_lines_diagnosis: 100
+  max_lines_task_manifest: 80
+
+moderator:
+  max_lines_per_diagnosis: 120
+  max_lines_evidence: 60

@@ -1,0 +1,323 @@
+You are an expert RL researcher designing a reward function for a reinforcement learning environment.
+
+IMPORTANT: This environment may NOT exist in any public registry. There is no documentation, no task description, and no reference reward function available. Your ONLY source of information is the step() source code below and the random rollout statistics.
+
+You must infer the task goal ENTIRELY from the termination conditions in step(). Those conditions define what "success" and "failure" mean.
+
+## Environment Metadata
+
+- Env ID: UnknownEnv-v0
+- Observation dimensions: 8
+- Action space: Discrete(4)
+- Time limit per episode: 1000 steps
+
+## Step Source Code (reward excluded)
+
+The original reward computation is NOT shown in this code. You are designing the reward from scratch.
+
+```python
+def step(self, action):
+    assert self.lander is not None
+
+    # Update wind and apply to the lander
+    assert self.lander is not None, "You forgot to call reset()"
+    if self.enable_wind and not (
+            self.legs[0].ground_contact or self.legs[1].ground_contact
+    ):
+        wind_mag = (
+                math.tanh(
+                    math.sin(0.02 * self.wind_idx)
+                    + (math.sin(math.pi * 0.01 * self.wind_idx))
+                )
+                * self.wind_power
+        )
+        self.wind_idx += 1
+        self.lander.ApplyForceToCenter(
+            (wind_mag, 0.0),
+            True,
+        )
+
+        torque_mag = math.tanh(
+            math.sin(0.02 * self.torque_idx)
+            + (math.sin(math.pi * 0.01 * self.torque_idx))
+        ) * (self.turbulence_power)
+        self.torque_idx += 1
+        self.lander.ApplyTorque(
+            (torque_mag),
+            True,
+        )
+
+    if self.continuous:
+        action = np.clip(action, -1, +1).astype(np.float32)
+    else:
+        assert self.action_space.contains(
+            action
+        ), f"{action!r} ({type(action)}) invalid "
+
+    # Apply Engine Impulses
+
+    # Tip is a the (X and Y) components of the rotation of the lander.
+    tip = (math.sin(self.lander.angle), math.cos(self.lander.angle))
+
+    # Side is the (-Y and X) components of the rotation of the lander.
+    side = (-tip[1], tip[0])
+
+    # Generate two random numbers between -1/SCALE and 1/SCALE.
+    dispersion = [self.np_random.uniform(-1.0, +1.0) / SCALE for _ in range(2)]
+
+    m_power = 0.0
+    if (self.continuous and action[0] > 0.0) or (
+            not self.continuous and action == 2
+    ):
+        # Main engine
+        if self.continuous:
+            m_power = (np.clip(action[0], 0.0, 1.0) + 1.0) * 0.5  # 0.5..1.0
+            assert m_power >= 0.5 and m_power <= 1.0
+        else:
+            m_power = 1.0
+
+        ox = (
+                tip[0] * (MAIN_ENGINE_Y_LOCATION / SCALE + 2 * dispersion[0])
+                + side[0] * dispersion[1]
+        )
+        oy = (
+                -tip[1] * (MAIN_ENGINE_Y_LOCATION / SCALE + 2 * dispersion[0])
+                - side[1] * dispersion[1]
+        )
+
+        impulse_pos = (self.lander.position[0] + ox, self.lander.position[1] + oy)
+        if self.render_mode is not None:
+            p = self._create_particle(
+                3.5,
+                impulse_pos[0],
+                impulse_pos[1],
+                m_power,
+            )
+            p.ApplyLinearImpulse(
+                (
+                    ox * MAIN_ENGINE_POWER * m_power,
+                    oy * MAIN_ENGINE_POWER * m_power,
+                ),
+                impulse_pos,
+                True,
+            )
+        self.lander.ApplyLinearImpulse(
+            (-ox * MAIN_ENGINE_POWER * m_power, -oy * MAIN_ENGINE_POWER * m_power),
+            impulse_pos,
+            True,
+        )
+
+    s_power = 0.0
+    if (self.continuous and np.abs(action[1]) > 0.5) or (
+            not self.continuous and action in [1, 3]
+    ):
+        # Orientation/Side engines
+        if self.continuous:
+            direction = np.sign(action[1])
+            s_power = np.clip(np.abs(action[1]), 0.5, 1.0)
+            assert s_power >= 0.5 and s_power <= 1.0
+        else:
+            direction = action - 2
+            s_power = 1.0
+
+        ox = tip[0] * dispersion[0] + side[0] * (
+                3 * dispersion[1] + direction * SIDE_ENGINE_AWAY / SCALE
+        )
+        oy = -tip[1] * dispersion[0] - side[1] * (
+                3 * dispersion[1] + direction * SIDE_ENGINE_AWAY / SCALE
+        )
+
+        impulse_pos = (
+            self.lander.position[0] + ox - tip[0] * 17 / SCALE,
+            self.lander.position[1] + oy + tip[1] * SIDE_ENGINE_HEIGHT / SCALE,
+        )
+        if self.render_mode is not None:
+            p = self._create_particle(0.7, impulse_pos[0], impulse_pos[1], s_power)
+            p.ApplyLinearImpulse(
+                (
+                    ox * SIDE_ENGINE_POWER * s_power,
+                    oy * SIDE_ENGINE_POWER * s_power,
+                ),
+                impulse_pos,
+                True,
+            )
+        self.lander.ApplyLinearImpulse(
+            (-ox * SIDE_ENGINE_POWER * s_power, -oy * SIDE_ENGINE_POWER * s_power),
+            impulse_pos,
+            True,
+        )
+
+    self.world.Step(1.0 / FPS, 6 * 30, 2 * 30)
+
+    pos = self.lander.position
+    vel = self.lander.linearVelocity
+
+    state = [
+        (pos.x - VIEWPORT_W / SCALE / 2) / (VIEWPORT_W / SCALE / 2),
+        (pos.y - (self.helipad_y + LEG_DOWN / SCALE)) / (VIEWPORT_H / SCALE / 2),
+        vel.x * (VIEWPORT_W / SCALE / 2) / FPS,
+        vel.y * (VIEWPORT_H / SCALE / 2) / FPS,
+        self.lander.angle,
+        20.0 * self.lander.angularVelocity / FPS,
+        1.0 if self.legs[0].ground_contact else 0.0,
+        1.0 if self.legs[1].ground_contact else 0.0,
+    ]
+    assert len(state) == 8
+
+    terminated = False
+    if self.game_over or abs(state[0]) >= 1.0:
+        terminated = True
+    if not self.lander.awake:
+        terminated = True
+
+    # ============================================================
+    # LLM generates this function
+    self._pre_step_state = {k: v for k, v in vars(self).items() if k.startswith('_')}
+    reward, components = self.compute_reward(state, m_power, s_power, terminated)
+    # metrics_fn can read env._pre_step_state for cross-step values
+    # ============================================================
+
+    if self.render_mode == "human":
+        self.render()
+
+    return np.array(state, dtype=np.float32), reward, terminated, False, {
+        "reward_components": components,
+        "_pre_step_state": self._pre_step_state,
+    }
+```
+
+## Random Rollout Statistics
+
+Policy: uniform random action selection (30 episodes). Random policies cannot complete the task — these statistics only reveal the observation space's numerical ranges and basic dynamics.
+
+- Episode length: mean=91.2 ± 20.14, range=[59, 130]
+- Max steps per episode: 1000
+
+### Termination Pattern
+- `terminated`: 30 episodes (100%)
+
+### Info Keys Observed During Rollouts
+- (none observed)
+
+### Observation Dimensions
+
+| dim | space bounds | mean ± std | [min, max] | inferred type |
+|-----|-------------|-----------|------------|--------------|
+| 0 | [-1.5, 1.5] | 0.040612 ± 0.290137 | [-1.008125, 1.004006] | continuous |
+| 1 | [-1.5, 1.5] | 0.983386 ± 0.459286 | [-0.274883, 1.588921] | continuous |
+| 2 | [-5.0, 5.0] | 0.084241 ± 0.623041 | [-1.984013, 1.807523] | continuous |
+| 3 | [-5.0, 5.0] | -0.678717 ± 0.495963 | [-1.836251, 0.57504] | continuous |
+| 4 | [-3.141593, 3.141593] | 0.009748 ± 0.576473 | [-1.745199, 2.319483] | angle |
+| 5 | [-5.0, 5.0] | 0.010583 ± 0.484714 | [-6.660004, 5.266912] | continuous |
+| 6 | [-0.0, 1.0] | 0.016269 ± 0.126508 | [0.0, 1.0] | binary/normalized |
+| 7 | [-0.0, 1.0] | 0.014461 ± 0.119383 | [0.0, 1.0] | binary/normalized |
+
+## Instructions
+
+Complete all four parts below in your response.
+
+### Part 1 — Thorough Environment Analysis (Required, do NOT skip)
+
+**A. Termination Analysis.** Every code path that sets `terminated = True`. Classify each as Success or Failure based on whether `self.game_over` is True (Failure) or False (Success).
+
+| Condition | Line | Success or Failure? | Evidence |
+|-----------|------|---------------------|----------|
+| ... | ... | ... | ... |
+
+**B. Self Variables Available.** Every attribute accessed on `self` in step(). Include type, physical meaning, and relevance to task.
+
+| Variable | Type/Shape | Physical meaning | Relevant to task? |
+|----------|------------|-----------------|-------------------|
+| ... | ... | ... | ... |
+
+**C. Action Space Analysis.** What does each dimension of `action` control? What are the dynamics?
+
+**D. Observation Cross-Reference.** Match each observation dimension to a specific physics variable from section B.
+
+### Part 2 — Write compute_reward
+
+Write a method on the environment class:
+
+```python
+def compute_reward(self, action):
+    """
+    Returns:
+        total_reward: float — scalar reward for this step
+        components: dict — named components for CARD analysis
+    """
+    components = {}
+    ...
+    total = sum(components.values())
+    return total, components
+```
+
+Rules:
+- Access env state via `self.xxx` (see Part 1 section B for available variables)
+- Cross-step state: store in `self._xxx` attributes (reset() handles cleanup automatically)
+- State tracking safety pattern:
+    ```python
+    if not hasattr(self, '_step_count'):
+        self._step_count = 0  # first step ever
+    # Save current state BEFORE updating for next step
+    self._prev_action = action
+    self._step_count += 1
+    ```
+- Every numeric constant must have a comment justifying its magnitude
+- Components should NOT be named with random suffixes — use descriptive names like `r_forward`, `r_stability`, etc.
+- Return (float, dict) — dict keys become CARD tracking dimensions
+
+Allowed imports:
+import math
+import numpy as np
+
+### Part 3 — Write metrics_fn
+
+Write a standalone function for behavior evaluation:
+
+```python
+def metrics_fn(env, action) -> dict:
+    """
+    Task-level metrics independent of the reward function.
+    3-6 metrics derived from step() source analysis.
+
+    Args:
+        env: environment instance (unwrapped) — read state AFTER step
+        action: the action taken this step
+
+    How to access cross-step state:
+        pre = getattr(env, '_pre_step_state', {})  # snapshot saved BEFORE compute_reward
+        prev_action = pre.get('_prev_action', action)
+
+    How to access env physics:
+        env.unwrapped — direct access to all physics variables
+        e.g., env.unwrapped.some_body.position, env.unwrapped.some_attribute
+    """
+    ...
+    return {"metric_name": value, ...}
+```
+
+Requirements:
+- 3-6 metrics measuring task performance
+- Each metric must come from step() source analysis:
+    * Progress toward success condition (from Part 1A)
+    * Stability/control quality (from Part 1B)
+    * Efficiency (action magnitude, energy)
+- Metrics must evaluate DIFFERENT aspects of behavior than reward components
+- Do NOT use reward values — metrics must be reward-agnostic
+- Do NOT just return raw observation readings
+- Use `getattr(env, '_pre_step_state', {})` for cross-step values
+- Access env physics via `env.unwrapped.xxx`
+
+### Part 4 — Risk Self-Check
+
+Include this analysis after your code:
+
+1. **Component Balance**: All dense (per-step) reward components must produce values within the same order of magnitude. If one component's maximum possible value is > 5× another's, it will dominate training and the smaller component will be ignored. Compare max possible values of all components using the observation statistics table to calibrate coefficients. If all components are negative, agent will try to terminate early.
+
+2. **Reward Hacking**: For each component, how could an agent maximize it WITHOUT solving the task? If there's a loophole, add constraints.
+
+3. **Boundedness**: Every component should naturally saturate or be explicitly clipped within [-10, 10] range. If any can grow unbounded, apply `np.tanh` or `np.clip`.
+
+4. **Dense Feedback**: Is the reward available every step? If termination reward only, add intermediate shaping.
+
+5. **Penalty Calibration**: If there is a termination penalty, it should be proportional to expected reward over remaining steps. A -100 penalty on step 1 is massive; on step 999 it's minor. As a rule of thumb, a termination penalty larger than 100× the typical per-step reward will make the agent pathologically risk-averse (it will avoid any action that might trigger termination, even at the cost of making no progress).

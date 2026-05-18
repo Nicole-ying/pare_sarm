@@ -1,0 +1,31 @@
+# PPO 5M training configuration for multi_reward framework.
+# Same hyperparams as the eureka_llm ppo_5M configs.
+
+total_timesteps: 5000000
+n_envs: 8
+normalize: true
+seed: null
+device: "cpu"
+max_episode_steps: null
+
+ppo:
+  policy: "MlpPolicy"
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.0
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+
+evaluation:
+  freq: 200000
+  episodes: 10
+
+checkpoint:
+  freq: 200000
+
+rounds: 5
