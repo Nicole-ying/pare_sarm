@@ -84,10 +84,6 @@ def evaluate_round(round_dir: Path, official_env_id: str,
     fell = 0
     truncated = 0
 
-    # Detect env-specific success/failure signals
-    has_game_over = hasattr(env.envs[0].unwrapped, 'game_over') if not vn_path.exists() \
-        else hasattr(base_env.envs[0].unwrapped, 'game_over')
-
     obs = env.reset()
     cur_reward = 0.0
     cur_length = 0
@@ -103,7 +99,7 @@ def evaluate_round(round_dir: Path, official_env_id: str,
             ep_lengths.append(cur_length)
             info = infos[0]
 
-            # Use _outcome from reward_components if available
+            # Generic outcome classification (no env-specific thresholds)
             comps = info.get("reward_components", {})
             outcome = comps.get("_outcome", None) if isinstance(comps, dict) else None
 
@@ -113,36 +109,17 @@ def evaluate_round(round_dir: Path, official_env_id: str,
                 completed += 1
             elif outcome == 0.0:
                 truncated += 1
-            elif has_game_over and info.get("game_over", False):
-                fell += 1
+            elif info.get("_episode_terminated", False):
+                # Terminated by env (not timeout) — infer from reward sign
+                if cur_reward > 0:
+                    completed += 1
+                else:
+                    fell += 1
             elif info.get("_episode_truncated", False):
                 truncated += 1
             else:
-                # Natural termination (not truncated), no _outcome
-                # Use env-specific reward heuristics for success/crash
-                _env_lower = official_env_id.lower()
-                if "lunarlander" in _env_lower:
-                    if cur_reward > 100:
-                        completed += 1
-                    elif cur_reward < -50:
-                        fell += 1
-                    else:
-                        truncated += 1
-                elif "bipedal" in _env_lower:
-                    if cur_reward > 100:
-                        completed += 1
-                    elif cur_reward < -50:
-                        fell += 1
-                    else:
-                        truncated += 1
-                else:
-                    # Generic: high positive → success, negative → crash
-                    if cur_reward > 50:
-                        completed += 1
-                    elif cur_reward < -50:
-                        fell += 1
-                    else:
-                        truncated += 1
+                # Should not reach here with proper wrappers
+                truncated += 1
 
             cur_reward = 0.0
             cur_length = 0

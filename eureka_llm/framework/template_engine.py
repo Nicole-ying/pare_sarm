@@ -18,6 +18,7 @@ from constraint_discovery import (
     derive_action_cross_metrics,
     derive_episode_consistency_metrics,
 )
+from shared_rules import render_rules, ROUND0_RULES
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -115,8 +116,8 @@ def derive_reward_constraints(exploration: dict) -> str:
         constraints.append(
             "- **Gravity detected**: Zero-action episodes terminate quickly "
             "(>50% die within 20% of episode limit). The agent MUST act to stay alive. "
-            "Do NOT penalize the main control actions (motors, thrusters, torque) — "
-            "the agent needs them to counteract gravity. "
+            "Do NOT penalize the main control actions — "
+            "the agent needs them to counteract passive dynamics. "
             "Reward staying alive but not at the cost of task progress."
         )
     elif gravity == "weak":
@@ -195,48 +196,86 @@ def derive_reward_constraints(exploration: dict) -> str:
     return "\n".join(constraints) if constraints else "- (no specific constraints derived)"
 
 
+def build_exploration_summary(exploration: dict) -> str:
+    """Build a compact text summary of exploration data for round0 prompt."""
+    lines = []
+
+    # Observation dimension stats
+    obs_stats = exploration.get("obs_dim_stats", [])
+    if obs_stats:
+        lines.append("### Observation Dimension Statistics")
+        lines.append("| Dim | Mean ± Std | Sample Range |")
+        lines.append("|-----|------------|--------------|")
+        for s in obs_stats:
+            lines.append(f"| {s['dim']} | {s['mean']:.3f} ± {s['std']:.3f} "
+                         f"| [{s['sample_min']:.3f}, {s['sample_max']:.3f}] |")
+
+    # Termination summary
+    term = exploration.get("termination_summary", {})
+    if term:
+        lines.append("\n### Termination Analysis")
+        for reason, info in term.items():
+            lines.append(f"- `{reason}`: {info['count']} episodes ({info['fraction']*100:.0f}%)")
+
+    # Episode length stats
+    ep = exploration.get("episode_length_stats", {})
+    if ep:
+        lines.append(f"\n### Episode Lengths")
+        lines.append(f"Mean: {ep.get('mean', '?')} ± {ep.get('std', '?')}, "
+                     f"Range: [{ep.get('min', '?')}, {ep.get('max', '?')}]")
+
+    # Zero-action baseline
+    za = exploration.get("zero_action", {})
+    if za:
+        death_rate = za.get("death_rate", 0)
+        gravity = za.get("gravity_hypothesis", "unknown")
+        lines.append(f"\n### Zero-Action Baseline")
+        lines.append(f"Death rate: {death_rate:.0%}, Gravity hypothesis: {gravity}")
+
+    return "\n".join(lines) if lines else "*(no exploration data)*"
+
+
 def build_round0_prompt(env_dir: Path, template_path: Path, exploration_path: Path,
-                        task_description: str = None) -> str:
-    """Build a complete round0 prompt by filling all placeholders."""
+                        task_manifest: str = None) -> str:
+    """Build a complete round0 prompt by filling placeholders.
+
+    Fills {task_manifest}, {exploration_summary}, and {compute_reward_signature}.
+    """
     template = template_path.read_text(encoding="utf-8")
     exploration = json.loads(exploration_path.read_text(encoding="utf-8"))
-    step_source = load_step_source(env_dir)
 
-    compute_reward_sig = extract_compute_reward_signature(step_source)
-    action_desc = build_action_desc(exploration)
-    obs_rows = build_obs_rows(exploration)
-    term_summary = build_term_summary(exploration)
-    info_summary = build_info_summary(exploration)
-    obs_dim = exploration.get("obs_dim", "?")
-    ep = exploration.get("episode_length_stats", {})
+    exploration_summary = build_exploration_summary(exploration)
+
+    # Extract compute_reward signature from step.py
+    compute_reward_signature = "state, action"  # default fallback
+    step_path = env_dir / "step.py"
+    if step_path.exists():
+        step_source = step_path.read_text(encoding="utf-8")
+        sig = extract_compute_reward_signature(step_source)
+        if sig:
+            compute_reward_signature = sig
+
+    # Override any "Compute Reward Signature" in the task manifest with the
+    # one extracted from actual source code — prevents EnvPerception hallucinations
+    # from producing a signature that doesnt match env.step()'s actual call.
+    corrected_manifest = task_manifest or ""
+    if compute_reward_signature and corrected_manifest:
+        corrected_manifest = re.sub(
+            r'(?<=## Compute Reward Signature\n).*',
+            f"`compute_reward({compute_reward_signature})`",
+            corrected_manifest,
+        )
 
     placeholders = {
-        "env_id": "UnknownEnv-v0",  # always generic — no environment name leakage
-        "obs_dim": str(obs_dim),
-        "action_desc": action_desc,
-        "max_ep_steps": str(exploration.get("max_episode_steps", 1000)),
-        "step_source": step_source,
-        "compute_reward_signature": compute_reward_sig,
-        "n_episodes": str(exploration.get("n_episodes", 30)),
-        "ep_len_mean": str(ep.get("mean", "?")),
-        "ep_len_std": str(ep.get("std", "?")),
-        "ep_len_min": str(ep.get("min", "?")),
-        "ep_len_max": str(ep.get("max", "?")),
-        "term_summary": term_summary,
-        "info_summary": info_summary,
-        "obs_rows": obs_rows,
-        "allowed_imports": "import math\nimport numpy as np",
-        "reward_constraints": derive_reward_constraints(exploration),
+        "task_manifest": corrected_manifest or "(not available)",
+        "exploration_summary": exploration_summary,
+        "compute_reward_signature": compute_reward_signature,
+        "shared_rules": render_rules(ROUND0_RULES),
     }
 
     result = template
     for key, value in placeholders.items():
         result = result.replace("{" + key + "}", str(value))
-
-    if task_description:
-        result = result.replace("{task_description}", task_description)
-    else:
-        result = result.replace("{task_description}\n", "")
 
     return result
 
@@ -612,6 +651,9 @@ def format_dynamics_section(traj_summary: dict, run_dir: Path = None) -> str:
     return "\n".join(parts)
 
 
+# DEPRECATED: TDRQ found to be misleading — reward hacking can inflate score
+# while task success is zero. Removed from perception prompts as of the
+# cross-round-learning fix. Function kept to avoid import breakage.
 def compute_tdrq_index(traj_summary: dict, run_dir: Path = None) -> dict:
     """Compute a Training-Dynamics Reward Quality (TDRQ) index in [0, 100].
 
@@ -731,7 +773,7 @@ if __name__ == "__main__":
     parser.add_argument("--env-dir", help="Path to env directory (contains step.py)")
     parser.add_argument("--template", help="Path to template file")
     parser.add_argument("--exploration", help="Path to exploration JSON")
-    parser.add_argument("--task-desc", default=None, help="Optional task description")
+    parser.add_argument("--task-manifest", default=None, help="Task Manifest markdown")
     parser.add_argument("--output", required=True, help="Output prompt path")
     args = parser.parse_args()
 
@@ -740,7 +782,7 @@ if __name__ == "__main__":
             parser.error("--mode round0 requires --env-dir, --template, --exploration")
         prompt = build_round0_prompt(
             Path(args.env_dir), Path(args.template),
-            Path(args.exploration), args.task_desc,
+            Path(args.exploration), args.task_manifest,
         )
 
     Path(args.output).write_text(prompt, encoding="utf-8")

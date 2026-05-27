@@ -1,2 +1,2 @@
-## Task Goal
-Control a planar cheetah (6 joints: 2 legs × 3 joints each) to run forward as fast as possible along the x-axis. The cheetah should maintain an upright, forward-leaning posture with all four feet contacting the ground in a regular gait cycle.
+## Environment Description
+Control a half-cheetah (2D biped with 6 joints) to run forward as fast as possible along a flat terrain. The agent should learn a galloping gait that maximizes forward speed while minimizing energy consumption.

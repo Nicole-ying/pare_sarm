@@ -18,8 +18,6 @@ _framework_dir = Path(__file__).resolve().parent.parent
 if str(_framework_dir) not in sys.path:
     sys.path.insert(0, str(_framework_dir))
 from llm_call import call_llm
-from prompt_guard import validate_zero_shot_output
-from prompt_compaction import load_prompt_policy, write_compaction_stats
 
 
 def build_perception_prompt(run_dir: Path, template_path: Path) -> str:
@@ -35,7 +33,6 @@ def build_perception_prompt(run_dir: Path, template_path: Path) -> str:
         format_component_table,
         format_traj_env_metrics_table,
         format_dynamics_section,
-        format_tdrq_section,
         format_constraint_discovery_section,
         format_action_cross_metrics_section,
         format_episode_consistency_section,
@@ -43,39 +40,38 @@ def build_perception_prompt(run_dir: Path, template_path: Path) -> str:
 
     data = load_training_data(run_dir)
     template = template_path.read_text(encoding="utf-8")
-    policy = load_prompt_policy(run_dir.parent if run_dir.name.startswith("round") else run_dir, "perception")
-    compaction_stats = {}
 
     traj = data["traj_summary"]
     lens = traj.get("lengths", {})
 
     # Load task description from Task Manifest
+    # Supports both new format (## Task Goal) and legacy format (## Environment Description)
     task_description = ""
     manifest_path = run_dir.parent / "memory" / "TASK_MANIFEST.md"
     if manifest_path.exists():
         manifest_text = manifest_path.read_text(encoding="utf-8")
+        # Try new format first (from env_perception_agent)
         m = re.search(
-            r"## Environment Description\s*\n(.*?)(?=\n## |\Z)",
+            r"## Task Goal\s*\n(.*?)(?=\n## |\Z)",
             manifest_text, re.DOTALL
         )
         if m:
             task_description = m.group(1).strip()
+        else:
+            # Fallback to legacy format
+            m = re.search(
+                r"## Environment Description\s*\n(.*?)(?=\n## |\Z)",
+                manifest_text, re.DOTALL
+            )
+            if m:
+                task_description = m.group(1).strip()
 
     placeholders = {
-        "metrics_table": format_metrics_table(
-            data["eval_history"],
-            max_metrics=policy.get("max_env_metrics_table", 6),
-            stats=compaction_stats,
-        ),
-        "env_metrics_section": format_env_metrics_section(
-            data["eval_history"],
-            max_metrics=policy.get("max_env_metrics_section", 6),
-            stats=compaction_stats,
-        ),
+        "metrics_table": format_metrics_table(data["eval_history"], max_metrics=6),
+        "env_metrics_section": format_env_metrics_section(data["eval_history"], max_metrics=6),
         "component_table": format_component_table(data["traj_summary"]),
         "traj_env_metrics_table": format_traj_env_metrics_table(data["traj_summary"]),
         "dynamics_section": format_dynamics_section(data["traj_summary"], run_dir),
-        "tdrq_section": format_tdrq_section(data["traj_summary"], run_dir),
         "constraint_discovery_section": format_constraint_discovery_section(data["traj_summary"], data["eval_history"]),
         "action_cross_metrics_section": format_action_cross_metrics_section(data["traj_summary"], data["eval_history"]),
         "episode_consistency_section": format_episode_consistency_section(data["traj_summary"], data["eval_history"]),
@@ -89,19 +85,18 @@ def build_perception_prompt(run_dir: Path, template_path: Path) -> str:
     result = template
     for key, value in placeholders.items():
         result = result.replace("{" + key + "}", str(value))
-    write_compaction_stats(run_dir / "perception_prompt_compaction.json", compaction_stats)
     return result
 
 
 def extract_behavior_metrics(perception_report: str) -> dict:
-    """Extract key numerical metrics from perception report for budget calculation.
+    """Extract key numerical metrics from perception report.
 
     Only extracts mean_length (environment-agnostic) from perception report.
     Env-specific metrics come from env_metadata.
     """
     metrics = {}
 
-    # Try to extract from "Key Numbers for Budget Calculation" section
+    # Try to extract from "Key Numbers" section
     section_match = re.search(
         r"### 6\. Key Numbers.*?\n(.*?)(?=\n###|\Z)",
         perception_report, re.DOTALL
@@ -148,12 +143,9 @@ def run_perception_agent(run_dir: Path, api_key: str,
         pass
     (run_dir / "perception_response.md").write_text(report, encoding="utf-8")
     (run_dir / "perception_report.md").write_text(report, encoding="utf-8")
-    (run_dir / "perception_guard.json").write_text(
-        json.dumps(validate_zero_shot_output(report), ensure_ascii=False, indent=2),
-        encoding="utf-8"
-    )
+    # Perception guard check removed: advisory-only, replaced by shared_rules.py constraints
 
-    # Phase-2 v2: update persistent Perception belief state with structured data
+    # Phase-2: update persistent Perception belief state
     try:
         from memory.memory_system import MemorySystem
         mem = MemorySystem(run_dir.parent if run_dir.name.startswith("round") else run_dir)
@@ -162,14 +154,14 @@ def run_perception_agent(run_dir: Path, api_key: str,
         dynamics_trend = _extract_dynamics_trend(report)
         patterns = _extract_identified_patterns(report)
         anomalies = _extract_anomalies(report)
-        mem.update_perception_belief_v2(
-            round_name=run_dir.name,
-            behavior_summary=report[:400],
-            key_metrics=key_metrics,
-            dynamics_trend=dynamics_trend,
-            identified_patterns=patterns,
-            anomalies=anomalies,
-        )
+        mem.update_belief("perception", {
+            "round": run_dir.name,
+            "behavior_summary": report[:400],
+            "key_metrics": key_metrics,
+            "dynamics_trend": dynamics_trend,
+            "identified_patterns": patterns[:5],
+            "anomalies": anomalies[:3],
+        })
     except Exception:
         import traceback
         traceback.print_exc()
@@ -259,22 +251,38 @@ def build_perception_diagnostics(run_dir: Path) -> dict:
 def _extract_key_metrics_from_report(report: str) -> dict:
     """Extract numeric key metrics from perception report via regex."""
     metrics = {}
+
+    def _safe_float(v: str) -> float | None:
+        """Convert string to float, returning None on failure (e.g. '.' or 'nan')."""
+        try:
+            return float(v)
+        except ValueError:
+            return None
+
     # mean_length
     m = re.search(r'mean[\s_]*length[:\s]*([\d.]+)', report, re.IGNORECASE)
     if m:
-        metrics["mean_length"] = float(m.group(1))
+        val = _safe_float(m.group(1))
+        if val is not None:
+            metrics["mean_length"] = val
     # success / completion rate
     m = re.search(r'(success|completion)[\s_]*rate[:\s]*([\d.]+)', report, re.IGNORECASE)
     if m:
-        metrics["success_rate"] = float(m.group(2))
+        val = _safe_float(m.group(2))
+        if val is not None:
+            metrics["success_rate"] = val
     # action magnitude
     m = re.search(r'action[\s_]*magnitude[:\s]*([\d.]+)', report, re.IGNORECASE)
     if m:
-        metrics["action_magnitude"] = float(m.group(1))
-    # velocity / efficiency
-    m = re.search(r'(velocity|efficiency)[:\s]*([\d.]+)', report, re.IGNORECASE)
+        val = _safe_float(m.group(1))
+        if val is not None:
+            metrics["action_magnitude"] = val
+    # velocity / efficiency / progress — generic task-level metrics
+    m = re.search(r'(?:velocity|efficiency|progress|speed)[:\s]*([\d.]+)', report, re.IGNORECASE)
     if m:
-        metrics[m.group(1).lower()] = float(m.group(2))
+        val = _safe_float(m.group(2))
+        if val is not None:
+            metrics[m.group(1).lower()] = val
     return metrics
 
 

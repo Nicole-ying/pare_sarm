@@ -6,6 +6,8 @@ This closes the loop:
     Training → Perception → Analysis → Generation → Train → REFLECTION → Memory
 """
 
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -14,7 +16,6 @@ _framework_dir = Path(__file__).resolve().parent.parent
 if str(_framework_dir) not in sys.path:
     sys.path.insert(0, str(_framework_dir))
 from llm_call import call_llm
-from prompt_guard import validate_zero_shot_output
 
 
 def build_reflection_prompt(run_dir: Path, round_num: int,
@@ -24,10 +25,10 @@ def build_reflection_prompt(run_dir: Path, round_num: int,
     template = template_path.read_text("utf-8") if template_path.exists() else _fallback_reflection_prompt()
 
     # Load analyst proposal (prediction) — the proposal that was tested this round
-    # For round N, the relevant proposal is in round(N-1)/analyst_proposal.json
+    # For round N, the relevant proposal is in round(N-1)/analyzer_proposal.json
     proposal = ""
     if round_num > 0:
-        proposal_path = run_dir.parent / f"round{round_num - 1}" / "analyst_proposal.json"
+        proposal_path = run_dir.parent / f"round{round_num - 1}" / "analyzer_proposal.json"
         if proposal_path.exists():
             proposal = proposal_path.read_text("utf-8")
 
@@ -87,9 +88,11 @@ def run_reflection_agent(run_dir: Path, round_num: int,
     # Save reflection
     output_path = run_dir / "reflection.md"
     output_path.write_text(response, encoding="utf-8")
-    (run_dir / "reflection_guard.json").write_text(
-        __import__("json").dumps(validate_zero_shot_output(response), ensure_ascii=False, indent=2),
-        encoding="utf-8"
+
+    # Extract structured checklist items for the Analyst
+    checklist = _extract_checklist(response)
+    (run_dir / "reflection_checklist.json").write_text(
+        json.dumps(checklist, indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
     # Extract causal lesson and store in cross-round memory
@@ -118,6 +121,39 @@ def _extract_lesson(reflection: str, round_num: int) -> str:
         return f"**Round {round_num}**: {lines[0][:200]}"
 
     return f"**Round {round_num}**: (reflection generated, but no extractable lesson)"
+
+
+def _extract_checklist(reflection: str) -> list[dict]:
+    """Extract structured checklist items from the 'For Next Round' section.
+
+    Each item follows the format:
+        - [ ] Action: <instruction>
+          Rationale: <why>
+          Expected impact: <metric>
+
+    Returns list of dicts: [{"action": "...", "rationale": "...", "expected_impact": "..."}]
+    """
+    match = re.search(r"### For Next Round\s*\n(.*?)(?=\n#|\Z)", reflection, re.DOTALL)
+    if not match:
+        return []
+    section = match.group(1)
+    items = []
+    # Split on checklist markers
+    blocks = re.split(r'(?=^\s*-\s*\[\s*[ xX]?\s*\]\s+Action:)', section, flags=re.MULTILINE)
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        action_m = re.search(r"Action:\s*(.+?)(?:\n|$)", block)
+        rationale_m = re.search(r"Rationale:\s*(.+?)(?:\n|$)", block)
+        impact_m = re.search(r"Expected impact:\s*(.+?)(?:\n|$)", block)
+        if action_m:
+            items.append({
+                "action": action_m.group(1).strip(),
+                "rationale": rationale_m.group(1).strip() if rationale_m else "",
+                "expected_impact": impact_m.group(1).strip() if impact_m else "",
+            })
+    return items
 
 
 def _fallback_reflection_prompt() -> str:

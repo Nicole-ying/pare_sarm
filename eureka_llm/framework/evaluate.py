@@ -22,7 +22,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 def evaluate(run_dir: Path, episodes: int = 100) -> dict:
     """Run behavior evaluation on a trained model.
 
-    Only reports mean_length and env_metrics from metrics_fn.
+    Only reports mean_length and env_metrics from # (metrics_fn removed — use component dict instead).
     Metrics_fn must have been injected when training was done.
     """
     import re, sys

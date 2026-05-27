@@ -1,285 +1,347 @@
 """
-generator_agent.py — Translates analyst proposals into valid Python reward code.
+generator_agent.py — Generator with optional ReAct verification.
 
-Role in multi-agent system:
-    Analyst Proposal → Generator Agent → reward_fn_source.py → Train
+Architecture (when evidence_citations are present):
+    Phase 1 — Verification: ReAct loop. Generator verifies each claim in the
+               proposal by reading cited sources and querying memory.
+               Output: ACCEPT or REJECT with reasoning.
 
-Validates:
-    1. Has compute_reward function
-    2. Has metrics_fn function
-    3. No Box2D object storage
-    4. Returns (float, dict)
-    5. Syntax valid
+    Phase 2 — Code generation: Existing single-call LLM flow. Receives proposal
+               and current code, outputs updated Python module.
+
+    When evidence_citations are absent (backward compat), Phase 1 is skipped
+    and the original single-call flow runs as-is.
+
+    Retry logic: up to 3 attempts with syntax validation.
+    Fallback: returns None → pipeline uses previous round's code.
 """
 
 import json
 import re
 import sys
-import traceback
 from pathlib import Path
-from typing import Optional
-# tuple is a built-in type in Python 3.9+ — no import needed
 
-# Ensure framework directory is on path for imports
 _framework_dir = Path(__file__).resolve().parent.parent
 if str(_framework_dir) not in sys.path:
     sys.path.insert(0, str(_framework_dir))
 from llm_call import call_llm
-from prompt_compaction import load_prompt_policy, summarize_structured_lines, write_compaction_stats
-from prompt_harness import build_contract_block
+from react_agent import setup_default_tools, run_react_loop
 
 
-def build_generator_prompt(run_dir: Path, proposal: dict,
-                            memory_system,
-                            constraints: str = "") -> tuple[str, dict]:
-    """Build prompt for the generator agent."""
-    template_path = Path(__file__).resolve().parent.parent.parent / "templates" / "generator_prompt.txt"
-    template = template_path.read_text("utf-8") if template_path.exists() else _fallback_generator_prompt()
+def _build_system_prompt() -> str:
+    """Build generator system prompt from shared checks + generator-specific instructions.
 
-    # Load current reward function
-    current_reward = ""
-    reward_path = run_dir / "reward_fn_source.py"
-    if reward_path.exists():
-        current_reward = reward_path.read_text("utf-8")
+    Teaches methodology (how to verify your own work) rather than listing rules.
+    """
+    from shared_rules import render_rules, GENERATOR_RULES
+    checks = render_rules(GENERATOR_RULES)
+    return f'''You are the Generator Agent. Your job: take the Analyzer\'s proposed changes and apply them to the reward function code precisely.
 
-    # Load prompt compaction policy
-    policy = load_prompt_policy(run_dir.parent if run_dir.name.startswith("round") else run_dir, "generator")
-    stats = {}
+Your working method: read each change, apply it one at a time, then verify the complete output.
 
-    # Load task manifest
-    task_manifest = memory_system.get_task_manifest()
-    if task_manifest:
-        task_manifest, stats["task_manifest"] = summarize_structured_lines(
-            task_manifest, policy.get("max_lines_markdown", 80), ("task", "termination", "observation")
-        )
+== Step-by-Step Working Method ==
 
-    # Load perception report
-    perception = ""
-    perception_path = run_dir / "perception_report.md"
-    if perception_path.exists():
-        perception, stats["perception_report"] = summarize_structured_lines(
-            perception_path.read_text("utf-8"), policy.get("max_lines_markdown", 80), ("diagnosis", "principle", "mean", "std")
-        )
+### Step 1: Parse Each Change
+For each proposed change, identify:
+- What EXACT lines in the current code need to be replaced?
+- What is the replacement code?
+- Does the replacement preserve the function\'s overall structure?
 
-    # Build the sections
-    contract = build_contract_block(
-        agent="Generator",
-        objective="Translate analyst proposal into runnable reward code with no drift.",
-        required_outputs=[
-            "Python code with compute_reward and metrics_fn",
-            "All analyst new_code edits applied",
-            "No simulator object persistence anti-patterns",
-        ],
-        hard_constraints=[
-            "Do not introduce unrelated reward terms",
-            "Keep signatures and return contracts valid",
-            "If proposal conflicts exist, choose explicit proposal edits",
-        ],
+### Step 2: Apply Changes (One at a Time)
+Apply each change to the current reward code. After each change, verify:
+- Did the edit land correctly? (no partial replacements, no doubled lines)
+- Are unchanged parts preserved exactly?
+
+### Step 3: Verify the Complete Output
+Before finalizing, walk through the ENTIRE output:
+
+- [ ] Is def compute_reward(...) present with the EXACT same parameter list?
+- [ ] Does it return (float, dict)?
+- [ ] Is _outcome handled correctly (not added to total)?
+- [ ] Are both functions COMPLETE (not abbreviated, not "..." sections)?
+
+== Self-Verification Checks ==
+
+Run through these checks on your output:
+
+{checks}
+
+== Output Format ==
+
+Output ONLY a single ```python block. No explanation before or after.
+The block must contain the complete compute_reward function.
+
+IMPORTANT — start directly from `def compute_reward(...)`. Do NOT include:
+  - A docstring header (`"""LLM-generated reward function..."""`)
+  - `import` statements (the framework adds them automatically)
+  - Any text before `def compute_reward`
+Starting with anything other than `def compute_reward` will cause code duplication.'''
+
+
+GENERATOR_SYSTEM_PROMPT = _build_system_prompt()
+
+
+def build_generator_prompt(proposal: dict, current_code: str) -> str:
+    """Build a focused code-generation prompt from proposal + current code."""
+    sections = [GENERATOR_SYSTEM_PROMPT, ""]
+
+    # Proposal summary
+    diagnosis = proposal.get("diagnosis", "No diagnosis provided.")
+    sections.append("## Diagnosis")
+    sections.append(diagnosis)
+    sections.append("")
+
+    changes = proposal.get("proposed_changes", [])
+    if changes:
+        sections.append("## Proposed Changes")
+        for i, change in enumerate(changes, 1):
+            component = change.get("component", "unknown")
+            new_code = change.get("new_code", "")
+            reason = change.get("reason", "")
+            sections.append(f"### Change {i}: {component}")
+            if new_code:
+                sections.append(f"```python\n{new_code}\n```")
+            if reason:
+                sections.append(f"Reason: {reason}")
+            sections.append("")
+    else:
+        sections.append("## No Changes Proposed")
+        sections.append("Output the current code as-is with no modifications.")
+        sections.append("")
+
+    # Current code
+    sections.append("## Current Reward Function Code")
+    sections.append("```python")
+    sections.append(current_code)
+    sections.append("```")
+    sections.append("")
+
+    # Extract and inject exact parameter signature from current code
+    sig_match = __import__("re").search(
+        r"def compute_reward\(([^)]+)\)",
+        current_code
     )
+    if sig_match:
+        params = sig_match.group(1)
+        sections.append("## CRITICAL: Preserve This Function Signature")
+        sections.append(
+            f'Your output MUST use `def compute_reward({params}):` — '
+            f"exactly as shown above. No added or removed parameters. "
+            f"The environment calls this function with a fixed argument list. "
+            f"Any mismatch will crash training on the first step."
+        )
+        sections.append("")
 
+    # Output instruction
+    sections.append("---")
+    sections.append("Output ONLY a single ```python block with the COMPLETE updated module.")
+    sections.append("Do NOT include any explanation before or after the code block.")
+
+    return "\n".join(sections)
+
+
+# ── Phase 1: Verification ─────────────────────────────────────────────────
+
+def _build_verification_prompt(proposal: dict) -> str:
+    """Build a verification prompt for the ReAct loop.
+
+    Asks the Generator to verify each evidence citation from the proposal
+    by reading the cited files and querying cross-round memory.
+    """
+    evidence = proposal.get("evidence_citations", [])
     sections = [
-        contract,
+        "You are a **second opinion**, not a typist. The Meta-Analyzer has proposed",
+        "changes to the reward function and provided evidence citations. Your job is",
+        "NOT to blindly apply changes — it is to VERIFY whether the proposal's claims",
+        "are actually supported by the experiment records.",
         "",
-        template,
+        "A good second opinion is valuable whether it agrees OR disagrees:",
+        "- If the evidence checks out → VERIFICATION: ACCEPT, then write the code.",
+        "- If the evidence is wrong or incomplete → VERIFICATION: REJECT,",
+        "  explain what's wrong. Rejecting a bad proposal prevents wasting a",
+        "  training cycle on a flawed idea.",
         "",
-        "## Current Reward Function",
-        "```python",
-        current_reward,
-        "```",
+        "You have tools available to read files and search cross-round memory.",
+        "For each evidence citation, use read_file to check the cited source",
+        "directly. Do NOT take the citation's detail text at face value —",
+        "go read the actual file yourself.",
+        "Use query_memory to check if similar approaches have been tried before",
+        "and what happened."
         "",
-        "## Analyst Proposal",
-        "```json",
-        json.dumps(proposal, indent=2, ensure_ascii=False),
-        "```",
+        "=== Proposal Diagnosis ===",
+        proposal.get("diagnosis", ""),
+        "",
+        "=== Evidence Citations ===",
     ]
-
-    if task_manifest:
+    for i, cit in enumerate(evidence, 1):
+        sections.append(f"{i}. Claim: {cit.get('claim', '')}")
+        sections.append(f"   Source: {cit.get('source', '')}")
+        sections.append(f"   Detail: {cit.get('detail', '')}")
         sections.append("")
-        sections.append("## Task Manifest (excerpt)")
-        sections.append(task_manifest)
 
-    if perception:
-        sections.append("")
-        sections.append("## Perception Report (for context)")
-        sections.append(perception)
-    if constraints:
-        sections.append("")
-        sections.append("## Environment Constraints")
-        sections.append(constraints)
-
-    return "\n".join(sections), stats
-
-
-def validate_proposal_adherence(code: str, proposal: dict) -> list[str]:
-    """Lightweight check that generated code contains analyst-requested code edits."""
-    issues = []
-    for change in proposal.get("proposed_changes", []) or []:
-        new_code = (change.get("new_code") or "").strip()
-        if not new_code:
-            continue
-        target = new_code.split("#", 1)[0].strip()
-        if not target:
-            continue
-        if target not in code:
-            component = change.get("component", "unknown_component")
-            issues.append(f"Proposal change not applied: {component} -> `{target}`")
-            continue
-
-        # Semantic-ish assignment check: if new_code has `lhs = rhs`, ensure rhs survived
-        m_new = re.match(r"\s*([A-Za-z_]\w*)\s*=\s*([^#\n]+)", target)
-        if m_new:
-            lhs, rhs = m_new.group(1).strip(), m_new.group(2).strip()
-            assign_pattern = rf"{re.escape(lhs)}\s*=\s*{re.escape(rhs)}(?:\s|$)"
-            if not re.search(assign_pattern, code):
-                issues.append(f"Assignment mismatch for `{lhs}`: expected `{rhs}`")
-
-        # If current_code is explicit, ensure obvious anti-pattern is removed
-        old_code = (change.get("current_code") or "").split("#", 1)[0].strip()
-        if old_code and old_code != target and old_code in code:
-            issues.append(f"Old pattern still present for `{change.get('component', 'unknown_component')}`: `{old_code}`")
-    return issues
+    sections.extend([
+        "After verifying all claims, output EXACTLY one of these lines:",
+        "",
+        'VERIFICATION: ACCEPT',
+        "  (all key claims are supported by the cited evidence)",
+        "",
+        'VERIFICATION: REJECT',
+        "  (one or more claims are inconsistent with what the actual files show)",
+        "",
+        "Then briefly explain which claims passed and which (if any) failed.",
+    ])
+    return "\n".join(sections)
 
 
-def validate_generated_code(code: str) -> list[str]:
-    """Validate generated code. Returns list of issues (empty = valid)."""
-    issues = []
-
-    # Must have compute_reward
-    if "def compute_reward" not in code:
-        issues.append("Missing 'def compute_reward'")
-
-    # Must have metrics_fn
-    if "def metrics_fn" not in code:
-        issues.append("Missing 'def metrics_fn' — required for evaluation")
-
-    # Must have return
-    if "return" not in code:
-        issues.append("No return statement found")
-
-    # Must have components dict
-    if "components" not in code:
-        issues.append("No 'components' dict — CARD tracking will be empty")
-
-    # Check for simulator object storage (common crash cause with SubprocVecEnv)
-    sim_patterns = [
-        r"self\.\w+\s*=\s*self\.\w+\.(position|linearVelocity|angle|angularVelocity)",
-        r"self\.\w+\s*=\s*self\.\w+\[\d+\]",
-    ]
-    for pattern in sim_patterns:
-        if re.search(pattern, code):
-            issues.append(f"Potential simulator object storage: {pattern}")
-            break
-
-    # metrics_fn contract checks
-    if "def metrics_fn(env, action)" not in code:
-        issues.append("metrics_fn signature must be exactly: def metrics_fn(env, action)")
-    if "env.unwrapped" in code:
-        issues.append("Do not use env.unwrapped inside metrics_fn; env is already unwrapped")
-
-    # Common anti-pattern: using physics awake/sleep as task metric or success logic
-    if re.search(r"\.awake\b|sleep", code):
-        issues.append("Avoid awake/sleep engine state in reward/metrics logic")
-
-    # Check syntax
-    try:
-        compile(code, "<generated>", "exec")
-    except SyntaxError as e:
-        issues.append(f"Syntax error: {e}")
-
-    return issues
-
-
-def run_generator_agent(run_dir: Path, proposal: dict,
-                         memory_system, api_key: str,
-                         model: str = "deepseek-reasoner",
-                         temperature: float = 0.3,
-                         max_retries: int = 2,
-                         constraints: str = "") -> tuple[Optional[str], str, list]:
-    """Run the generator agent to produce validated reward function code.
-
-    Args:
-        run_dir: Base run directory (for loading current reward function)
-        proposal: Structured proposal from analyst agent
-        memory_system: Memory system for task manifest
-        api_key: LLM API key
-        model: Model name
-        temperature: Lower temperature for code generation
-        max_retries: How many times to retry if validation fails
-        constraints: Environment-specific reward constraints (from exploration)
+def _run_verification(
+    proposal: dict,
+    experiment_dir: Path,
+    api_key: str,
+    model: str,
+    temperature: float,
+    memory_system=None,
+) -> dict:
+    """Run the ReAct verification loop.
 
     Returns:
-        Validated code string, or None if all retries failed
+        {"action": "accept", "reason": "..."}
+        or
+        {"action": "reject", "reason": "..."}
     """
-    prompt, compaction_stats = build_generator_prompt(run_dir, proposal, memory_system, constraints)
-    write_compaction_stats(run_dir / "generator_prompt_compaction.json", compaction_stats)
-    print(f"  Generator prompt: {len(prompt)} chars")
-    all_responses = []
+    evidence = proposal.get("evidence_citations", [])
+    if not evidence:
+        return {"action": "accept", "reason": "No evidence citations to verify."}
 
-    for attempt in range(max_retries + 1):
-        print(f"  LLM call attempt {attempt + 1}/{max_retries + 1} ...")
-        response = call_llm(prompt, api_key, model, temperature, timeout=600.0)
-        all_responses.append(response)
+    prompt = _build_verification_prompt(proposal)
+    tools = setup_default_tools(experiment_dir, memory_system)
 
-        # Extract code
-        code = _extract_reward_code(response)
-        if not code:
-            if attempt < max_retries:
-                prompt += "\n\n[RETRY: Previous response had no valid code block. Output only ```python block.]"
-                continue
-            return None, prompt, all_responses
+    result = run_react_loop(
+        system_prompt=prompt,
+        tools=tools,
+        api_key=api_key,
+        model=model,
+        temperature=temperature,
+        max_steps=8,
+        max_idle=2,
+        log_fn=lambda msg: print(f"  [Generator-Verify] {msg}"),
+    )
 
-        issues = validate_generated_code(code)
-        issues.extend(validate_proposal_adherence(code, proposal))
-        if not issues:
-            try:
-                memory_system.update_belief("generator", {
-                    "round": run_dir.name,
-                    "status": "success",
-                    "attempt": attempt + 1,
-                    "changed_count": proposal.get("changed_count", 0),
-                })
-            except Exception:
-                pass
-            return code, prompt, all_responses
+    final = result.get("final_output", "")
 
-        # If validation failed and we have retries left, add issues to prompt
-        if attempt < max_retries:
-            issue_str = "; ".join(issues)
-            prompt += f"\n\n[RETRY: Previous code had issues: {issue_str}. Fix ALL issues.]"
+    if "VERIFICATION: REJECT" in final.upper():
+        idx = final.upper().find("VERIFICATION: REJECT")
+        reason = final[idx + len("VERIFICATION: REJECT"):].strip()[:400]
+        return {"action": "reject", "reason": reason}
 
-    try:
-        memory_system.update_belief("generator", {
-            "round": run_dir.name,
-            "status": "failed",
-            "attempts": max_retries + 1,
-            "changed_count": proposal.get("changed_count", 0),
-        })
-    except Exception:
-        pass
-    return None, prompt, all_responses
+    if "VERIFICATION: ACCEPT" in final.upper():
+        return {"action": "accept", "reason": "All evidence citations verified."}
+
+    # Fallback: if parsing fails, accept with a warning
+    print("  [Generator-Verify] Could not parse verdict — accepting as fallback")
+    return {"action": "accept", "reason": "Verification inconclusive — proceeding."}
 
 
-def _extract_reward_code(response_text: str) -> Optional[str]:
-    """Extract Python code blocks from LLM response."""
-    blocks = re.findall(r"```python\s*\n(.*?)```", response_text, re.DOTALL)
-    if blocks:
-        # Combine all blocks that contain compute_reward or metrics_fn
-        relevant = [b for b in blocks if "def compute_reward" in b or "def metrics_fn" in b]
-        if relevant:
-            return "\n\n".join(relevant) + "\n"
-        return blocks[0] + "\n"
+# ── Phase 2: Code generation helpers ──────────────────────────────────────
+
+
+def _extract_code_from_response(text: str) -> str | None:
+    """Extract Python code block from LLM response."""
+    m = re.search(r"```python\s*\n(.*?)```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
     return None
 
 
-def _fallback_generator_prompt() -> str:
-    """Fallback generator prompt if template file is missing."""
-    return """Generate a complete Python module with compute_reward(self, action) and metrics_fn(env, action).
+def run_generator_agent(proposal: dict, current_reward_path: Path,
+                        run_dir: Path, api_key: str,
+                        model: str = "deepseek-reasoner",
+                        temperature: float = 0.3,
+                        max_retries: int = 3,
+                        memory_system=None) -> str | None:
+    """Run the generator agent: optional verification + code generation.
 
-The reward function must return (float, dict).
-The metrics_fn must return a dict of task-level metrics.
+    Phase 1 (if evidence_citations exist): ReAct verification loop.
+        Verifies the proposal's evidence claims by reading actual files.
+        If claims are rejected, saves the rejection and returns None.
 
-CRITICAL:
-- metrics_fn is MANDATORY
-- No Box2D object storage
-- All imports inside functions
-"""
+    Phase 2: Code generation with retry logic (existing flow).
+        Translates verified proposal into updated reward function code.
+
+    Args:
+        proposal: Analyzer/Meta-Analyzer's JSON proposal.
+        current_reward_path: Path to current reward function source.
+        run_dir: Output directory (for saving artifacts).
+        api_key: LLM API key.
+        model: LLM model name.
+        temperature: Sampling temperature.
+        max_retries: Max code generation attempts.
+        memory_system: Optional MemorySystem for knowledge base queries.
+
+    Returns:
+        Generated code string, or None if verification rejected or all retries failed.
+    """
+    if not current_reward_path.exists():
+        print(f"  [Generator] No current reward code found at {current_reward_path}")
+        return None
+
+    # ── Phase 1: Verification (if proposal has evidence citations) ──
+    evidence_citations = proposal.get("evidence_citations", [])
+    if evidence_citations:
+        experiment_dir = run_dir.parent
+        print(f"  [Generator] Verifying {len(evidence_citations)} evidence citations...")
+        ver = _run_verification(
+            proposal, experiment_dir, api_key, model, temperature, memory_system,
+        )
+        (run_dir / "generator_verification.json").write_text(
+            json.dumps(ver, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        if ver.get("action") == "reject":
+            reason = ver.get("reason", "")[:200]
+            print(f"  [Generator] Proposal REJECTED: {reason}")
+            return None
+        print(f"  [Generator] Proposal ACCEPTED after verification")
+    else:
+        print(f"  [Generator] No evidence citations — skipping verification")
+
+    # ── Phase 2: Code generation (existing flow) ──
+    current_code = current_reward_path.read_text("utf-8")
+
+    for attempt in range(1, max_retries + 1):
+        prompt = build_generator_prompt(proposal, current_code)
+        if attempt == 1:
+            (run_dir / "generator_prompt.txt").write_text(prompt, encoding="utf-8")
+
+        print(f"  [Generator] Calling LLM (attempt {attempt}/{max_retries}) ...")
+        try:
+            response = call_llm(prompt, api_key, model, temperature)
+        except Exception as e:
+            print(f"  [Generator] LLM call failed: {e}")
+            continue
+
+        code = _extract_code_from_response(response)
+        if not code:
+            print(f"  [Generator] No code block in response (attempt {attempt})")
+            continue
+
+        # Strip leading/trailing whitespace
+        code = code.strip()
+
+        # Validate: must have compute_reward
+        if "def compute_reward" not in code:
+            print(f"  [Generator] Missing compute_reward function (attempt {attempt})")
+            continue
+
+        # Syntax check
+        try:
+            compile(code, "<generated>", "exec")
+        except SyntaxError as e:
+            print(f"  [Generator] Syntax error: {e} (attempt {attempt})")
+            continue
+
+        # Success
+        print(f"  [Generator] Code generated ({len(code)} chars)")
+        (run_dir / "generator_response.txt").write_text(response, encoding="utf-8")
+        return code
+
+    print(f"  [Generator] All {max_retries} attempts failed. Falling back to previous round's code.")
+    return None

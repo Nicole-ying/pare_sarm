@@ -1,0 +1,4 @@
+{
+  "action": "reject",
+  "reason": "**\n\n**Explanation:**\n\nThe proposal contains one correct claim and two factual errors in its evidence citations:\n\n1. **Claim: \"Agent hovers at y≈0.54\"** ✅ **PASS**  \n   Source `round4/perception_report.md` confirms `height=0.544169` at 1M steps. This is accurate.\n\n2. **Claim: \"Ground penalty uses y_vel²\"** ❌ **FAIL — coefficient is wrong**  \n   Source `round4/reward_fn_source.py` shows `ground_spee"
+}

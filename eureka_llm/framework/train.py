@@ -37,7 +37,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNorm
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import BaseCallback
 
-from wrappers import EpisodeInfoWrapper, MetricsTrackingWrapper, ComponentTrackerWrapper, PickleSafeInfoWrapper
+from wrappers import EpisodeInfoWrapper, ComponentTrackerWrapper, PickleSafeInfoWrapper
 
 BEIJING = timezone(timedelta(hours=8))
 
@@ -48,12 +48,7 @@ BEIJING = timezone(timedelta(hours=8))
 
 def inject_and_register(env_dir: Path, reward_source: Path, register_as: str,
                          max_episode_steps: int = None):
-    """Load env class, inject compute_reward, register with gym.
-
-    Must be called BEFORE env creation to ensure the env is registered.
-    Returns metrics_fn if defined in reward_source, else None.
-    """
-    # 1. Load env class from env.py
+    """Load env class, inject compute_reward, register with gym."""
     env_py = env_dir / "env.py"
     if not env_py.exists():
         raise FileNotFoundError(f"{env_py} not found")
@@ -71,10 +66,8 @@ def inject_and_register(env_dir: Path, reward_source: Path, register_as: str,
     if env_class is None:
         raise ValueError(f"No gym.Env subclass found in {env_py}")
 
-    # 2. Load and inject compute_reward
     reward_code = reward_source.read_text(encoding="utf-8")
     compiled = compile(reward_code, str(reward_source), "exec")
-    # Provide module constants in exec scope so bare names like TERRAIN_LENGTH work
     scope = {"np": np, "math": math}
     for _name in dir(mod):
         _val = getattr(mod, _name)
@@ -86,20 +79,13 @@ def inject_and_register(env_dir: Path, reward_source: Path, register_as: str,
     if "compute_reward" not in scope:
         raise ValueError(f"reward_source must define 'compute_reward'")
 
-    setattr(env_class, "compute_reward", scope["compute_reward"])
+    setattr(env_class, "compute_reward", staticmethod(scope["compute_reward"]))
 
-    # Also inject metrics_fn if defined (used by MetricsTrackingWrapper)
-    if "metrics_fn" in scope:
-        setattr(env_class, "metrics_fn", scope["metrics_fn"])
-
-    # 3. Register with gym (with time limit to prevent infinite episodes)
     gym.envs.registration.registry.pop(register_as, None)
     register_kwargs = {"id": register_as, "entry_point": lambda **kwargs: env_class(**kwargs)}
     if max_episode_steps is not None:
         register_kwargs["max_episode_steps"] = max_episode_steps
     gym.register(**register_kwargs)
-
-    return scope.get("metrics_fn", None)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -111,7 +97,6 @@ def make_env(env_id: str, monitor_path: Path, traj_path: Path, seed: int = 0):
     def _init():
         env = gym.make(env_id)
         env = EpisodeInfoWrapper(env)
-        env = MetricsTrackingWrapper(env)
         env = ComponentTrackerWrapper(env, traj_path)
         env = PickleSafeInfoWrapper(env)
         env = Monitor(env, filename=str(monitor_path))
@@ -135,12 +120,11 @@ def make_eval_env(env_id: str, seed: int = None):
 # Behavior evaluation
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_behavior_eval(env_id, model, vecnormalize_path, episodes, metrics_fn=None, seed=None) -> dict:
-    """
-    Run behavior-metric evaluation.
+def run_behavior_eval(env_id, model, vecnormalize_path, episodes, seed=None) -> dict:
+    """Run behavior evaluation — tracks episode lengths.
 
-    Relies entirely on metrics_fn(env, action) for task-specific indicators.
-    Only generic metric is mean_length (episode length).
+    Per-component statistics are captured by ComponentTrackerWrapper during
+    training and aggregated by pipeline._collect_component_stats().
     """
     base_env = DummyVecEnv([make_eval_env(env_id, seed=seed)])
     if vecnormalize_path:
@@ -151,8 +135,6 @@ def run_behavior_eval(env_id, model, vecnormalize_path, episodes, metrics_fn=Non
         env = base_env
 
     lengths = []
-    step_metrics: dict[str, list] = {}
-    metrics_errors: list[str] = []
     current_length = 0
 
     obs = env.reset()
@@ -161,25 +143,6 @@ def run_behavior_eval(env_id, model, vecnormalize_path, episodes, metrics_fn=Non
         obs, _, dones, infos = env.step(action)
         current_length += 1
 
-        if metrics_fn is not None:
-            try:
-                raw_obs = env.get_original_obs()
-            except AttributeError:
-                raw_obs = obs
-            try:
-                raw_env = env.venv.envs[0].unwrapped
-            except AttributeError:
-                raw_env = env.envs[0].unwrapped
-            try:
-                m = metrics_fn(raw_env, action[0] if isinstance(action, np.ndarray) else action)
-                if isinstance(m, dict):
-                    for name, value in m.items():
-                        step_metrics.setdefault(name, []).append(float(value))
-            except Exception as e:
-                print(f"  [eval warning] metrics_fn error: {e}")
-                if len(metrics_errors) < 10:
-                    metrics_errors.append(str(e))
-
         if dones[0]:
             lengths.append(current_length)
             current_length = 0
@@ -187,18 +150,10 @@ def run_behavior_eval(env_id, model, vecnormalize_path, episodes, metrics_fn=Non
 
     env.close()
     n = len(lengths)
-    result = {
+    return {
         "episodes": n,
         "mean_length": round(float(np.mean(lengths)), 2),
     }
-    if step_metrics:
-        result["env_metrics"] = {
-            k: {"mean": round(float(np.mean(v)), 6), "std": round(float(np.std(v)), 6)}
-            for k, v in step_metrics.items()
-        }
-    if metrics_errors:
-        result["metrics_fn_errors"] = metrics_errors
-    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -243,16 +198,17 @@ def record_gif(env_id, model, vecnormalize_path, output_path, max_steps=2000, fp
 class TrainCallback(BaseCallback):
     """Checkpoint + evaluation + GIF callback."""
 
-    def __init__(self, cfg, run_dir, env_id, metrics_fn=None, seed=None):
+    def __init__(self, cfg, run_dir, env_id, seed=None):
         super().__init__()
         self.cfg = cfg
         self.run_dir = run_dir
         self.env_id = env_id
-        self.metrics_fn = metrics_fn
         self.seed = seed
-        self.checkpoint_freq = cfg["checkpoint"]["freq"]
-        self.eval_freq = cfg["evaluation"]["freq"]
-        self.eval_episodes = cfg["evaluation"]["episodes"]
+        checkpoint_cfg = cfg.get("checkpoint", {}) or {}
+        eval_cfg = cfg.get("evaluation", {}) or {}
+        self.checkpoint_freq = checkpoint_cfg.get("freq", cfg.get("total_timesteps", 1_000_000) * 10)
+        self.eval_freq = eval_cfg.get("freq", cfg.get("total_timesteps", 200_000) // 2)
+        self.eval_episodes = eval_cfg.get("episodes", 5)
         self.next_checkpoint = self.checkpoint_freq
         self.next_eval = self.eval_freq
         self._history_path = run_dir / "evaluations" / "history.csv"
@@ -263,9 +219,7 @@ class TrainCallback(BaseCallback):
         self._history_path.parent.mkdir(parents=True, exist_ok=True)
         if not self._history_path.exists():
             with self._history_path.open("w", newline="", encoding="utf-8") as f:
-                csv.writer(f).writerow([
-                    "timesteps", "mean_length", "env_metrics",
-                ])
+                csv.writer(f).writerow(["timesteps", "mean_length"])
 
     def _save_checkpoint(self, timesteps):
         ckpt_dir = self.run_dir / "checkpoints"
@@ -280,7 +234,7 @@ class TrainCallback(BaseCallback):
     def _run_evaluation(self, timesteps, vn_path):
         metrics = run_behavior_eval(
             self.env_id, self.model, vn_path, self.eval_episodes,
-            metrics_fn=self.metrics_fn, seed=self.seed,
+            seed=self.seed,
         )
         metrics["timesteps"] = timesteps
         step_dir = self.run_dir / "evaluations" / f"step_{timesteps:07d}"
@@ -288,11 +242,7 @@ class TrainCallback(BaseCallback):
         (step_dir / "summary.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
         with self._history_path.open("a", newline="", encoding="utf-8") as f:
-            csv.writer(f).writerow([
-                timesteps,
-                metrics.get("mean_length", ""),
-                json.dumps(metrics.get("env_metrics", {})),
-            ])
+            csv.writer(f).writerow([timesteps, metrics.get("mean_length", "")])
 
         # Record policy entropy (training dynamics signal)
         try:
@@ -308,12 +258,7 @@ class TrainCallback(BaseCallback):
         except Exception:
             pass  # non-critical — entropy is auxiliary
 
-        env_str = " | ".join(
-            f"{k}={v['mean']:.3f}" for k, v in metrics.get("env_metrics", {}).items()
-        )
-        print(f"  [eval t={timesteps}] "
-              f"len={metrics.get('mean_length', 0):.0f}"
-              + (f" | {env_str}" if env_str else ""))
+        print(f"  [eval t={timesteps}] len={metrics.get('mean_length', 0):.0f}")
 
     def _on_step(self):
         while self.num_timesteps >= self.next_checkpoint:
@@ -368,8 +313,9 @@ if __name__ == "__main__":
     parser.add_argument("--run-dir", required=True)
     parser.add_argument("--reward-source", required=True,
                         help="Path to reward_fn_source.py (injected into env class)")
-    parser.add_argument("--max-episode-steps", type=int, default=None,
-                        help="Episode time limit (default: no limit, but env may never terminate)")
+    parser.add_argument("--max-episode-steps", type=int, default=None)
+    parser.add_argument("--warmstart", default=None,
+                        help="Path to a model.zip checkpoint to continue training from")
     args = parser.parse_args()
 
     os.environ["OMP_NUM_THREADS"] = "1"
@@ -394,9 +340,9 @@ if __name__ == "__main__":
     reward_source_path = Path(args.reward_source)
     (run_dir / "reward_fn_source.py").write_bytes(reward_source_path.read_bytes())
 
-    # ── Inject reward into env class & register (in-process, before fork) ──
+    # ── Inject reward into env class & register ──
     print(f"Injecting reward from {reward_source_path} into {args.env_dir} ...")
-    metrics_fn = inject_and_register(
+    inject_and_register(
         Path(args.env_dir), reward_source_path, args.env_id,
         max_episode_steps=args.max_episode_steps,
     )
@@ -416,35 +362,46 @@ if __name__ == "__main__":
             torch.cuda.manual_seed_all(seed)
 
     torch.set_num_threads(1)
-    env = SubprocVecEnv([
+    # Use DummyVecEnv by default: SubprocVecEnv+fork corrupts C++ physics
+    # engines (Box2D, MuJoCo) in child processes. DummyVecEnv runs envs in
+    # the main process, avoiding fork-related crashes and silent data loss.
+    env = DummyVecEnv([
         make_env(env_id, monitor_dir / f"{i}.monitor.csv", traj_dir / f"{i}.trajectory.jsonl",
                  seed=(seed or 0) + i)
         for i in range(n_envs)
-    ], start_method="fork")
+    ])
 
     if cfg.get("normalize", True):
         env = VecNormalize(env, norm_obs=True, norm_reward=True)
 
-    # ── Model ──
-    ppo = cfg["ppo"]
-    model_kwargs = dict(
-        policy=ppo["policy"], env=env,
-        device=cfg.get("device", "cpu"),
-        learning_rate=ppo["learning_rate"],
-        n_steps=ppo["n_steps"],
-        batch_size=ppo["batch_size"],
-        n_epochs=ppo["n_epochs"],
-        gamma=ppo["gamma"],
-        gae_lambda=ppo["gae_lambda"],
-        clip_range=ppo["clip_range"],
-        ent_coef=ppo["ent_coef"],
-        vf_coef=ppo["vf_coef"],
-        max_grad_norm=ppo["max_grad_norm"],
-        verbose=1,
-    )
-    if seed is not None:
-        model_kwargs["seed"] = seed
-    model = PPO(**model_kwargs)
+    # ── Model (warmstart or fresh) ──
+    warmstart_path = args.warmstart
+    warmstart_steps = 0
+    if warmstart_path and Path(warmstart_path).exists():
+        print(f"Loading warmstart model from {warmstart_path} ...")
+        model = PPO.load(warmstart_path, env=env, device=cfg.get("device", "cpu"))
+        warmstart_steps = model.num_timesteps
+        print(f"  Warmstart loaded ({warmstart_steps} prior steps) — continuing training")
+    else:
+        ppo = cfg["ppo"]
+        model_kwargs = dict(
+            policy=ppo["policy"], env=env,
+            device=cfg.get("device", "cpu"),
+            learning_rate=ppo["learning_rate"],
+            n_steps=ppo["n_steps"],
+            batch_size=ppo["batch_size"],
+            n_epochs=ppo["n_epochs"],
+            gamma=ppo["gamma"],
+            gae_lambda=ppo["gae_lambda"],
+            clip_range=ppo["clip_range"],
+            ent_coef=ppo["ent_coef"],
+            vf_coef=ppo["vf_coef"],
+            max_grad_norm=ppo["max_grad_norm"],
+            verbose=1,
+        )
+        if seed is not None:
+            model_kwargs["seed"] = seed
+        model = PPO(**model_kwargs)
 
     print(f"Run dir  : {run_dir}")
     print(f"Env ID   : {env_id}")
@@ -453,8 +410,11 @@ if __name__ == "__main__":
     t0 = perf_counter()
     model.learn(
         total_timesteps=cfg["total_timesteps"],
-        callback=TrainCallback(cfg, run_dir, env_id, metrics_fn, seed=seed),
+        callback=TrainCallback(cfg, run_dir, env_id, seed=seed),
     )
+    # SB3 resets num_timesteps in learn(). Restore total for correct checkpointing.
+    if warmstart_steps:
+        model.num_timesteps = warmstart_steps + model.num_timesteps
     elapsed = perf_counter() - t0
 
     model.save(run_dir / "model")

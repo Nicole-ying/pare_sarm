@@ -26,9 +26,6 @@ You do NOT propose changes to the reward function. You do NOT write code. You on
 ### Training Dynamics (Component Balance & Stability)
 {dynamics_section}
 
-### TDRQ Index (Training-Dynamics Reward Quality)
-{tdrq_section}
-
 ### Constraint Discovery (Algorithmic, Non-LLM)
 {constraint_discovery_section}
 
@@ -67,22 +64,18 @@ Produce a structured markdown report with these sections:
 - In plain language, what is the agent's current strategy?
 - Is it reward hacking? Stuck in a local optimum? Making genuine progress?
 - Include one sentence on **efficiency** using relative terms (high effort/low gain or low effort/high gain).
-- Compare observed behavior against the Task Context above. Does the agent's strategy match the intended task goal? Flag any patterns inconsistent with the task description (e.g., abnormal posture, inefficient gaits, unexpected metric correlations).
+- Compare observed behavior against the Task Context above. Does the agent's strategy match the intended task goal? Flag any patterns inconsistent with the task description (e.g., unexpected state distributions, inefficient action patterns, surprising metric correlations).
 
-### 5. TDRQ Diagnosis
-- Explain whether low TDRQ is mainly from imbalance, inactivity, or exploration collapse
-- Give one sentence on whether this reward should be iterated, diversified (search/population), or kept
-
-### 6. Constraint Violations Summary
+### 5. Constraint Violations Summary
 - Summarize which general principles are currently violated (if any), and rank them by urgency
 - Use relative language (dominant share, trend, ratio, concentration), not absolute fixed judgments
 
-### 7. Episode Consistency Summary
+### 6. Episode Consistency Summary
 - Compare early vs late behavior signals and state whether policy style is consistent or drifting
 - Explain if drift appears healthy adaptation or unstable policy behavior
 
-### 8. Key Numbers for Budget Calculation
-Extract numerical metrics from the Evaluation Metrics table for use in reward budget analysis:
+### 7. Key Metrics Numbers
+Extract numerical metrics from the Evaluation Metrics table:
 - mean_length
 - All task-level metrics listed in the Evaluation Metrics table
 

@@ -1,167 +1,40 @@
-You are an expert RL researcher designing a reward function for an environment you have never seen before. Your task is to read the environment source code and random rollout statistics, understand the task, and produce a reward function that will train an agent to succeed.
+You are a reward engineer designing a reward function for a reinforcement learning environment. Your reward function must guide the agent from random behavior to mastering the task.
 
-You have NO access to the official reward function — it has been excluded from the source code. You must infer the task goal ENTIRELY from the termination conditions and observation structure.
+The reward function will be evaluated by training a policy with it and tracking the per-component values (max, mean, min) throughout training. These component statistics will be used to diagnose which signals are working and which are dead.
 
-## Environment Data
+== Environment Context ==
 
-- Observation dimensions: {obs_dim}
-- Action space: {action_desc}
-- Time limit per episode: {max_ep_steps} steps
+Task Manifest:
+{task_manifest}
 
-### Task Description
+Exploration Data (random-policy rollouts):
+{exploration_summary}
 
-{task_description}
+== Design Principles ==
 
-### Step Source Code (reward excluded)
+1. **Return (total, component_dict).** Total is a scalar float. Component dict maps human-readable names to per-step scalar values. Named components are essential — they enable the system to track which reward signals are active, dominant, or dead during training.
 
-```python
-{step_source}
-```
+2. **Provide shaping gradients.** The agent should feel progress at every step. Include components that create a smooth gradient from initial state to goal state. The terminal state should have the highest total.
 
-### Random Rollout Statistics
+3. **Balance magnitudes.** If one component is 100x larger than another, the agent ignores the smaller one. Target: all components within roughly 50x of each other in expected per-step magnitude.
 
-Random policy ({n_episodes} episodes, each up to {max_ep_steps} steps):
+4. **Terminal signals must not dominate.** Ensure the per-step shaping is strong enough relative to any terminal bonus/penalty. If terminal dominates, the agent learns to end episodes quickly rather than solve the task.
 
-**Observation space** ({obs_dim} dimensions — use ranges below to calibrate reward coefficients):
+5. **Include _outcome for evaluation visibility.** Add an "_outcome" key to the component dict: 1.0 for success, -1.0 for failure, 0.0 otherwise. Compute total BEFORE adding _outcome so it does not affect learning.
 
-| dim | space bounds | mean ± std | [min, max] | inferred type |
-|-----|-------------|-----------|------------|--------------|
-{obs_rows}
+== Self-Verification ==
 
-**Termination breakdown:**
-{term_summary}
+{shared_rules}
 
-### Auto-Derived Reward Constraints
+== Output ==
 
-{reward_constraints}
-
----
-# ═══════════════════════════════════════════════════
-# Phase 1: Understand the Environment (Think Aloud)
-# ═══════════════════════════════════════════════════
-
-Before writing any code, think through the environment carefully in free-form.
-
-Read the step() source code. Trace how the observation state is built, how actions affect the physics, and what conditions cause `terminated = True`. The termination conditions define what "success" and "failure" mean.
-
-Think through these (do NOT write structured tables):
-
-1. **What does each observation dimension represent?** Match each element to a specific sensor reading, velocity, angle, contact flag, etc. The observation stats table gives numerical ranges — use them to identify which dimensions are angles (±π), positions, velocities, or binary flags.
-
-2. **What is the task goal?** Based on the termination conditions and observation structure, what must the agent achieve?
-
-3. **What's the simplest possible reward signal?** If you could only use ONE reward component, what would it be? This will be your primary task signal.
-
-4. **What's the minimum shaping needed?** Is the primary signal too sparse for random exploration to occasionally trigger it? If yes, what one extra shaping component would help the agent start learning?
-
----
-# ═══════════════════════════════════════════════════
-# Phase 2: Write compute_reward and metrics_fn
-# ═══════════════════════════════════════════════════
-
-## Round 0 Rule: Prioritize Learnable Signals
-
-This is round 0. Do NOT try to write the perfect reward function. Write the SIMPLEST possible reward that gives the agent a useful learning signal. Iteration rounds will refine — add shaping when it turns out to be needed, remove components that don't help.
-
-**Guidelines:**
-- **At most 3-4 reward components. Fewer is better.**
-- Component 1 must be the primary task signal (progress toward the goal or an outcome signal).
-- Shaping components are optional — only add them if the primary signal alone would be too sparse.
-- Do not add many extra terms by default. If a dynamics-related term is added, it must be minimal and justified by learnability (not overfitting).
-- Every extra component must justify itself: "Would the agent fail to learn anything WITHOUT this component?"
-
-Before writing code, include a short "dynamics thinking" paragraph in comments: what physical process dominates this task (balance, propulsion, gravity, contact, etc.) and why your primary signal matches it.
-
-**Round 0 should be simple but not blind: sparse structure + learnable dynamics signal.**
-
-### Design Pattern (generic, no task-specific answer)
-
-Start with one primary component tied to progress toward terminal success conditions derived from data.
-Use scaling based on observed rollout ranges (relative scale), then add at most one shaping term only if learnability requires it.
-
-### Write compute_reward
+Output ONE Python code block. The compute_reward signature below is DEFINITIVE — use exactly these parameter names and order.
 
 ```python
-def compute_reward(self, {compute_reward_signature}):
-    """
-    Returns:
-        total_reward: float — scalar reward for this step
-        components: dict — named components for CARD analysis
-    """
-    components = {}
+def compute_reward({compute_reward_signature}):
+    # Compute per-step reward components
     ...
-    total = sum(components.values())
-
-    # Terminal outcome signal — for EVALUATION only, excluded from reward
-    # _outcome is added to the components dict for eval but NOT to total
-    if terminated:
-        if <success condition>:
-            components["_outcome"] = 1.0
-        elif <failure condition>:
-            components["_outcome"] = -1.0
-        else:
-            components["_outcome"] = 0.0
-        # total is NOT modified — _outcome exists in the dict only for eval
-
+    total = sum(components.values())  # BEFORE adding _outcome
+    components["_outcome"] = ...       # 1.0 success, -1.0 failure, 0.0 otherwise
     return total, components
-```
-
-Rules:
-- Access env state via `self.xxx` (all environment variables are accessible)
-- Cross-step state: store in `self._xxx` attributes (reset() handles cleanup)
-- State tracking safety pattern:
-    ```python
-    if not hasattr(self, '_step_count'):
-        self._step_count = 0
-    self._prev_action = action
-    self._step_count += 1
-    ```
-- Every numeric constant must have a comment justifying its magnitude
-- Components should use descriptive names (e.g., `r_progress`, `r_stability`, `r_penalty`)
-- Return (float, dict) — dict keys become CARD tracking dimensions
-
-Termination outcome (`_outcome`):
-- Set `_outcome` AFTER `total = sum(...)` — _outcome is only for evaluation, NEVER added to total
-- Determine success/failure using ONLY observation state (positions, velocities, angles, contacts), NOT physics-engine internal state like `awake` or `sleeping`
-- If the current step is NOT terminal (`terminated=False`), do NOT include `_outcome`
-
-Allowed imports:
-{allowed_imports}
-
-### Write metrics_fn
-
-```python
-def metrics_fn(env, action) -> dict:
-    """
-    Task-level metrics independent of the reward function.
-    3-6 metrics that capture task performance.
-
-    Args:
-        env: environment instance (unwrapped) — read state AFTER step
-        action: the action taken this step
-
-    How to access cross-step state:
-        pre = getattr(env, '_pre_step_state', {})  # snapshot saved BEFORE compute_reward
-        prev_action = pre.get('_prev_action', action)
-    """
-    ...
-    return {"metric_name": value, ...}
-```
-
-Rules:
-- 3-6 metrics measuring distinct aspects of task performance
-- Combine observations into higher-level indicators (e.g., distance-to-goal, stability, efficiency)
-- NOT just copies of reward components or raw observation readings
-- NOT reward values — metrics must be reward-agnostic
-- **Find attributes from step() source**: Look at the step() source code above. Every `self.xxx = ...` in step() becomes `env.xxx` in metrics_fn. For example, if step() sets `self.lander`, use `env.lander`. Do NOT guess attribute names not seen in step() source.
-- **Access all attributes safely**: Use `getattr(env, 'attr_name', fallback_value)` for every attribute access. Never let any single failed lookup crash the whole function.
-
-Put compute_reward and metrics_fn in a single Python code block:
-
-```python
-def compute_reward(self, ...):
-    ...
-
-def metrics_fn(self, env, action) -> dict:
-    ...
 ```

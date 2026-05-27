@@ -1,9 +1,9 @@
 """
-wrappers.py — Wrappers for the eureka_llm framework.
+wrappers.py — Environment wrappers for the eureka_llm framework.
 
-EpisodeInfoWrapper — captures end-of-episode state for generic completion detection
-ComponentTrackerWrapper — logs reward components per episode to JSONL (CARD data)
-PickleSafeInfoWrapper — strips non-picklable items from info dict (SubprocVecEnv safety)
+EpisodeInfoWrapper — captures end-of-episode state for completion detection
+ComponentTrackerWrapper — logs reward components per episode to JSONL
+PickleSafeInfoWrapper — strips non-picklable items from info dict
 """
 
 import json
@@ -33,31 +33,6 @@ class EpisodeInfoWrapper(gym.Wrapper):
         return obs, reward, terminated, truncated, info
 
 
-class MetricsTrackingWrapper(gym.Wrapper):
-    """
-    Calls metrics_fn (if available on the env class) on each step and stores
-    the results in info["env_metrics"] for downstream tracking.
-
-    metrics_fn is injected onto the env class by inject_and_register() in
-    train.py, so it is available via env.unwrapped.metrics_fn.
-    """
-
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        # Check if metrics_fn is available on the base env class
-        metrics_fn = getattr(self.env.unwrapped, "metrics_fn", None)
-        if metrics_fn is not None:
-            try:
-                metrics = metrics_fn(self.env.unwrapped, action)
-                if isinstance(metrics, dict):
-                    info["env_metrics"] = metrics
-            except Exception as e:
-                # metrics_fn is LLM-generated. Record the error for debugging instead
-                # of silently dropping it, so prompt/logic issues are observable.
-                info.setdefault("_metrics_fn_errors", []).append(str(e))
-        return obs, reward, terminated, truncated, info
-
-
 class ComponentTrackerWrapper(gym.Wrapper):
     """
     Accumulates reward components across each episode and writes per-episode
@@ -78,7 +53,6 @@ class ComponentTrackerWrapper(gym.Wrapper):
         self._step_count = 0
         self._components: dict[str, list] = {}
         self._env_metrics: dict[str, list] = {}
-        self._metrics_errors: list[str] = []
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
@@ -89,9 +63,6 @@ class ComponentTrackerWrapper(gym.Wrapper):
 
         for name, value in info.get("env_metrics", {}).items():
             self._env_metrics.setdefault(name, []).append(float(value))
-
-        for err in info.get("_metrics_fn_errors", []):
-            self._metrics_errors.append(str(err))
 
         if terminated or truncated:
             self._save_episode()
@@ -118,8 +89,6 @@ class ComponentTrackerWrapper(gym.Wrapper):
             record["env_metrics_stds"] = {
                 k: round(float(np.std(v)), 6) for k, v in self._env_metrics.items()
             }
-        if self._metrics_errors:
-            record["metrics_fn_errors"] = self._metrics_errors[:5]
         with self._log_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
 
@@ -128,10 +97,10 @@ class PickleSafeInfoWrapper(gym.Wrapper):
     """
     Strip non-picklable items from the info dict.
 
-    LLM-generated reward functions may store Box2D (SWIG) objects as instance
-    attributes that get captured in the env's step info.  When the env runs in
-    SubprocVecEnv, the worker sends (obs, reward, done, info) through a pipe,
-    which requires pickle — any non-picklable value in info causes a crash.
+    LLM-generated reward functions may store non-picklable objects (e.g., physics
+    engine references) as instance attributes that get captured in info. When the
+    env runs in SubprocVecEnv, the worker sends (obs, reward, done, info) through
+    a pipe, which requires pickle — any non-picklable value causes a crash.
 
     This wrapper sanitises the info dict so the experiment survives bad data:
     non-picklable entries are replaced with their string representation rather

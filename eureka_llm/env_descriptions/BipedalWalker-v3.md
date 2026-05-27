@@ -1,2 +1,2 @@
-## Task Goal
-Control a 2D bipedal walker (4 joints: 2 hips + 2 knees) to walk forward along uneven terrain. The walker must maintain balance, lift its feet over obstacles (stumps, pits), and reach the far right of the terrain.
+## Environment Description
+Control a four-joint bipedal walker robot to walk forward across uneven terrain as far as possible. The robot has a hull (body), two hips, and two knees. The terrain has slight height variations. A successful agent reaches the far end of the terrain and scores 300+ points within 1600 timesteps.

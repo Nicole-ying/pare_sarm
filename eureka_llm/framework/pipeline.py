@@ -1,1117 +1,1015 @@
 """
-pipeline.py — Multi-agent reward function iteration pipeline.
+pipeline.py — Evolutionary multi-agent reward design pipeline.
 
-Orchestrates the full agent workflow:
-    Round 0: LLM generates initial reward → Train → Perception → Task Manifest
-    Round N: Perception → Analyst (ReAct) → Generator → Train → Reflection → Memory
+Key design (aligned with Eureka paper + CARD + Auto MC-Reward):
 
-Usage:
-    python pipeline.py --mode round0 --env-dir envs/BipedalWalker-v3/ ...
-    python pipeline.py --mode iterate --run-dir runs/my_experiment/ --round 1 ...
+Round 0:  EnvPerception → K=3 parallel candidates → 200K proxy train each
+         → select best via component stats → 1M full train on winner
 
-This preserves the EXACT same experiment logging structure as the original framework.
-All training (train.py), evaluation (evaluate.py), and behavior metric collection
-logic is unchanged.
+Round N:  Perception → Analyzer (gets component stats from prev round)
+         → Generator: K=3 candidates → TPE pre-filter (skip bad ones)
+         → 200K proxy each survivor → component stats ranking → pick best
+         → 1M full train on winner → Reflection → Memory
+
+This solves: single-point failure (K>1), training waste (proxy first),
+and missing feedback (component stats replace metrics_fn).
 """
 
-import argparse
-import json
-import os
-import re
-import shutil
-import sys
-import subprocess
-import time
-from dataclasses import dataclass, field
+from __future__ import annotations
+
+import json, os, re, subprocess, sys, time, csv
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from time import perf_counter
-from typing import Callable
+from typing import Any
 
 try:
-    import yaml  # type: ignore
-except Exception:
+    import yaml
+except ImportError:
     yaml = None
 
-# Ensure framework directory is on path for imports
+import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 _framework_dir = Path(__file__).resolve().parent
 if str(_framework_dir) not in sys.path:
     sys.path.insert(0, str(_framework_dir))
-from runtime_policy import compute_evidence_fingerprint, should_rerun_analyst
 
-from llm_call import call_llm, extract_reward_fn, save_artifacts
-from template_engine import (
-    build_round0_prompt,
-    derive_reward_constraints,
-    load_training_data,
-)
+from communication.message_pool import MessagePool
+from communication.schemas import AgentMessage
 from memory.memory_system import MemorySystem
-
+from memory.context import build_memory_context, inject_memory_into_prompt
+from agents.v2_agents import (
+    EnvPerceptionAgent, PerceptionAgent, AnalyzerAgent,
+    GeneratorAgent, ReflectionAgent, EvaluatorAgent,
+)
+from llm_call import call_llm, extract_reward_fn
+from template_engine import build_round0_prompt
 
 BEIJING = timezone(timedelta(hours=8))
 
+# ── Constants ────────────────────────────────────────────────────────────────
 
-def _safe_load_config_text(text: str) -> dict:
-    if yaml is not None:
-        return yaml.safe_load(text) or {}
-    # Minimal fallback parser for dry-run when PyYAML is unavailable.
-    # Supports only top-level "key: value" pairs.
-    out = {}
-    for line in text.splitlines():
-        s = line.strip()
-        if not s or s.startswith("#") or ":" not in s:
-            continue
-        k, v = s.split(":", 1)
-        out[k.strip()] = v.strip().strip("'\"")
-    return out
+K_CANDIDATES = 3          # Reward candidates per round
+PROXY_TIMESTEPS = 100_000 # Short proxy evaluation per candidate
+FULL_TIMESTEPS = 1_000_000
 
 
-def _safe_dump_config(cfg: dict) -> str:
-    if yaml is not None:
-        return yaml.safe_dump(cfg, sort_keys=False)
-    import json
-    return json.dumps(cfg, ensure_ascii=False, indent=2)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Component Health Scoring (PARE: Progress-Aligned Reward Evolution)
+# ═══════════════════════════════════════════════════════════════════════════════
 
+def compute_component_health(
+    proxy_dir: Path = None,
+    aggregated_stats: list[dict] = None,
+    eval_history: list[dict] = None,
+    max_episode_steps: int = 1000,
+) -> dict:
+    """Score a reward candidate using PARE diagnosis.
 
-class _LogFile:
-    """Shared log file handle for both stdout and stderr tee."""
-    def __init__(self, path: Path):
-        self.handle = path.open("w", encoding="utf-8", buffering=1)
+    Computes per-component progress alignment and failure conflict
+    from trajectory logs, then produces a health score in [0, 100].
 
-    def write(self, data: str):
-        self.handle.write(data)
-
-    def flush(self):
-        self.handle.flush()
-
-
-class _Tee:
-    """Tee a stream to both console and the shared log file."""
-    def __init__(self, stream, log_file: _LogFile):
-        self.stream = stream
-        self.log = log_file
-
-    def write(self, data: str):
-        self.stream.write(data)
-        self.log.write(data)
-
-    def flush(self):
-        self.stream.flush()
-        self.log.flush()
-
-
-def _setup_logging(exp_dir: Path) -> _Tee:
-    """Redirect stdout and stderr to tee into experiment.log."""
-    log_file = _LogFile(exp_dir / "experiment.log")
-    stdout_tee = _Tee(sys.stdout, log_file)
-    stderr_tee = _Tee(sys.stderr, log_file)
-    sys.stdout = stdout_tee
-    sys.stderr = stderr_tee
-    return stdout_tee
-
-
-_ENV_DESC_DIR = Path(__file__).resolve().parent.parent / "env_descriptions"
-
-
-def _load_env_description(env_name: str) -> str:
-    """Load environment description markdown for a given env name.
-
-    Args:
-        env_name: Environment directory name, e.g. "HalfCheetah-v4"
-
-    Returns:
-        Description string, or empty string if no description file exists.
+    Weights: activation 25% + balance 25% + progress_alignment 40% - failure_conflict 10%
     """
-    desc_path = _ENV_DESC_DIR / f"{env_name}.md"
-    if desc_path.exists():
-        return desc_path.read_text("utf-8").strip()
-    return ""
-
-
-def _run_subprocess(cmd: list) -> subprocess.CompletedProcess:
-    """Run subprocess, piping stdout/stderr through the Tee logger in real time.
-
-    Captures stdout and stderr separately for self-heal error analysis.
-    """
-    import threading
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, bufsize=1)
-
-    stdout_lines = []
-    stderr_lines = []
-
-    def _read(stream, collector):
-        for line in iter(stream.readline, ""):
-            print(line, end="")
-            collector.append(line)
-        stream.close()
-
-    t1 = threading.Thread(target=_read, args=(proc.stdout, stdout_lines))
-    t2 = threading.Thread(target=_read, args=(proc.stderr, stderr_lines))
-    t1.start()
-    t2.start()
-    t1.join()
-    t2.join()
-    proc.wait()
-
-    return subprocess.CompletedProcess(
-        proc.args, proc.returncode,
-        stdout="".join(stdout_lines),
-        stderr="".join(stderr_lines),
-    )
-
-
-def _write_prompt_efficiency_report(round_dir: Path):
-    """Create a markdown report from prompt compaction and guard artifacts."""
-    items = [
-        ("perception_prompt_compaction.json", "Perception Compaction"),
-        ("analyst_prompt_compaction.json", "Analyst Compaction"),
-        ("generator_prompt_compaction.json", "Generator Compaction"),
-        ("perception_guard.json", "Perception Guard"),
-        ("analyst_guard.json", "Analyst Guard"),
-        ("reflection_guard.json", "Reflection Guard"),
-    ]
-    lines = ["# Prompt Efficiency Report", ""]
-    for fname, title in items:
-        p = round_dir / fname
-        if not p.exists():
-            continue
-        lines.append(f"## {title}")
-        try:
-            payload = json.loads(p.read_text("utf-8"))
-        except Exception:
-            lines.append("- Failed to parse JSON.")
-            lines.append("")
-            continue
-        if "passed" in payload:
-            lines.append(f"- passed: {payload.get('passed')}")
-            lines.append(f"- env_leakage: {payload.get('env_leakage')}")
-            lines.append(f"- implicit_env_hint: {payload.get('implicit_env_hint')}")
-            lines.append(f"- absolute_threshold_language: {payload.get('absolute_threshold_language')}")
-        else:
-            lines.append("| Section | Source | Kept | Dropped | Keep Ratio |")
-            lines.append("|---|---:|---:|---:|---:|")
-            for sec, st in payload.items():
-                if not isinstance(st, dict):
-                    continue
-                src = st.get("source_lines", 0)
-                kept = st.get("kept_lines", 0)
-                drop = st.get("dropped_lines", max(0, src - kept))
-                ratio = (kept / src) if src else 0.0
-                lines.append(f"| {sec} | {src} | {kept} | {drop} | {ratio:.3f} |")
-        lines.append("")
-    (round_dir / "prompt_efficiency_report.md").write_text("\n".join(lines), encoding="utf-8")
-
-
-@dataclass
-class Event:
-    """A named event with payload, source, and timestamp."""
-    name: str
-    payload: dict = field(default_factory=dict)
-    source: str = ""
-    timestamp: float = 0.0
-
-
-class EventCoordinator:
-    """Event-driven coordinator for multi-agent orchestration (Phase-2 step 1).
-
-    Agents communicate via named events instead of hardcoded function calls.
-    The coordinator maintains an event log, shared context, and subscriber list.
-    """
-
-    def __init__(self):
-        self._subscribers: dict[str, list[Callable]] = {}
-        self._event_log: list[Event] = []
-        self._context: dict = {}
-
-    def on(self, event_name: str, handler: Callable):
-        """Subscribe to an event. handler receives the Event object."""
-        self._subscribers.setdefault(event_name, []).append(handler)
-
-    def emit(self, event_name: str, payload: dict, source: str = ""):
-        """Publish an event, triggering all subscribed handlers synchronously."""
-        event = Event(
-            name=event_name, payload=payload,
-            source=source, timestamp=time.time(),
+    # Try PARE diagnosis first (uses trajectory logs for progress correlation)
+    if proxy_dir is not None:
+        from progress_diagnosis import compute_progress_diagnosis
+        diag = compute_progress_diagnosis(
+            proxy_dir / "trajectory_logs",
+            progress_fn_code=None,
+            max_episode_steps=max_episode_steps,
         )
-        self._event_log.append(event)
-        # Print event summary for console visibility
-        summary = str(payload)[:80]
-        print(f"  [event] {event_name} {summary}")
-        for handler in self._subscribers.get(event_name, []):
-            handler(event)
+        comps = diag.get("components", [])
+        if comps:
+            return {
+                "score": diag["health_score"],
+                "activation": sum(1 for c in comps if c.get("active")) / max(len(comps), 1),
+                "balance": max(0, 1 - max((c.get("share", 0) for c in comps), default=0)),
+                "progress_alignment": sum(max(0, c.get("progress_corr", 0)) for c in comps) / max(len(comps), 1),
+                "failure_conflict": sum(max(0, c.get("failure_corr", 0)) for c in comps) / max(len(comps), 1),
+                "verdict": "good" if diag["health_score"] >= 60 else ("ok" if diag["health_score"] >= 35 else "poor"),
+                "n_components": len(comps),
+                "n_active": sum(1 for c in comps if c.get("active")),
+                "diagnosis_summary": diag.get("summary", ""),
+            }
 
-    def get_event_log(self, last_n: int = 20) -> list[dict]:
-        """Return recent event summaries (for audit / prompt injection)."""
-        return [
-            {"event": e.name, "source": e.source,
-             "summary": str(e.payload)[:120]}
-            for e in self._event_log[-last_n:]
-        ]
+    # Fallback: use aggregated stats + eval history
+    if aggregated_stats:
+        abs_means = [abs(s["mean"]) for s in aggregated_stats]
+        active = sum(1 for m in abs_means if m > 0.01)
+        activation = active / max(len(abs_means), 1)
+        total = sum(abs_means) if abs_means else 0
+        balance = max(0.0, 1.0 - max(abs_means) / total) if total > 1e-9 else 0.0
+        lengths = [float(r.get("mean_length", 0)) for r in (eval_history or []) if r.get("mean_length")]
+        len_q = 0.5
+        if lengths:
+            frac = lengths[-1] / max(max_episode_steps, 1)
+            len_q = 0.8 if 0.15 < frac < 0.70 else (0.3 if frac > 0.90 else 0.4)
+        score = 100 * (0.3 * activation + 0.3 * balance + 0.4 * len_q)
+        return {
+            "score": round(score, 1),
+            "activation": round(activation, 3),
+            "balance": round(balance, 3),
+            "length_quality": round(len_q, 3),
+            "verdict": "good" if score >= 60 else ("ok" if score >= 35 else "poor"),
+            "n_components": len(abs_means),
+            "n_active": active,
+        }
 
-    @property
-    def context(self) -> dict:
-        """Shared mutable context accessible by all handlers.
-
-        Used to pass state (proposal, code, reports) between event handlers.
-        """
-        return self._context
+    return {"score": 0.0, "verdict": "no_data"}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Round 0
-# ─────────────────────────────────────────────────────────────────────────────
+def select_best_candidate(candidates: list[dict], exp_dir: Path = None,
+                           round_num: int = None) -> dict:
+    """Select the best candidate using PARE diagnosis when possible."""
+    for c in candidates:
+        proxy = c.get("proxy_results", {})
+        # Build proxy_dir path for PARE diagnosis
+        proxy_dir = None
+        if exp_dir and round_num is not None:
+            proxy_dir = exp_dir / f"round{round_num}" / f"candidate_{c['idx']}"
+        c["health"] = compute_component_health(
+            proxy_dir=proxy_dir,
+            aggregated_stats=proxy.get("component_history", []),
+            eval_history=proxy.get("eval_history", []),
+        )
+    candidates.sort(key=lambda c: c["health"]["score"], reverse=True)
+    return candidates[0]
 
-def run_round0(env_dir: Path, exploration_path: Path, config_path: Path,
-               output_dir: Path, api_key: str, model: str = "deepseek-reasoner",
-               temperature: float = 0.6, dry_run: bool = False,
-               task_description: str = "") -> dict:
-    """Round 0: generate initial reward function from environment exploration.
 
-    This is the same as the original round0 flow, but additionally creates
-    the task manifest for future rounds.
+# ═══════════════════════════════════════════════════════════════════════════════
+# TPE Pre-Filter (CARD-inspired)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def tpe_prefilter(
+    candidate_code: str,
+    previous_code: str,
+    env_dir: Path = None,
+    env_id: str = "",
+    n_episodes: int = 5,
+) -> bool:
+    """Pre-filter: check if the candidate is meaningfully different from previous.
+
+    Filters out candidates that:
+    - Are syntactically identical to the previous code
+    - Have no compute_reward function
+    - Are suspiciously short (< 200 chars of actual logic)
+
+    Returns True if candidate passes (worth training), False to filter out.
+
+    Full TPE (trajectory preference evaluation) requires running the old policy
+    with the new reward on a few episodes, then comparing reward rankings.
+    For efficiency, we start with static checks and can add rollout-based TPE later.
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if not previous_code:
+        return True
 
-    # Build round0 prompt (same as original)
-    template_path = Path(__file__).resolve().parent.parent / "templates" / "round0_prompt.txt"
-    prompt = build_round0_prompt(env_dir, template_path, exploration_path,
-                                 task_description=task_description)
+    # Parse out just the function body (no imports, no docstrings)
+    import re as _re
 
-    if dry_run:
-        (output_dir / "prompt.txt").write_text(prompt, encoding="utf-8")
-        print(f"[dry-run] Round 0 prompt → {output_dir / 'prompt.txt'}")
-        return {"code": "# dry-run"}
+    def _extract_body(code: str) -> str:
+        # Remove imports, docstrings, comments
+        code = _re.sub(r'^"""[\s\S]*?"""', '', code.strip())
+        code = _re.sub(r'^import\s+.*?\n', '', code, flags=_re.MULTILINE)
+        code = _re.sub(r'^from\s+.*?\n', '', code, flags=_re.MULTILINE)
+        code = _re.sub(r'#.*$', '', code, flags=_re.MULTILINE)
+        code = _re.sub(r'\n\s*\n', '\n', code)
+        return code.strip()
 
-    # Call LLM
-    print(f"\n{'='*60}")
-    print("  Round 0: Generating initial reward function")
-    print(f"{'='*60}")
-    response = call_llm(prompt, api_key, model, temperature)
+    cand_body = _extract_body(candidate_code)
+    prev_body = _extract_body(previous_code)
 
-    # Extract and save code
-    code = extract_reward_fn(response)
-    save_artifacts(output_dir, prompt, response, code=code)
-
-    # Save reward source
-    header = '"""LLM-generated reward function.\nSource: round0\n"""\n\nimport math\nimport numpy as np\n\n'
-    reward_path = output_dir / "reward_fn_source.py"
-    reward_path.write_text(header + code + "\n", encoding="utf-8")
-    print(f"  Reward source → {reward_path}")
-
-    return {
-        "code": code,
-        "prompt": prompt,
-        "response": response,
-        "output_dir": output_dir,
-    }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Multi-agent iteration (round 1+)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _patch_missing_reflection(round_dir: Path, round_num: int,
-                               memory_system: MemorySystem,
-                               api_key: str, model: str,
-                               temperature: float) -> bool:
-    """Patch a round that completed training but lacks reflection.
-
-    Checks if round{round_num} has evaluation data but no reflection.md.
-    If missing, runs perception agent + reflection agent to fill the gap.
-    Called before starting new rounds in --continue mode.
-
-    Returns True if the round is now fully reflected (or was already).
-    """
-    if not round_dir.exists():
+    # Identical code → skip
+    if cand_body == prev_body:
         return False
 
-    # Check if training completed (has eval history with data)
-    eval_path = round_dir / "evaluations" / "history.csv"
-    if not eval_path.exists():
-        return False
-    with eval_path.open("r") as f:
-        import csv
-        has_data = any(row for row in csv.DictReader(f))
-    if not has_data:
+    # No compute_reward → skip
+    if "def compute_reward" not in candidate_code:
         return False
 
-    # Ensure perception report exists
-    perception_path = round_dir / "perception_report.md"
-    if not perception_path.exists():
-        print(f"  [resume] Round {round_num}: perception missing, generating...")
-        from agents.perception_agent import run_perception_agent
-        run_perception_agent(round_dir, api_key, model, temperature=0.3)
-        if not perception_path.exists():
-            print(f"  [resume] Round {round_num}: perception agent failed.")
-            return False
+    # Suspiciously short (< 200 chars of logic) → skip
+    if len(cand_body) < 200:
+        return False
 
-    # Ensure reflection exists
-    reflection_path = round_dir / "reflection.md"
-    if not reflection_path.exists():
-        print(f"  [resume] Round {round_num}: reflection missing, generating...")
-        from agents.reflection_agent import run_reflection_agent
-        run_reflection_agent(round_dir, round_num, memory_system,
-                             api_key, model, temperature=0.3)
-        if not reflection_path.exists():
-            print(f"  [resume] Round {round_num}: reflection agent failed.")
-            return False
-        print(f"  [resume] Round {round_num}: MEMORY.md updated.")
+    # Component structure check: extract component names from the dict
+    cand_comps = set(_re.findall(r'"(\w+)"\s*:', candidate_code))
+    prev_comps = set(_re.findall(r'"(\w+)"\s*:', previous_code))
+
+    # If the component structure is identical AND the code is nearly identical
+    # (just coefficient changes), it's borderline — keep it but flag
+    if cand_comps == prev_comps and _levenshtein_ratio(cand_body, prev_body) > 0.85:
+        # Very similar — still try (coefficient tuning can matter)
+        return True
 
     return True
 
 
-def run_iteration(run_dir: Path, env_dir: Path, round_num: int,
-                   exploration_path: Path, config: dict,
-                   api_key: str, model: str = "deepseek-reasoner",
-                   temperature: float = 0.6,
-                   dry_run: bool = False,
-                   skip_train: bool = False) -> dict:
-    """Run one multi-agent iteration round using event-driven orchestration.
+def _levenshtein_ratio(a: str, b: str) -> float:
+    """Quick similarity ratio. 1.0 = identical, 0.0 = completely different."""
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 1.0
+    longer = max(len(a), len(b))
+    # Simple character-level Jaccard for speed (not true Levenshtein, but fast)
+    set_a, set_b = set(a), set(b)
+    return len(set_a & set_b) / len(set_a | set_b)
 
-    Full agent workflow (event-driven):
-        1. Perception Agent → perception_report.md
-        2. Analyst Agent (ReAct) → analyst_proposal.json
-        3. Constraints + Critic Agents (mid/late rounds only)
-        4. Generator Agent → reward_fn_source.py
-        5. Train → new policy
-        6. Perception Agent (analyze this round)
-        7. Reflection Agent → reflection.md + MEMORY.md update
 
-    Returns:
-        Dict with iteration results (same contract as original).
+# ═══════════════════════════════════════════════════════════════════════════════
+# Pipeline
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class RewardDesignPipeline:
+    """Evolutionary multi-agent reward design pipeline.
+
+    Usage:
+        p = RewardDesignPipeline(env_dir=..., exploration_path=..., config=..., api_key=...)
+        p.run(n_rounds=5)
     """
-    prev_round_dir = run_dir / f"round{round_num - 1}"
-    output_dir = run_dir / f"round{round_num}"
-    output_dir.mkdir(parents=True, exist_ok=True)
 
-    memory_system = MemorySystem(run_dir)
-    coordinator = EventCoordinator()
+    def __init__(self, env_dir, exploration_path, config, api_key,
+                 model="deepseek-reasoner", temperature=0.6, dry_run=False,
+                 k_candidates=K_CANDIDATES):
+        self.env_dir = Path(env_dir).resolve()
+        self.exploration_path = Path(exploration_path).resolve()
+        self.config = config
+        self.api_key = api_key
+        self.model = model
+        self.temperature = temperature
+        self.dry_run = dry_run
+        self.k = k_candidates
 
-    # Dynamic role policy
-    rp = (config.get("phase2", {}) or {}).get("role_policy", {})
-    early_max = int(rp.get("early_max_round", 2))
-    mid_max = int(rp.get("mid_max_round", 5))
-    role_stage = "early" if round_num <= early_max else ("mid" if round_num <= mid_max else "late")
+        self.exp_dir: Path = None
+        self._setup_experiment_dir()
 
-    # Shared context for handler communication
-    ctx = coordinator.context
-    ctx.update({
-        "round_num": round_num,
-        "role_stage": role_stage,
-        "prev_round_dir": prev_round_dir,
-        "output_dir": output_dir,
-        "memory_system": memory_system,
-        "config": config,
-        "run_dir": run_dir,
-        "env_dir": env_dir,
-        "exploration_path": exploration_path,
-        # Mutable step results (handlers set these)
-        "proposal": {"diagnosis": "not_run", "changed_count": 0, "proposed_changes": []},
-        "constraints_report": {"violations": [], "count": 0},
-        "critic_report": {"status": "pass", "critic_flags": []},
-        "code": None,
-        "reward_path": None,
-        "result": None,
-    })
+        self.pool = MessagePool()
+        self.memory = MemorySystem(self.exp_dir)
 
-    print(f"\n{'='*60}")
-    print(f"  Multi-Agent Iteration — Round {round_num}")
-    print(f"  Run dir: {run_dir.name}")
-    print(f"  Previous: round{round_num - 1}")
-    print(f"  Role stage: {role_stage}")
-    print(f"{'='*60}")
+        template_dir = _framework_dir.parent / "templates"
+        self.env_agent = EnvPerceptionAgent(api_key, model, pool=self.pool, memory=self.memory)
+        self.perception_agent = PerceptionAgent(api_key, model, pool=self.pool, memory=self.memory, template_dir=template_dir)
+        self.analyzer_agent = AnalyzerAgent(api_key, model, pool=self.pool, memory=self.memory)
+        self.generator_agent = GeneratorAgent(api_key, model, pool=self.pool, memory=self.memory)
+        self.evaluator_agent = EvaluatorAgent(api_key, model, pool=self.pool, memory=self.memory)
+        self.reflector_agent = ReflectionAgent(api_key, model, pool=self.pool, memory=self.memory)
 
-    # ─── Step 1: Perception on previous round ───────────────────────────
-    def _on_iteration_start(event: Event):
-        print("\n  --- Step 1: Perception Agent (observing previous round) ---")
-        if not dry_run and prev_round_dir.exists():
-            from agents.perception_agent import run_perception_agent
-            result = run_perception_agent(prev_round_dir, api_key, model, temperature=0.3)
-            guard_path = prev_round_dir / "perception_guard.json"
-            if guard_path.exists():
-                g = json.loads(guard_path.read_text("utf-8"))
-                if not g.get("passed", True):
-                    print(f"  [guard] perception output flagged: {g}")
-            ctx["prev_perception_result"] = result
-            print(f"  Perception report saved → {prev_round_dir / 'perception_report.md'}")
-        elif dry_run:
-            print("  [dry-run] Creating placeholder perception report")
-            dummy = f"# Perception Report (Dry Run)\n\nBehavior: dry-run placeholder for round {round_num}."
-            (prev_round_dir / "perception_report.md").write_text(dummy, encoding="utf-8")
-        coordinator.emit("perception.completed", {"round": round_num - 1, "report_len": len(ctx.get("prev_perception_result", ""))})
+        self._register_subscriptions()
 
-    # ─── Step 2: Analyst ────────────────────────────────────────────────
-    def _on_perception_completed(event: Event):
-        print("\n  --- Step 2: Analyst Agent (ReAct loop) ---")
-        from agents.analyst_agent import run_analyst_agent
-        if not dry_run:
-            proposal = run_analyst_agent(prev_round_dir, round_num, memory_system, api_key, model, temperature=0.4)
-            analyst_guard = prev_round_dir / "analyst_guard.json"
-            if analyst_guard.exists():
-                g = json.loads(analyst_guard.read_text("utf-8"))
-                if not g.get("passed", True):
-                    print("  [guard] analyst output failed zero-shot guard, retry with lower temperature.")
-                    proposal = run_analyst_agent(prev_round_dir, round_num, memory_system, api_key, model, temperature=0.2)
-            ctx["proposal"] = proposal
-            print(f"  Diagnosis: {proposal.get('diagnosis', 'N/A')[:100]}")
-            print(f"  Changes: {proposal.get('changed_count', 0)}")
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def run(self, n_rounds: int = 5) -> dict:
+        print(f"\n{'='*60}\n  Reward Design Pipeline v2\n  Env: {self.env_dir.name}\n  Rounds: 0..{n_rounds}  |  K={self.k} candidates  |  Proxy={PROXY_TIMESTEPS//1000}K  |  Full={FULL_TIMESTEPS//1000}K\n{'='*60}")
+
+        self._save_config()
+
+        # ── Round 0 ──
+        r0 = self._run_round0()
+        if not r0["success"]:
+            print("Round 0 failed. Aborting."); return r0
+
+        # ── Rounds 1..N ──
+        for r in range(1, n_rounds + 1):
+            print(f"\n{'#'*60}\n  ROUND {r}\n{'#'*60}")
+            result = self._run_iteration_round(r)
+            if not result.get("success"):
+                print(f"Round {r} failed. Stopping."); break
+
+        self._save_status(n_rounds)
+        return {"success": True, "exp_dir": self.exp_dir, "messages": self.pool.message_count}
+
+    # ── Round 0: EnvPerception → Generate K candidates → Proxy → Select → Full ──
+
+    def _run_round0(self) -> dict:
+        print("\n>>> Env Perception")
+        env_desc = self._load_env_description(self.env_dir.name)
+        manifest = self.env_agent.run_discovery(self.env_dir, env_desc, self.exploration_path, memory_system=self.memory)
+        self.memory.core.add_key_fact(f"signature: {self._extract_signature(manifest)}")
+        self.memory.save()
+
+        print(f"\n>>> Generating K={self.k} candidates")
+        candidates = self._generate_candidates(manifest, round_num=0)
+
+        print(f"\n>>> Proxy training ({PROXY_TIMESTEPS//1000}K each)")
+        for i, c in enumerate(candidates):
+            print(f"  Candidate {i+1}/{self.k}...")
+            c["proxy_results"] = self._proxy_train(c["code"], round_num=0, candidate_idx=i)
+
+        print(f"\n>>> Selecting best via component health")
+        winner = select_best_candidate(candidates, self.exp_dir, 0)
+        for i, c in enumerate(candidates):
+            h = c.get("health", {})
+            marker = " ★ WINNER" if c is winner else ""
+            print(f"  Candidate {i+1}: score={h.get('score', 0):.0f} active={h.get('n_active', 0)}/{h.get('n_components', 0)} {h.get('verdict', '?')}{marker}")
+
+        if winner["health"]["verdict"] == "poor":
+            print("  All candidates poor — regenerating...")
+            candidates2 = self._generate_candidates(manifest, round_num=0, extra_context="Previous candidates all scored poorly. Generate substantially different approaches.")
+            for i, c in enumerate(candidates2):
+                c["idx"] = i + self.k
+                c["proxy_results"] = self._proxy_train(c["code"], round_num=0, candidate_idx=c["idx"])
+            winner = select_best_candidate(candidates + candidates2, self.exp_dir, 0)
+
+        print(f"\n>>> Full training ({FULL_TIMESTEPS//1000}K) on winner")
+        self._save_reward(winner["code"], self.exp_dir / "round0", 0)
+        self._full_train(round_num=0, warmstart_candidate_idx=winner.get("idx"))
+        self._run_perception_on_round(0)
+
+        self.memory.episodic.store_round(0, {
+            "summary": f"K={self.k} candidates, winner_score={winner['health']['score']}",
+            "reward_fn_source": winner["code"],
+        })
+
+        return {"success": True, "winner_health": winner["health"]}
+
+    # ── Iteration Round ────────────────────────────────────────────────────────
+
+    def _run_iteration_round(self, round_num: int) -> dict:
+        prev = round_num - 1
+        prev_dir = self.exp_dir / f"round{prev}"
+
+        # 1. Perception on previous round
+        print(f"\n>>> Perception (round {prev})")
+        self._run_perception_on_round(prev)
+
+        # 2. Analyze — single analyst or dual-analyst debate
+        use_debate = self.config.get("use_debate", False)
+        if use_debate:
+            print(f"\n>>> Debate: Exploration + Exploitation analysts (round {prev} → {round_num})")
+            from debate import run_explore_exploit_debate
+            analysis = run_explore_exploit_debate(
+                self.exp_dir / f"round{prev}", round_num, self.memory,
+                self.api_key, self.model,
+            )
         else:
-            print("  [dry-run] Skipping analyst LLM call")
-        coordinator.emit("analyst.completed", {"round": round_num, "changed_count": ctx["proposal"].get("changed_count", 0)})
+            print(f"\n>>> Analyzer (round {prev} → {round_num})")
+            analysis = self._run_analyzer_with_history(prev, round_num)
 
-    # ─── Step 2.5: Constraints + Critic (mid/late only) ─────────────────
-    def _on_analyst_completed(event: Event):
-        role = ctx["role_stage"]
-        if role in ("mid", "late"):
-            print("\n  --- Step 2.5: Constraints Agent + Critic Agent ---")
-            from agents.constraints_agent import run_constraints_agent
-            from agents.critic_agent import run_critic_agent
-            proposal = ctx["proposal"]
-            if not dry_run:
-                constraints_report = run_constraints_agent(prev_round_dir)
-                ctx["constraints_report"] = constraints_report
-                coordinator.emit("constraints.completed", constraints_report)
-                critic_report = run_critic_agent(prev_round_dir, proposal, constraints_report)
-                ctx["critic_report"] = critic_report
-                coordinator.emit("critic.completed", critic_report)
-                if critic_report.get("status") == "needs_revision":
-                    proposal.setdefault("risk_mitigation", "")
-                    proposal["risk_mitigation"] = (proposal["risk_mitigation"] + " | Critic: "+"; ".join(critic_report.get("critic_flags", []))).strip(" |")
-                    print("  [feedback-loop] Re-running Analyst with Critic/Constraints feedback...")
-                    (prev_round_dir / "critic_feedback.json").write_text(json.dumps({
-                        "critic_report": critic_report, "constraints_report": constraints_report,
-                    }, ensure_ascii=False, indent=2), encoding="utf-8")
-                    try:
-                        revised = run_analyst_agent(prev_round_dir, round_num, memory_system, api_key, model, temperature=0.35)
-                        revised.setdefault("risk_mitigation", proposal.get("risk_mitigation", ""))
-                        ctx["proposal"] = revised
-                    except Exception as e:
-                        print(f"  [feedback-loop] Analyst revision FAILED: {e}")
-                        print("  [feedback-loop] Keeping original proposal and continuing.")
-                        ctx["proposal"] = proposal
-                coordinator.emit("generator.ready", {"round": round_num})
-            else:
-                print("  [dry-run] Skipping constraints/critic LLM calls")
-                coordinator.emit("generator.ready", {"round": round_num})
-        else:
-            # Early round: skip constraints/critic, go straight to generator
-            print("  (early round, skipping Constraints+Critic)")
-            coordinator.emit("generator.ready", {"round": round_num})
+        proposal = analysis.get("proposal", {})
+        changed = proposal.get("changed_count", 0) > 0
+        print(f"  Diagnosis: {proposal.get('diagnosis', 'N/A')[:120]}")
+        print(f"  Escalation: {proposal.get('escalation_level', 'coefficient')}")
+        if analysis.get("_debate_meta"):
+            print(f"  Debate winner: {analysis['_debate_meta']['winner']}")
 
-    # ─── Step 3: Generator ──────────────────────────────────────────────
-    def _on_generator_ready(event: Event):
-        print("\n  --- Step 3: Generator Agent ---")
-        from agents.generator_agent import run_generator_agent, validate_generated_code
-        proposal = ctx["proposal"]
+        # Fallback: if analysis failed, retry once with different temperature
+        if not changed and proposal.get("analysis_status") != "ok":
+            print("  Analyzer produced no valid proposal — retrying with backup prompt...")
+            analysis = self._run_analyzer_with_history(prev, round_num, is_retry=True)
+            proposal = analysis.get("proposal", {})
+            changed = proposal.get("changed_count", 0) > 0
 
-        import json as _json
-        constraints = ""
-        if exploration_path and exploration_path.exists():
-            try:
-                exploration_data = _json.loads(exploration_path.read_text("utf-8"))
-                constraints = derive_reward_constraints(exploration_data)
-            except Exception:
-                pass
+        if not changed:
+            print("  No changes proposed after retry. Skipping full training for this round.")
+            self._copy_prev_reward(prev_dir, self.exp_dir / f"round{round_num}")
+            return {"success": True, "skipped": True, "reason": "no changes"}
 
-        code = None
-        if not dry_run:
-            gen_result = run_generator_agent(prev_round_dir, proposal, memory_system, api_key, model, temperature=0.3, constraints=constraints)
-            code, gen_prompt, gen_responses = gen_result
-            (output_dir / "generator_prompt.txt").write_text(gen_prompt, encoding="utf-8")
-            for i, r in enumerate(gen_responses):
-                suffix = "" if i == 0 else f"_retry{i}"
-                (output_dir / f"generator_response{suffix}.md").write_text(r, encoding="utf-8")
-            if code is None:
-                print("  ERROR: Generator agent failed after retries!")
-                print("  [feedback-loop] Re-running Analyst with Generator failure context...")
-                from agents.analyst_agent import run_analyst_agent
-                validation_issues = []
-                if gen_responses:
-                    from agents.generator_agent import _extract_reward_code, validate_generated_code, validate_proposal_adherence
-                    extracted = _extract_reward_code(gen_responses[-1])
-                    if extracted:
-                        validation_issues.extend(validate_generated_code(extracted))
-                        validation_issues.extend(validate_proposal_adherence(extracted, proposal))
-                gen_feedback = {
-                    "generator_failed": True,
-                    "recent_generator_response": gen_responses[-1] if gen_responses else "",
-                    "validation_issues": validation_issues,
-                    "proposal": proposal,
-                }
-                evidence_fingerprint = compute_evidence_fingerprint(validation_issues, proposal)
-                gen_feedback["evidence_fingerprint"] = evidence_fingerprint
+        # 3. Generate K diverse candidates
+        print(f"\n>>> Generating K={self.k} candidates")
+        candidates = self._generate_candidates_from_proposal(proposal, round_num)
 
-                feedback_path = prev_round_dir / "generator_feedback.json"
-                prev_fingerprint = None
-                if feedback_path.exists():
-                    try:
-                        prev_fingerprint = json.loads(feedback_path.read_text("utf-8")).get("evidence_fingerprint")
-                    except Exception:
-                        prev_fingerprint = None
-                feedback_path.write_text(json.dumps(gen_feedback, ensure_ascii=False, indent=2), encoding="utf-8")
+        # 4. TPE Pre-filter
+        prev_code = (self.exp_dir / f"round{prev}" / "reward_fn_source.py").read_text("utf-8") if (self.exp_dir / f"round{prev}" / "reward_fn_source.py").exists() else ""
+        survivors = []
+        for c in candidates:
+            if tpe_prefilter(c["code"], prev_code):
+                survivors.append(c)
+        if not survivors:
+            survivors = candidates
 
-                if not should_rerun_analyst(prev_fingerprint, evidence_fingerprint):
-                    print("  [feedback-loop] Skipping analyst re-run: no new evidence since previous generator failure.")
-                else:
-                    try:
-                        proposal = run_analyst_agent(prev_round_dir, round_num, memory_system, api_key, model, temperature=0.35)
-                        ctx["proposal"] = proposal
-                        gen_result = run_generator_agent(prev_round_dir, proposal, memory_system, api_key, model, temperature=0.25, constraints=constraints)
-                        code, gen_prompt, gen_responses = gen_result
-                    except Exception as e:
-                        print(f"  [feedback-loop] Analyst revision for generator failure FAILED: {e}")
-                        code = None
-                if code is None:
-                    print("  Fallback: copying previous round's reward function.")
-                    prev_reward = prev_round_dir / "reward_fn_source.py"
-                    if prev_reward.exists():
-                        code = prev_reward.read_text("utf-8")
-                    else:
-                        raise RuntimeError("No reward function available and generation failed.")
-        else:
-            prev_reward = prev_round_dir / "reward_fn_source.py"
-            code = prev_reward.read_text("utf-8") if prev_reward.exists() else "# dry-run"
-            print("  [dry-run] Skipping generator LLM call")
+        # 5. Proxy train survivors
+        print(f"\n>>> Proxy training {len(survivors)} survivors ({PROXY_TIMESTEPS//1000}K each)")
+        for i, c in enumerate(survivors):
+            c["proxy_results"] = self._proxy_train(c["code"], round_num=round_num, candidate_idx=i)
 
-        issues = validate_generated_code(code)
-        if issues:
-            print(f"  WARNING: Code validation issues: {', '.join(issues)}")
-        else:
-            print(f"  Code validated OK.")
+        # 6. Select best + early stop check
+        print(f"\n>>> Selecting best via component health")
+        winner = select_best_candidate(survivors, self.exp_dir, round_num)
+        for i, c in enumerate(survivors):
+            h = c.get("health", {})
+            marker = " ★ WINNER" if c is winner else ""
+            print(f"  Candidate {i+1}: score={h.get('score', 0):.0f} {h.get('verdict', '?')}{marker}")
 
-        header = f'"""LLM-generated reward function (round {round_num}).\nSource: {output_dir.name}\n"""\n\nimport math\nimport numpy as np\n\n'
-        reward_path = output_dir / "reward_fn_source.py"
-        reward_path.write_text(header + code + "\n", encoding="utf-8")
-        print(f"  Reward source → {reward_path}")
-        ctx["code"] = code
-        ctx["reward_path"] = reward_path
+        # Early stop: if winner score is worse than previous round, skip full training
+        prev_health = self._get_previous_health(prev)
+        if prev_health and winner["health"]["score"] < prev_health["score"] - 10:
+            print(f"  Winner score ({winner['health']['score']:.0f}) < previous ({prev_health['score']:.0f}) — skipping full training")
+            # Save winner code so next round can read it
+            self._save_reward(winner["code"], self.exp_dir / f"round{round_num}", round_num)
+            return {"success": True, "skipped": True, "reason": "regression", "winner_health": winner["health"]}
 
-        if dry_run or skip_train:
-            _write_prompt_efficiency_report(prev_round_dir)
-            print("\n  [dry-run/skip-train] Stopping before training.")
-            ctx["result"] = {"round": round_num, "proposal": proposal, "code": code, "reward_path": reward_path, "trained": False}
-            coordinator.emit("iteration.done", {"round": round_num})
-        else:
-            coordinator.emit("training.start", {"round": round_num})
+        # 7. Full train winner (continues from proxy checkpoint)
+        print(f"\n>>> Full training ({FULL_TIMESTEPS//1000}K) on winner")
+        self._save_reward(winner["code"], self.exp_dir / f"round{round_num}", round_num)
+        self._full_train(round_num=round_num, warmstart_candidate_idx=winner.get("idx"))
 
-    # ─── Step 4: Train ──────────────────────────────────────────────────
-    def _on_training_start(event: Event):
-        print("\n  --- Step 4: Training ---")
-        train_script = Path(__file__).resolve().parent / "train.py"
-        train_config = config.get("train", {})
-        env_id = config.get("env_id", f"UnknownEnv-round{round_num}")
-        training_steps = train_config.get("total_timesteps", config.get("total_timesteps", 2_000_000))
-        n_envs = train_config.get("n_envs", config.get("n_envs", 8))
+        # 8. Perception on this round
+        self._run_perception_on_round(round_num)
 
-        round_config = {}
-        if "ppo" in config:
-            round_config["ppo"] = dict(config["ppo"])
-        else:
-            round_config["ppo"] = {}
-        for k in ("evaluation", "checkpoint", "gif_steps", "gif_fps", "gif_max_steps",
-                  "seed", "device", "normalize", "max_episode_steps"):
-            if k in config:
-                round_config[k] = config[k]
-        round_config["total_timesteps"] = training_steps
-        round_config["n_envs"] = n_envs
-        round_config_path = output_dir / "config.yaml"
-        with open(round_config_path, "w", encoding="utf-8") as f:
-            f.write(_safe_dump_config(round_config))
+        # 9. Reflection
+        self._run_reflection(round_num)
 
-        cmd = [sys.executable, str(train_script), "--env-dir", str(env_dir),
-               "--env-id", config.get("env_id", "UnknownEnv"),
-               "--config", str(round_config_path), "--run-dir", str(output_dir),
-               "--reward-source", str(ctx["reward_path"])]
-        if config.get("max_episode_steps"):
-            cmd += ["--max-episode-steps", str(config["max_episode_steps"])]
+        self.memory.episodic.store_round(round_num, {
+            "summary": f"score={winner['health']['score']}, diagnosis={proposal.get('diagnosis', '')[:100]}",
+            "reward_fn_source": winner["code"],
+            "proposal": proposal,
+            "perception_report": self._read_file(self.exp_dir / f"round{round_num}" / "perception_report.md"),
+            "reflection": self._read_file(self.exp_dir / f"round{round_num}" / "reflection.md"),
+        })
+        self.memory.save()
 
-        print(f"  Running: {' '.join(str(c) for c in cmd)}")
-        t0 = perf_counter()
-        result = _run_subprocess(cmd)
-        elapsed = perf_counter() - t0
+        return {"success": True, "winner_health": winner["health"]}
 
-        if result.returncode != 0:
-            print(f"\n  Training FAILED (exit code {result.returncode})")
-            (output_dir / "train_error.log").write_text(result.stderr if result.stderr else "Unknown error (no stderr captured)")
-            print("  Attempting self-heal...")
-            healed = _self_heal(output_dir, prev_round_dir, api_key, model, config, env_dir)
-            if healed:
-                print("  Self-heal succeeded. Retrying training...")
-                result = _run_subprocess(cmd)
-                if result.returncode != 0:
-                    (output_dir / "train_error.log").write_text(result.stderr if result.stderr else "Unknown error")
-                    ctx["result"] = {"round": round_num, "trained": False, "error": result.returncode}
-                    coordinator.emit("iteration.done", {"round": round_num, "trained": False})
-                    return
-            else:
-                ctx["result"] = {"round": round_num, "trained": False, "error": result.returncode}
-                coordinator.emit("iteration.done", {"round": round_num, "trained": False})
-                return
+    # ── Candidate Generation ───────────────────────────────────────────────────
 
-        print(f"  Training complete ({elapsed/60:.1f} min)")
-        ctx["elapsed_minutes"] = round(elapsed / 60, 1)
-        coordinator.emit("training.completed", {"round": round_num, "elapsed": elapsed})
+    def _generate_candidates(self, manifest: str, round_num: int, extra_context: str = "") -> list[dict]:
+        """Generate K diverse reward candidates for round 0."""
+        candidates = []
+        template_path = _framework_dir.parent / "templates" / "round0_prompt.txt"
 
-    # ─── Step 5: Perception on current round ────────────────────────────
-    def _on_training_completed(event: Event):
-        print("\n  --- Step 5: Perception Agent (analyzing this round) ---")
-        from agents.perception_agent import run_perception_agent
-        run_perception_agent(output_dir, api_key, model, temperature=0.3)
-        print(f"  Perception report saved → {output_dir / 'perception_report.md'}")
-        coordinator.emit("post_perception.completed", {"round": round_num})
+        for i in range(self.k):
+            # Vary temperature for diversity
+            temp = self.temperature + (i - 1) * 0.2  # e.g., 0.4, 0.6, 0.8
+            temp = max(0.2, min(1.0, temp))
 
-    # ─── Step 6: Reflection ─────────────────────────────────────────────
-    def _on_post_perception_completed(event: Event):
-        print("\n  --- Step 6: Reflection Agent ---")
-        from agents.reflection_agent import run_reflection_agent
-        run_reflection_agent(output_dir, round_num, memory_system, api_key, model, temperature=0.3)
-        print(f"  Reflection saved → {output_dir / 'reflection.md'}")
-        print(f"  MEMORY.md updated with lesson from round {round_num}")
-        ctx["result"] = {
-            "round": round_num,
-            "proposal": ctx.get("proposal"),
-            "code": ctx.get("code"),
-            "reward_path": ctx.get("reward_path"),
-            "trained": True,
-            "elapsed_minutes": ctx.get("elapsed_minutes", 0),
+            prompt = build_round0_prompt(self.env_dir, template_path, self.exploration_path, task_manifest=manifest)
+            prompt = inject_memory_into_prompt(prompt, self.memory, query="reward function design", max_tokens=500)
+
+            if i > 0:
+                prompt += f"\n\n## Diversity Instruction\nGenerate a DIFFERENT approach from typical designs. Vary the component structure, scaling, or shaping strategy."
+
+            if extra_context:
+                prompt += f"\n\n## Context from Previous Attempt\n{extra_context}"
+
+            if self.dry_run:
+                candidates.append({"idx": i, "code": f"# dry-run candidate {i}\ndef compute_reward(): return 0.0, {{}}", "temperature": temp})
+                continue
+
+            code, _ = self._call_llm_for_code(prompt, temp, f"Candidate{i}")
+            if code:
+                candidates.append({"idx": i, "code": code, "temperature": temp})
+                print(f"  Candidate {i+1} generated ({len(code)} chars, temp={temp})")
+
+        if not candidates:
+            raise RuntimeError("Failed to generate any valid reward candidates")
+        return candidates
+
+    def _generate_candidates_from_proposal(self, proposal: dict, round_num: int) -> list[dict]:
+        """Generate K diverse candidates from the SAME diagnosis but with
+        DIFFERENT RL perspectives, producing genuinely diverse implementations.
+
+        Candidate A (exploration): Focus on escaping local optima, adding shaping
+            gradients, and encouraging discovery of new behaviors.
+        Candidate B (exploitation): Focus on component balance, reward hacking
+            prevention, and efficient task completion.
+        Candidate C (balanced): Apply the diagnosis as stated, balancing both.
+
+        Different temperatures and system prompts ensure prompt-level diversity,
+        not just cosmetic variation.
+        """
+        candidates = []
+        prev_round_dir = self.exp_dir / f"round{round_num - 1}"
+
+        perspectives = [
+            ("exploration", 0.5,
+             "You are an exploration-focused reward designer. Your priority is helping "
+             "the agent ESCAPE local optima and DISCOVER new behaviors. Interpret the "
+             "diagnosis through this lens: which changes will expand the agent's "
+             "behavioral repertoire? Add shaping terms, increase reward density in "
+             "dead zones, create escape routes from local optima. Prefer ADDING new "
+             "components over adjusting existing ones."),
+            ("exploitation", 0.3,
+             "You are an exploitation-focused reward designer. Your priority is "
+             "REFINING the agent's existing skills toward mastery. Interpret the "
+             "diagnosis through this lens: which changes will improve component "
+             "balance, close reward-hacking loopholes, and align the reward more "
+             "tightly with task success? Prefer RESCALING and REMOVING over adding."),
+            ("balanced", 0.4,
+             "Apply the diagnosis as stated, balancing exploration and exploitation. "
+             "Make the changes that best address the root cause identified in the "
+             "diagnosis, without biasing toward either expansion or refinement."),
+        ]
+
+        for i, (persp_name, temp, persp_prompt) in enumerate(perspectives[:self.k]):
+            # Build a perspective-specific proposal by prepending the lens to diagnosis
+            styled = dict(proposal)
+            styled["diagnosis"] = (
+                persp_prompt + "\n\n" +
+                "=== Diagnosis to implement ===\n" +
+                proposal.get("diagnosis", "")
+            )
+            code = self.generator_agent.run_with_proposal(
+                styled, prev_round_dir / "reward_fn_source.py",
+                prev_round_dir, memory_system=self.memory,
+            )
+            if code:
+                candidates.append({"idx": i, "code": code, "style": persp_name})
+                print(f"  Candidate {i+1} ({persp_name}, temp={temp}): {len(code)} chars")
+
+        if not candidates:
+            prev_code = (prev_round_dir / "reward_fn_source.py").read_text("utf-8")
+            candidates.append({"idx": 0, "code": prev_code, "style": "fallback"})
+        return candidates
+
+    # ── Proxy Training ─────────────────────────────────────────────────────────
+
+    def _build_training_config(self, timesteps: int, extra_seed: int = 0) -> dict:
+        """Build a complete training config with sensible defaults for missing PPO params.
+
+        Prevents KeyError crashes when user config lacks parameters like gae_lambda.
+        """
+        ppo_defaults = {
+            "policy": "MlpPolicy", "learning_rate": 3e-4, "n_steps": 1024,
+            "batch_size": 64, "n_epochs": 4, "gamma": 0.99,
+            "gae_lambda": 0.95, "clip_range": 0.2, "ent_coef": 0.0,
+            "vf_coef": 0.5, "max_grad_norm": 0.5,
         }
-        coordinator.emit("iteration.done", {"round": round_num, "trained": True})
+        user_ppo = self.config.get("ppo", {})
+        full_ppo = {**ppo_defaults, **user_ppo}
 
-    # ─── Register all event handlers ────────────────────────────────────
-    coordinator.on("iteration.start", _on_iteration_start)
-    coordinator.on("perception.completed", _on_perception_completed)
-    coordinator.on("analyst.completed", _on_analyst_completed)
-    coordinator.on("generator.ready", _on_generator_ready)
-    coordinator.on("training.start", _on_training_start)
-    coordinator.on("training.completed", _on_training_completed)
-    coordinator.on("post_perception.completed", _on_post_perception_completed)
+        cfg = {
+            "total_timesteps": timesteps,
+            "n_envs": self.config.get("n_envs", 16),
+            "seed": self.config.get("seed", 42) + extra_seed,
+            "device": self.config.get("device", "cpu"),
+            "normalize": False,
+            "ppo": full_ppo,
+            "evaluation": {"freq": timesteps // 2, "episodes": 5, "deterministic": True},
+            "checkpoint": {"freq": timesteps * 10},
+        }
+        # Only pass gif_steps for full training (not proxy), so candidates don't waste time on GIFs
+        if timesteps > PROXY_TIMESTEPS:
+            for k in ("gif_steps", "gif_fps", "gif_max_steps"):
+                if k in self.config:
+                    cfg[k] = self.config[k]
+        if "max_episode_steps" in self.config:
+            cfg["max_episode_steps"] = self.config["max_episode_steps"]
+        return cfg
 
-    # ─── Start the event loop ──────────────────────────────────────────
-    coordinator.emit("iteration.start", {"round": round_num})
+    @staticmethod
+    def _run_subprocess_live(cmd: list) -> subprocess.CompletedProcess:
+        """Run a subprocess, streaming stdout/stderr in real time.
 
-    # Return the result set by the final handler
-    return ctx.get("result") or {"round": round_num, "trained": False, "error": "event_loop_did_not_complete"}
+        Unlike capture_output=True, this lets SB3 training progress bars
+        flow through to experiment.log immediately.
+        """
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, bufsize=1)
+        stdout_lines = []
+        for line in iter(proc.stdout.readline, ""):
+            print(line, end="")  # goes through TeeWrite to experiment.log
+            stdout_lines.append(line)
+        proc.wait()
+        return subprocess.CompletedProcess(cmd, proc.returncode,
+                                           stdout="".join(stdout_lines), stderr="")
 
+    def _proxy_train(self, code: str, round_num: int, candidate_idx: int) -> dict:
+        """Short training (PROXY_TIMESTEPS) to evaluate a reward candidate."""
+        if self.dry_run:
+            return {"component_history": [], "eval_history": [], "health": {"score": 50}}
 
-def _self_heal(output_dir: Path, prev_round_dir: Path,
-                api_key: str, model: str, config: dict,
-                env_dir: Path = None) -> bool:
-    """Self-heal: fix crashed reward function and re-save.
+        proxy_dir = self.exp_dir / f"round{round_num}" / f"candidate_{candidate_idx}"
+        proxy_dir.mkdir(parents=True, exist_ok=True)
 
-    Args:
-        output_dir: Current round directory.
-        prev_round_dir: Previous round directory (for original prompt).
-        api_key: LLM API key.
-        model: LLM model name.
-        config: Experiment config dict.
-        env_dir: Environment directory (for signature validation). If None,
-                 inferred from config or experiment layout.
-
-    Returns:
-        True if heal succeeded, False otherwise.
-    """
-    from self_heal import build_fix_prompt, validate_signature
-
-    # Determine expected signature from step.py
-    expected_signature = "action"  # default fallback
-    if env_dir and (env_dir / "step.py").exists():
-        step_source = (env_dir / "step.py").read_text("utf-8")
-        sig_match = re.search(r'self\.compute_reward\(([^)]+)\)', step_source)
-        if sig_match:
-            expected_signature = sig_match.group(1).strip()
-    elif config.get("env_id"):
-        # Try to find env dir from env_id hint
-        env_name = re.sub(r"-round\d+$", "", config["env_id"])
-        candidate = Path(__file__).resolve().parent.parent / "envs" / env_name / "step.py"
-        if candidate.exists():
-            sig_match = re.search(r'self\.compute_reward\(([^)]+)\)', candidate.read_text("utf-8"))
-            if sig_match:
-                expected_signature = sig_match.group(1).strip()
-
-    # Read the failing code
-    reward_path = output_dir / "reward_fn_source.py"
-    if not reward_path.exists():
-        return False
-
-    failing_code = reward_path.read_text("utf-8")
-
-    # Look for error log
-    error_log = output_dir / "train_error.log"
-    traceback_text = ""
-    if error_log.exists():
-        traceback_text = error_log.read_text("utf-8").strip()
-
-    if not traceback_text:
-        traceback_text = "Training crashed (unknown error)"
-
-    # Build fix prompt (use previous round's prompt as "original")
-    prev_prompt = prev_round_dir / "prompt.txt"
-    original_prompt = "See reward function source."
-    if prev_prompt.exists():
-        original_prompt = prev_prompt.read_text("utf-8")
-
-    prompt = build_fix_prompt(original_prompt, failing_code, traceback_text,
-                               expected_signature=expected_signature)
-    response = call_llm(prompt, api_key, model, temperature=0.4)
-
-    from llm_call import extract_reward_fn
-    try:
-        fixed_code = extract_reward_fn(response)
-
-        # Validate signature first
-        sig_issue = validate_signature(fixed_code, expected_signature)
-        if sig_issue:
-            print(f"  Self-heal signature mismatch: {sig_issue}")
-            return False
-
-        # Validate code structure
-        from agents.generator_agent import validate_generated_code
-        issues = validate_generated_code(fixed_code)
-        if issues:
-            print(f"  Self-heal validation issues: {issues}")
-            return False
-
-        # Save fixed code
-        header = f'"""LLM-generated reward function (self-healed).\nSource: {output_dir.name}\n"""\n\nimport math\nimport numpy as np\n\n'
-        reward_path.write_text(header + fixed_code + "\n", encoding="utf-8")
-        print(f"  Self-heal: signature={expected_signature}, code validated OK")
-        return True
-    except Exception as e:
-        print(f"  Self-heal extraction failed: {e}")
-        return False
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CLI
-# ─────────────────────────────────────────────────────────────────────────────
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Multi-Agent Reward Function Iteration Pipeline"
-    )
-    parser.add_argument("--mode", required=True,
-                        choices=["round0", "iterate", "continue", "full"],
-                        help="round0 = initial generation; iterate = single multi-agent round; continue = auto run remaining rounds; full = round0→train→all rounds")
-    parser.add_argument("--experiment-dir", help="Experiment directory (for iterate/continue mode)")
-    parser.add_argument("--env-dir", help="Environment directory")
-    parser.add_argument("--exploration", help="Exploration JSON path (for round0)")
-    parser.add_argument("--config", default=None, help="Experiment configuration YAML")
-    parser.add_argument("--round", type=int, default=1, help="Round number to run")
-    parser.add_argument("--model", default="deepseek-reasoner")
-    parser.add_argument("--temperature", type=float, default=0.6)
-    parser.add_argument("--dry-run", action="store_true", help="Generate prompts only")
-    parser.add_argument("--skip-train", action="store_true", help="Skip training step")
-    args = parser.parse_args()
-
-    # API key
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
-    if not api_key and args.config:
-        with open(args.config, encoding="utf-8") as f:
-            cfg = _safe_load_config_text(f.read())
-        api_key = cfg.get("llm_api_key", api_key)
-    if not api_key:
-        print("ERROR: DEEPSEEK_API_KEY not set")
-        sys.exit(1)
-
-    if args.mode == "round0":
-        if not all([args.env_dir, args.exploration]):
-            parser.error("--mode round0 requires --env-dir, --exploration, and --config")
-        env_dir = Path(args.env_dir).resolve()
-        exploration_path = Path(args.exploration).resolve()
-        config_path = Path(args.config).resolve() if args.config else None
-
-        # Determine experiment directory
-        env_name = env_dir.name
-        env_description = _load_env_description(env_name)
-        timestamp = datetime.now(BEIJING).strftime("%y%m%d%H%M")
-        config_data = _safe_load_config_text(config_path.read_text("utf-8")) if config_path else {}
-        total_steps = config_data.get("total_timesteps", "unknown")
-        exp_dir = Path(__file__).resolve().parent.parent / "runs" / f"{env_name.lower()}_{timestamp}_{total_steps}"
-        exp_dir.mkdir(parents=True, exist_ok=True)
-        output_dir = exp_dir / "round0"
-
-        result = run_round0(
-            env_dir, exploration_path, config_path,
-            output_dir, api_key, args.model, args.temperature, args.dry_run,
-            task_description=env_description,
+        reward_path = proxy_dir / "reward_fn_source.py"
+        cleaned = re.sub(r'^"""LLM[- ].*?"""', '', code.strip(), flags=re.DOTALL)
+        cleaned = re.sub(r'^import\s+(math|numpy).*?\n', '', cleaned, flags=re.MULTILINE)
+        reward_path.write_text(
+            f'"""Proxy reward candidate {candidate_idx}."""\n\nimport math\nimport numpy as np\n\n{cleaned}\n',
+            encoding="utf-8"
         )
 
-        # Initialize task manifest
-        if not args.dry_run:
-            memory = MemorySystem(exp_dir)
-            step_source = (env_dir / "step.py").read_text("utf-8") if (env_dir / "step.py").exists() else ""
-            memory.initialize_task_manifest(step_source=step_source,
-                                            env_description=env_description)
+        # Build proxy config with PPO defaults
+        round_config = self._build_training_config(PROXY_TIMESTEPS, extra_seed=candidate_idx)
+        config_path = proxy_dir / "config.yaml"
+        dump_fn = yaml.safe_dump if yaml else lambda d, **kw: json.dumps(d, indent=2)
+        config_path.write_text(dump_fn(round_config, sort_keys=False), encoding="utf-8")
 
-        print(f"\nExperiment directory: {exp_dir}")
-
-    elif args.mode == "iterate":
-        if not args.experiment_dir:
-            parser.error("--mode iterate requires --experiment-dir")
-        exp_dir = Path(args.experiment_dir).resolve()
-        tee = _setup_logging(exp_dir)
-
-        # Load config first so env_id is available for env dir matching
-        config_data = {}
-        if args.config:
-            config_data = _safe_load_config_text(Path(args.config).read_text("utf-8"))
-        else:
-            config_data = _load_experiment_config(exp_dir)
-
-        env_dir = Path(args.env_dir).resolve() if args.env_dir else _find_env_dir(exp_dir, config_data.get("env_id"))
-        exploration_path = Path(args.exploration).resolve() if args.exploration else _find_exploration(exp_dir)
-
-        # Save experiment-level config if not already present
-        exp_config = exp_dir / "config.yaml"
-        if not exp_config.exists():
-            with open(exp_config, "w", encoding="utf-8") as f:
-                f.write(_safe_dump_config(config_data))
-
-        result = run_iteration(
-            exp_dir, env_dir, args.round, exploration_path,
-            config_data, api_key, args.model, args.temperature,
-            args.dry_run, args.skip_train,
-        )
-
-    elif args.mode == "continue":
-        """Auto-run all remaining rounds in sequence."""
-        if not args.experiment_dir:
-            parser.error("--mode continue requires --experiment-dir")
-        exp_dir = Path(args.experiment_dir).resolve()
-        tee = _setup_logging(exp_dir)
-
-        # Load config first so env_id is available for env dir matching
-        config_data = {}
-        if args.config:
-            config_data = _safe_load_config_text(Path(args.config).read_text("utf-8"))
-        else:
-            config_data = _load_experiment_config(exp_dir)
-
-        env_dir = Path(args.env_dir).resolve() if args.env_dir else _find_env_dir(exp_dir, config_data.get("env_id"))
-        exploration_path = Path(args.exploration).resolve() if args.exploration else _find_exploration(exp_dir)
-
-        # Save experiment-level config if not already present
-        exp_config = exp_dir / "config.yaml"
-        if not exp_config.exists():
-            with open(exp_config, "w", encoding="utf-8") as f:
-                f.write(_safe_dump_config(config_data))
-
-        total_rounds = config_data.get("rounds", 5)
-        memory = MemorySystem(exp_dir)
-        existing_rounds = memory.get_available_rounds()
-        start_round = max(existing_rounds) + 1 if existing_rounds else 1
-
-        # Patch missing reflections in existing rounds before continuing
-        for r in existing_rounds:
-            if r == 0:
-                continue  # round0 never has reflection
-            _patch_missing_reflection(
-                exp_dir / f"round{r}", r, memory,
-                api_key, args.model, args.temperature,
-            )
-
-        for r in range(start_round, total_rounds + 1):
-            print(f"\n{'#'*60}")
-            print(f"  Auto-continue: Round {r}")
-            print(f"{'#'*60}")
-            result = run_iteration(
-                exp_dir, env_dir, r, exploration_path,
-                config_data, api_key, args.model, args.temperature,
-                dry_run=False, skip_train=False,
-            )
-            if not result.get("trained", False):
-                print(f"  Round {r} failed to train. Stopping.")
-                break
-
-    elif args.mode == "full":
-        if not all([args.env_dir, args.exploration, args.config]):
-            parser.error("--mode full requires --env-dir, --exploration, and --config")
-
-        env_dir = Path(args.env_dir).resolve()
-        exploration_path = Path(args.exploration).resolve()
-        config_path = Path(args.config).resolve()
-        config_data = _safe_load_config_text(config_path.read_text("utf-8"))
-        env_name = env_dir.name
-        env_description = _load_env_description(env_name)
-        total_rounds = config_data.get("rounds", 5)
-
-        # Create experiment directory
-        timestamp = datetime.now(BEIJING).strftime("%y%m%d%H%M")
-        total_steps = config_data.get("total_timesteps", "unknown")
-        exp_dir = Path(__file__).resolve().parent.parent / "runs" / f"{env_name.lower()}_{timestamp}_{total_steps}"
-        exp_dir.mkdir(parents=True, exist_ok=True)
-        tee = _setup_logging(exp_dir)
-
-        print(f"\n{'='*60}")
-        print(f"  Full Auto Mode: {env_name}")
-        print(f"  Experiment: {exp_dir}")
-        print(f"  Rounds: 0..{total_rounds}")
-        print(f"{'='*60}\n")
-
-        if args.dry_run:
-            result = run_round0(env_dir, exploration_path, config_path, exp_dir / "round0",
-                                api_key, args.model, args.temperature, dry_run=True,
-                                task_description=env_description)
-            print(f"  [dry-run] Experiment directory: {exp_dir}")
-            return
-
-        # ── Phase 1: Round 0 — generate initial reward ──
-        print(">>> Phase 1/4: Generating initial reward function")
-        round0_result = run_round0(env_dir, exploration_path, config_path, exp_dir / "round0",
-                                   api_key, args.model, args.temperature,
-                                   task_description=env_description)
-
-        # Save experiment-level config (without API key)
-        public_config = {k: v for k, v in config_data.items() if k != "llm_api_key"}
-        (exp_dir / "config.yaml").write_text(_safe_dump_config(public_config), encoding="utf-8")
-
-        # ── Phase 2: Train round 0 ──
-        print("\n>>> Phase 2/4: Training Round 0")
-        train_script = Path(__file__).resolve().parent / "train.py"
-        round0_dir = exp_dir / "round0"
-
-        # Full config (without API key) goes into round0 for train.py
-        round0_config_path = round0_dir / "config.yaml"
-        (round0_config_path).write_text(_safe_dump_config(public_config), encoding="utf-8")
-
+        train_script = _framework_dir / "train.py"
+        env_id = f"{self.env_dir.name}-round{round_num}-c{candidate_idx}"
         cmd = [
             sys.executable, str(train_script),
-            "--env-dir", str(env_dir),
-            "--env-id", f"{env_name}-round0",
-            "--config", str(round0_config_path),
-            "--run-dir", str(round0_dir),
-            "--reward-source", str(round0_dir / "reward_fn_source.py"),
+            "--env-dir", str(self.env_dir), "--env-id", env_id,
+            "--config", str(config_path), "--run-dir", str(proxy_dir),
+            "--reward-source", str(reward_path),
         ]
-        if config_data.get("max_episode_steps"):
-            cmd += ["--max-episode-steps", str(config_data["max_episode_steps"])]
+        if self.config.get("max_episode_steps"):
+            cmd += ["--max-episode-steps", str(self.config["max_episode_steps"])]
 
-        print(f"  Running: {' '.join(str(c) for c in cmd)}")
-        t0 = perf_counter()
-        train_r0 = _run_subprocess(cmd)
-        t_elapsed = perf_counter() - t0
+        print(f"    Proxy training ({PROXY_TIMESTEPS} steps)...")
+        result = self._run_subprocess_live(cmd)
+        success = result.returncode == 0
 
-        if train_r0.returncode != 0:
-            print(f"  Round 0 training FAILED after {t_elapsed/60:.1f} min. Aborting.")
-            sys.exit(1)
-        print(f"  Round 0 training complete ({t_elapsed/60:.1f} min)")
+        # Collect component history from trajectory logs
+        component_history = self._collect_component_stats(proxy_dir)
+        eval_history = self._read_eval_csv(proxy_dir / "evaluations" / "history.csv")
 
-        # ── Phase 3: Initialize memory & task manifest ──
-        print("\n>>> Phase 3/4: Initializing memory system")
-        memory = MemorySystem(exp_dir)
-        step_source = (env_dir / "step.py").read_text("utf-8") if (env_dir / "step.py").exists() else ""
-        memory.initialize_task_manifest(step_source=step_source,
-                                        env_description=env_description)
-        print(f"  Task manifest → {memory.task_manifest_path}")
+        return {
+            "success": success,
+            "component_history": component_history,
+            "eval_history": eval_history,
+        }
 
-        # ── Phase 4: Iterate rounds 1..N ──
-        print(f"\n>>> Phase 4/4: Running rounds 1..{total_rounds}")
-        config_data["env_id"] = f"{env_name}-round0"
+    # ── Full Training ──────────────────────────────────────────────────────────
 
-        for r in range(1, total_rounds + 1):
-            print(f"\n{'#'*60}")
-            print(f"  Iteration Round {r}")
-            print(f"{'#'*60}")
-            iter_result = run_iteration(
-                exp_dir, env_dir, r, exploration_path,
-                config_data, api_key, args.model, args.temperature,
-                dry_run=False, skip_train=False,
+    def _full_train(self, round_num: int, warmstart_candidate_idx: int = None):
+        """Full training. If warmstart_candidate_idx is provided, continues from
+        that candidate's proxy checkpoint instead of starting from scratch."""
+        if self.dry_run:
+            return
+
+        round_dir = self.exp_dir / f"round{round_num}"
+        reward_path = round_dir / "reward_fn_source.py"
+
+        # Determine remaining steps and warmstart path
+        warmstart_path = None
+        if warmstart_candidate_idx is not None:
+            proxy_model = (self.exp_dir / f"round{round_num}" /
+                          f"candidate_{warmstart_candidate_idx}" / "model.zip")
+            if proxy_model.exists():
+                warmstart_path = proxy_model
+                remaining = FULL_TIMESTEPS - PROXY_TIMESTEPS
+                print(f"  Continuing from proxy checkpoint ({PROXY_TIMESTEPS//1000}K + {remaining//1000}K = {FULL_TIMESTEPS//1000}K total)")
+            else:
+                remaining = FULL_TIMESTEPS
+        else:
+            remaining = FULL_TIMESTEPS
+
+        full_config = self._build_training_config(remaining)
+        full_config["n_envs"] = self.config.get("n_envs", 16)
+        full_config["normalize"] = self.config.get("normalize", False)
+        for k in ("checkpoint", "gif_fps", "gif_max_steps"):
+            if k in self.config:
+                full_config[k] = self.config[k]
+
+        # Adjust gif_steps for warmstart: SB3 resets the step counter in learn(),
+        # so absolute gif steps need to be shifted relative to the remaining training.
+        if warmstart_path and "gif_steps" in self.config:
+            warmstart_offset = FULL_TIMESTEPS - remaining
+            adjusted = [s - warmstart_offset for s in self.config["gif_steps"] if s > warmstart_offset]
+            if adjusted:
+                full_config["gif_steps"] = adjusted
+                print(f"  Adjusted gif_steps for warmstart: {self.config['gif_steps']} → {adjusted}")
+
+        config_path = round_dir / "config.yaml"
+        dump_fn = yaml.safe_dump if yaml else lambda d, **kw: json.dumps(d, indent=2)
+        config_path.write_text(dump_fn(full_config, sort_keys=False), encoding="utf-8")
+
+        cmd = [
+            sys.executable, str(_framework_dir / "train.py"),
+            "--env-dir", str(self.env_dir),
+            "--env-id", f"{self.env_dir.name}-round{round_num}",
+            "--config", str(config_path), "--run-dir", str(round_dir),
+            "--reward-source", str(reward_path),
+        ]
+        if warmstart_path:
+            cmd += ["--warmstart", str(warmstart_path)]
+        if self.config.get("max_episode_steps"):
+            cmd += ["--max-episode-steps", str(self.config["max_episode_steps"])]
+
+        print(f"  Training {remaining//1000}K steps...")
+        t0 = time.perf_counter()
+        result = self._run_subprocess_live(cmd)
+        elapsed = time.perf_counter() - t0
+
+        if result.returncode != 0:
+            print(f"  FAILED: {result.stderr[-300:]}")
+            raise RuntimeError(f"Training failed at round {round_num}")
+
+        print(f"  Done ({elapsed / 60:.1f} min)")
+
+    # ── Agent Wrappers ─────────────────────────────────────────────────────────
+
+    def _run_perception_on_round(self, round_num: int):
+        """Run perception agent and ensure report is saved."""
+        round_dir = self.exp_dir / f"round{round_num}"
+        if not round_dir.exists():
+            return
+        try:
+            report = self.perception_agent.run_on_round(round_dir, round_num)
+            # Save explicitly if agent didn't
+            report_path = round_dir / "perception_report.md"
+            if report and not report_path.exists():
+                report_path.write_text(report, encoding="utf-8")
+                print(f"  Perception report saved")
+        except Exception as e:
+            print(f"  Perception failed: {e}")
+
+    def _run_analyzer_with_history(self, prev_round: int, current_round: int,
+                                     is_retry: bool = False) -> dict:
+        """Run Analyzer with cross-round history + component stats injected.
+
+        This is the key feedback mechanism: the Analyzer sees what was diagnosed,
+        tried, and what happened in ALL previous rounds. This enables escalation
+        when coefficient changes fail repeatedly.
+        """
+        prev_dir = self.exp_dir / f"round{prev_round}"
+        if not prev_dir.exists():
+            return {"proposal": {"changed_count": 0, "analysis_status": "failed"}}
+
+        # Collect component stats
+        comp_stats = self._collect_component_stats(prev_dir)
+        stats_text = self._format_component_stats_for_prompt(comp_stats)
+        (prev_dir / "component_stats.md").write_text(stats_text, encoding="utf-8")
+
+        # Build cross-round history
+        history_text = self._build_cross_round_history(current_round)
+        if history_text:
+            (prev_dir / "cross_round_history.md").write_text(history_text, encoding="utf-8")
+
+        from agents.analyzer_agent import run_analyzer_agent
+        temp = 0.5 if is_retry else 0.4  # higher temp on retry for diversity
+        result = run_analyzer_agent(prev_dir, current_round, self.memory,
+                                     self.api_key, self.model, temperature=temp)
+
+        # Inject history + stats into saved prompt for audit
+        analysis_file = prev_dir / "analyzer_prompt.txt"
+        if analysis_file.exists():
+            prompt = analysis_file.read_text("utf-8")
+            additions = []
+            if history_text and "## Cross-Round History" not in prompt:
+                additions.append(f"## Cross-Round History\n{history_text}")
+            if "## Component Training Statistics" not in prompt:
+                additions.append(f"## Component Training Statistics\n{stats_text}")
+            if additions:
+                prompt = prompt.replace("## Current Reward Code",
+                                        "\n\n".join(additions) + "\n\n## Current Reward Code")
+                analysis_file.write_text(prompt)
+                print(f"  Injected cross-round history + component stats into analyzer prompt")
+
+        return result
+
+    def _build_cross_round_history(self, current_round: int) -> str:
+        """Build a summary of what was tried in each previous round and what happened.
+
+        Format: "Round N: diagnosed X, changed Y → result was Z (len=..., score=...)"
+        This gives the Analyzer the full arc of the experiment so it can avoid
+        repeating failed approaches.
+        """
+        parts = []
+        for r in range(current_round):
+            rdir = self.exp_dir / f"round{r}"
+            if not rdir.exists():
+                continue
+
+            # Get analyzer proposal
+            prop = {}
+            prop_file = rdir / "analyzer_proposal.json"
+            if prop_file.exists():
+                try:
+                    prop = json.loads(prop_file.read_text("utf-8"))
+                except Exception:
+                    pass
+
+            # Get eval
+            eval_len = "?"
+            eval_file = rdir / "evaluations" / "history.csv"
+            if eval_file.exists():
+                try:
+                    last = list(csv.DictReader(eval_file.open("r")))[-1]
+                    eval_len = last.get("mean_length", "?")
+                except Exception:
+                    pass
+
+            # Get component health
+            health_score = "?"
+            cs_file = rdir / "component_stats.md"
+            if cs_file.exists():
+                try:
+                    lines = [l for l in cs_file.read_text("utf-8").split("\n") if l.startswith("|")][2:-2]
+                    active = sum(1 for l in lines if "active" in l)
+                    health_score = f"active={active}/{len(lines)}" if lines else "?"
+                except Exception:
+                    pass
+
+            diagnosis = prop.get("diagnosis", "?")[:150]
+            changed = prop.get("changed_count", 0)
+
+            parts.append(
+                f"**Round {r}:** Diagnosed: {diagnosis}\n"
+                f"  Proposed {changed} change(s). "
+                f"Result: eval_length={eval_len}, components={health_score}"
             )
-            if not iter_result.get("trained", False):
-                print(f"  Round {r} FAILED. Stopping.")
-                (exp_dir / "STATUS").write_text(f"FAILED at round {r}\n")
+
+        if not parts:
+            return ""
+
+        repeated_diagnoses = self._detect_repeated_diagnoses(current_round)
+        header = "What was diagnosed, tried, and what happened in each previous round:"
+        if repeated_diagnoses:
+            header += f"\n\n**WARNING: The same diagnosis has appeared in {repeated_diagnoses} consecutive rounds without resolving the issue. You MUST propose a STRUCTURAL change, not another coefficient tweak.**"
+
+        return header + "\n\n" + "\n\n".join(parts)
+
+    def _detect_repeated_diagnoses(self, current_round: int) -> int:
+        """Count how many consecutive previous rounds had the same core diagnosis."""
+        diagnoses = []
+        for r in range(current_round):
+            prop_file = self.exp_dir / f"round{r}" / "analyzer_proposal.json"
+            if prop_file.exists():
+                try:
+                    d = json.loads(prop_file.read_text("utf-8")).get("diagnosis", "")
+                    # Extract key phrases
+                    keywords = set(re.findall(r'\b(per-step|terminal|dominat|coefficient|structur|hover|surviv)\w*', d.lower()))
+                    diagnoses.append(frozenset(keywords))
+                except Exception:
+                    pass
+
+        if len(diagnoses) < 2:
+            return 0
+
+        # Count from the end how many are similar to the last one
+        count = 1
+        for i in range(len(diagnoses) - 2, -1, -1):
+            sim = len(diagnoses[i] & diagnoses[-1]) / max(len(diagnoses[i] | diagnoses[-1]), 1)
+            if sim > 0.3:
+                count += 1
+            else:
                 break
+        return count if count >= 2 else 0
 
-        (exp_dir / "STATUS").write_text(f"COMPLETED ({total_rounds} rounds)\n")
-        print(f"\n{'='*60}")
-        print(f"  Experiment complete!")
-        print(f"  Directory: {exp_dir}")
-        print(f"{'='*60}")
+    def _get_previous_health(self, round_num: int) -> dict | None:
+        """Get the health score from a previous round's component stats."""
+        rdir = self.exp_dir / f"round{round_num}"
+        stats = self._collect_component_stats(rdir)
+        evals = self._read_eval_csv(rdir / "evaluations" / "history.csv")
+        if stats or evals:
+            return compute_component_health(stats, evals)
+        return None
 
+    def _run_analyzer(self, prev_round: int, current_round: int) -> dict:
+        """Backward-compat wrapper."""
+        return self._run_analyzer_with_history(prev_round, current_round)
 
-def _find_env_dir(exp_dir: Path, env_id_hint: str = None) -> Path:
-    """Find the env directory matching the experiment context.
+    def _run_reflection(self, round_num: int):
+        """Run reflection agent and consolidate to memory."""
+        round_dir = self.exp_dir / f"round{round_num}"
+        if not round_dir.exists():
+            return
+        try:
+            self.reflector_agent.run_on_round(round_dir, round_num, memory_system=self.memory)
+        except Exception as e:
+            print(f"  Reflection LLM call failed: {e}")
+            # Write a basic reflection from component stats
+            self._write_fallback_reflection(round_dir, round_num)
 
-    Args:
-        exp_dir: Experiment directory (name encodes env name).
-        env_id_hint: Optional env_id (e.g. 'BipedalWalker-v3-round0') to match.
+        reflection_path = round_dir / "reflection.md"
+        if reflection_path.exists():
+            try:
+                n = self.memory.consolidate_to_archival(
+                    reflection_path.read_text("utf-8"), round_num,
+                    env_description=self._load_env_description(self.env_dir.name),
+                )
+                if n: print(f"  +{n} archival patterns")
+            except Exception as e:
+                print(f"  Archival consolidation failed: {e}")
 
-    Returns:
-        Path to the environment directory.
+    def _write_fallback_reflection(self, round_dir: Path, round_num: int):
+        """Write a basic reflection from available data when LLM fails."""
+        comp_stats = self._collect_component_stats(round_dir)
+        evals = self._read_eval_csv(round_dir / "evaluations" / "history.csv")
+        health = compute_component_health(comp_stats, evals)
 
-    Raises:
-        FileNotFoundError: No matching env directory found.
-    """
-    envs_dir = exp_dir.parent.parent / "envs"
-    if not envs_dir.exists():
-        raise FileNotFoundError(f"envs directory not found: {envs_dir}")
+        reflection = f"""## Round {round_num} Reflection (auto-generated)
 
-    # Method 1: Match by env_id_hint (most reliable)
-    if env_id_hint:
-        import re
-        env_name = re.sub(r"-round\d+$", "", env_id_hint)
-        for d in envs_dir.iterdir():
-            if d.is_dir() and (d / "step.py").exists() and d.name == env_name:
-                return d
-        # Case-insensitive fallback
-        for d in envs_dir.iterdir():
-            if d.is_dir() and (d / "step.py").exists() and d.name.lower() == env_name.lower():
-                return d
+### What We Learned
+Component health score: {health['score']:.0f}/100 ({health['verdict']}).
+{health['n_active']}/{health['n_components']} components active.
+Episode length quality: {health['length_quality']:.2f} (1.0=best).
+Outcome signal: {health['outcome']:.2f} (1.0=all success).
 
-    # Method 2: Parse env name from experiment directory name (format: envname_timestamp_timesteps)
-    exp_name = exp_dir.name
-    env_name = exp_name.rsplit("_", 2)[0]
-    for d in envs_dir.iterdir():
-        if d.is_dir() and (d / "step.py").exists() and d.name.lower() == env_name.lower():
-            return d
+### Abstract Principle
+Reward component balance and activation are key indicators of training health.
 
-    # Method 3: Fallback — first env dir with step.py (original behavior)
-    for d in sorted(envs_dir.iterdir()):
-        if d.is_dir() and (d / "step.py").exists():
-            print(f"  WARNING: Could not match env by name, using first found: {d.name}")
-            return d
+### For Next Round
+- [ ] Action: Review component activation — dead components need structural changes
+"""
+        (round_dir / "reflection.md").write_text(reflection, encoding="utf-8")
+        print(f"  Fallback reflection written")
 
-    raise FileNotFoundError(
-        "Cannot find env directory from experiment context. "
-        "Use --env-dir to specify it explicitly."
-    )
+    # ── Component Stats ────────────────────────────────────────────────────────
 
+    def _collect_component_stats(self, round_dir: Path) -> list[dict]:
+        """Collect per-component statistics from trajectory JSONL files."""
+        traj_dir = round_dir / "trajectory_logs"
+        if not traj_dir.exists():
+            return []
 
-def _find_exploration(exp_dir: Path) -> Path:
-    """Try to find exploration JSON."""
-    explores_dir = exp_dir.parent.parent / "explorations"
-    if explores_dir.exists():
-        for f in explores_dir.glob("*.json"):
-            return f
-    return None
+        all_comps: dict[str, list[float]] = {}
+        for f in sorted(traj_dir.glob("*.jsonl")):
+            for line in f.read_text("utf-8").strip().split("\n"):
+                if not line.strip(): continue
+                try:
+                    record = json.loads(line)
+                    for comp, val in (record.get("component_means", {})).items():
+                        all_comps.setdefault(comp, []).append(float(val))
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    continue
 
+        result = []
+        for comp, vals in all_comps.items():
+            arr = vals
+            n = len(arr)
+            if n == 0: continue
+            mean = sum(arr) / n
+            std = (sum((x - mean)**2 for x in arr) / n) ** 0.5 if n > 1 else 0.0
+            result.append({
+                "component": comp,
+                "mean": round(mean, 6),
+                "std": round(std, 6),
+                "min": round(min(arr), 6),
+                "max": round(max(arr), 6),
+                "n": n,
+            })
 
-def _load_experiment_config(exp_dir: Path) -> dict:
-    """Load config from existing experiment files."""
-    round0_dir = exp_dir / "round0"
-    if round0_dir.exists():
-        config_path = round0_dir / "config.yaml"
-        if config_path.exists():
-            return _safe_load_config_text(config_path.read_text("utf-8"))
-    return {
-        "total_timesteps": 2_000_000,
-        "n_envs": 8,
-        "rounds": 5,
-        "ppo": {
-            "policy": "MlpPolicy",
-            "learning_rate": 3e-4,
-            "n_steps": 2048,
-            "batch_size": 64,
-            "n_epochs": 10,
-            "gamma": 0.99,
-            "gae_lambda": 0.95,
-            "clip_range": 0.2,
-            "ent_coef": 0.0,
-            "vf_coef": 0.5,
-            "max_grad_norm": 0.5,
-        },
-    }
+        return result
 
+    def _format_component_stats_for_prompt(self, stats: list[dict]) -> str:
+        """Format component statistics as markdown table (Eureka-style reflection)."""
+        if not stats:
+            return "*(no component statistics available)*"
+        lines = [
+            "| Component | Mean | Std | Min | Max | N | Status |",
+            "|-----------|------|-----|-----|-----|---|--------|",
+        ]
+        for s in stats:
+            status = "active" if abs(s["mean"]) > 0.01 else ("dead" if abs(s["mean"]) < 1e-6 else "weak")
+            lines.append(
+                f"| {s['component']} | {s['mean']:.4f} | {s['std']:.4f} | "
+                f"{s['min']:.4f} | {s['max']:.4f} | {s['n']} | {status} |"
+            )
+        lines.append("")
+        lines.append("**Key:** active = |mean| > 0.01, weak = in between, dead = |mean| ≈ 0")
+        lines.append("Dead components indicate the reward signal is not reaching the agent — consider removing or rescaling them.")
+        return "\n".join(lines)
 
-if __name__ == "__main__":
-    main()
+    # ── Helpers ────────────────────────────────────────────────────────────────
+
+    def _setup_experiment_dir(self):
+        env_name = self.env_dir.name.lower()
+        ts = datetime.now(BEIJING).strftime("%y%m%d%H%M")
+        steps = self.config.get("total_timesteps", FULL_TIMESTEPS)
+        self.exp_dir = _framework_dir.parent / "runs" / f"{env_name}_{ts}_{steps}"
+        self.exp_dir.mkdir(parents=True, exist_ok=True)
+
+    def _register_subscriptions(self):
+        for agent, types in [
+            ("generator", ["task_manifest", "evaluation_report", "reflection_report"]),
+            ("analyzer", ["perception_report", "reward_code", "training_result"]),
+            ("evaluator", ["reward_code", "training_result"]),
+            ("reflector", ["evaluation_report", "generator_proposal"]),
+        ]:
+            self.pool.subscribe(agent, types)
+
+    def _save_config(self):
+        cfg = {k: v for k, v in self.config.items() if k != "llm_api_key"}
+        dump_fn = yaml.safe_dump if yaml else lambda d, **kw: json.dumps(d, indent=2)
+        (self.exp_dir / "config.yaml").write_text(dump_fn(cfg, sort_keys=False), encoding="utf-8")
+
+    def _save_status(self, n_rounds):
+        (self.exp_dir / "STATUS").write_text(
+            f"COMPLETED (v2, {n_rounds} rounds, {self.pool.message_count} msgs, {self.memory.archival.pattern_count} archival)\n")
+
+    def _copy_prev_reward(self, prev_dir: Path, round_dir: Path):
+        """Copy previous round's reward code to current round."""
+        src = prev_dir / "reward_fn_source.py"
+        if src.exists():
+            round_dir.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copy(str(src), str(round_dir / "reward_fn_source.py"))
+
+    def _save_reward(self, code: str, round_dir: Path, round_num: int):
+        round_dir.mkdir(parents=True, exist_ok=True)
+        cleaned = re.sub(r'^"""LLM[- ].*?"""', '', code.strip(), flags=re.DOTALL)
+        cleaned = re.sub(r'^import\s+(math|numpy).*?\n', '', cleaned, flags=re.MULTILINE)
+        (round_dir / "reward_fn_source.py").write_text(
+            f'"""LLM-generated reward (round {round_num}).\n"""\n\nimport math\nimport numpy as np\n\n{cleaned}\n',
+            encoding="utf-8")
+
+    def _load_env_description(self, name: str) -> str:
+        p = _framework_dir.parent / "env_descriptions" / f"{name}.md"
+        return p.read_text("utf-8").strip() if p.exists() else ""
+
+    def _extract_signature(self, manifest: str) -> str:
+        m = re.search(r'compute_reward\s*\(([^)]+)\)', manifest)
+        return m.group(1).strip() if m else "state, action, terminated"
+
+    def _call_llm_for_code(self, prompt, temp, label=""):
+        for attempt in range(1, 4):
+            try:
+                response = call_llm(prompt, self.api_key, self.model, temp)
+                code = extract_reward_fn(response)
+                if "def compute_reward" in code:
+                    compile(code, "<gen>", "exec")
+                    return code, response
+            except Exception as e:
+                if attempt == 3: print(f"  {label} FAILED: {e}")
+        return None, None
+
+    def _read_eval_csv(self, path: Path) -> list[dict]:
+        if not path.exists(): return []
+        with path.open("r") as f:
+            return list(csv.DictReader(f))
+
+    def _read_file(self, path: Path) -> str:
+        return path.read_text("utf-8") if path.exists() else ""
