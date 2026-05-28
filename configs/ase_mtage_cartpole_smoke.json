@@ -1,0 +1,41 @@
+{
+  "experiment_name": "ase_mtage_cartpole_smoke",
+  "output_root": "outputs",
+  "method": {
+    "name": "ASE-MTAGE",
+    "k_candidates": 3,
+    "max_rounds": 3,
+    "selected_long_train_per_round": 1,
+    "use_short_training": false
+  },
+  "llm": {
+    "enabled": false,
+    "provider": "deepseek",
+    "model": "deepseek-reasoner",
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "base_url": "https://api.deepseek.com",
+    "timeout_seconds": 120,
+    "max_tokens": 4096,
+    "temperature": {
+      "env_perception": 0.2,
+      "trajectory_judge": 0.2,
+      "analyzer": 0.4,
+      "mutator": 0.6,
+      "reflector": 0.3
+    }
+  },
+  "training": {
+    "env_id": "CartPole-v1",
+    "full_timesteps": 2000,
+    "eval_interval": 1000,
+    "eval_episodes_per_interval": 2,
+    "final_eval_episodes": 8,
+    "seed": 42
+  },
+  "trajectory_memory": {
+    "min_trajectories": 5,
+    "min_high_confidence_trajectories": 3,
+    "label_confidence_threshold": 0.7,
+    "use_ambiguous_for_tage": false
+  }
+}
