@@ -1,8 +1,9 @@
 """Analyzer Agent for ASE-MTAGE.
 
-When an LLM client is provided, this agent uses `prompts/analyzer.md` and writes
-LLM prompt/response artifacts. Otherwise it falls back to deterministic schema-
-compatible analysis.
+LLM mode follows prompts/analyzer.md. Deterministic fallback is also
+schema-aligned and component-aware enough for no-LLM experiments: it derives
+preserve/remove-or-gate hints from TAGE selection reports, coverage, label counts,
+and failure memory.
 """
 
 from __future__ import annotations
@@ -60,6 +61,8 @@ class AnalyzerAgent:
             previous_selection_report=previous_selection_report,
             failure_memory_records=failure_memory_records,
             elite_archive=elite_archive,
+            env_manifest=env_manifest,
+            tage_summary=tage_summary,
         )
 
     def _run_llm(self, **kwargs: Any) -> dict[str, Any]:
@@ -86,18 +89,34 @@ class AnalyzerAgent:
         save_json(self.output_dir / "self_evaluation.json", evaluation)
         return evaluation
 
-    def _run_deterministic(self, *, round_idx: int, parent_reward_id: str | None, coverage_report: dict[str, Any], previous_selection_report: dict[str, Any] | None = None, failure_memory_records: list[dict[str, Any]] | None = None, elite_archive: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _run_deterministic(
+        self,
+        *,
+        round_idx: int,
+        parent_reward_id: str | None,
+        coverage_report: dict[str, Any],
+        previous_selection_report: dict[str, Any] | None = None,
+        failure_memory_records: list[dict[str, Any]] | None = None,
+        elite_archive: dict[str, Any] | None = None,
+        env_manifest: dict[str, Any] | None = None,
+        tage_summary: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         coverage_type = str(coverage_report.get("coverage_type", "ambiguous"))
         label_counts = dict(coverage_report.get("label_counts") or {})
         known_failures = [label for label in ["early_failure", "low_progress_survival"] if label_counts.get(label, 0) > 0]
-        useful_patterns = []
+        useful_patterns: list[str] = []
         if label_counts.get("partial_progress", 0) > 0:
             useful_patterns.append("partial_progress trajectories exist and should be preserved or improved")
         if label_counts.get("success_like", 0) > 0:
             useful_patterns.append("success_like trajectories exist and should be strongly preferred")
-        component_diagnosis = self._component_diagnosis(previous_selection_report)
-        mutation_intent = self._mutation_intent(coverage_type, known_failures, useful_patterns, component_diagnosis)
+
+        component_diagnosis = self._component_diagnosis(previous_selection_report, tage_summary, coverage_report)
+        preserve_components, remove_or_gate_components = self._component_actions(component_diagnosis, known_failures, coverage_type, env_manifest)
+        mutation_intent = self._mutation_intent(coverage_type, known_failures, useful_patterns, component_diagnosis, preserve_components, remove_or_gate_components)
         overall = "memory_insufficient_for_strong_diagnosis" if coverage_type in {"empty_or_too_small", "ambiguous"} else "parent_reward_provides_usable_memory_but_needs_evolution"
+        uncertainties = [] if useful_patterns else ["Memory may still be too weak for strong conclusions."]
+        if coverage_type in {"single_failure_mode", "multiple_failure_modes"}:
+            uncertainties.append("Memory mainly contains failure trajectories, so positive preference construction is limited.")
         evaluation = {
             "round": round_idx,
             "parent_reward_id": parent_reward_id,
@@ -108,7 +127,7 @@ class AnalyzerAgent:
                 "usable_preference_level": "strong_pairwise" if coverage_type == "balanced" else ("weak_pairwise" if coverage_type == "failure_plus_partial_progress" else "weak_or_none"),
                 "main_known_failures": known_failures,
                 "main_useful_patterns": useful_patterns,
-                "uncertainties": [] if useful_patterns else ["Memory may still be too weak for strong conclusions."],
+                "uncertainties": uncertainties,
                 "label_counts": label_counts,
             },
             "component_diagnosis": component_diagnosis,
@@ -117,30 +136,81 @@ class AnalyzerAgent:
             "self_evaluation_lesson": self._lesson(coverage_type, known_failures, useful_patterns),
             "recent_failure_memory_used": failure_memory_records or [],
             "elite_archive_summary": elite_archive or {},
-            "agent_mode": "deterministic_analyzer",
+            "agent_mode": "deterministic_component_aware_analyzer",
         }
-        save_text(self.output_dir / "prompt.txt", "Deterministic AnalyzerAgent; no LLM prompt was sent.\n")
+        save_text(self.output_dir / "prompt.txt", "Deterministic component-aware AnalyzerAgent; no LLM prompt was sent.\n")
         save_text(self.output_dir / "response.txt", "Deterministic self_evaluation.json generated.\n")
         save_json(self.output_dir / "self_evaluation.json", evaluation)
         return evaluation
 
-    def _component_diagnosis(self, selection_report: dict[str, Any] | None) -> list[dict[str, Any]]:
-        if not selection_report:
-            return []
-        selected_id = selection_report.get("selected_candidate")
-        selected = next((item for item in selection_report.get("candidate_scores", []) or [] if item.get("candidate_id") == selected_id), None)
-        if not selected:
-            return []
-        diagnosis = []
-        pref = selected.get("preference_consistency")
-        fail = selected.get("failure_avoidance")
-        if pref is not None:
-            diagnosis.append({"component": "global_reward_ranking", "verdict": "keep_or_improve" if float(pref or 0) >= 0.5 else "restructure", "evidence": f"selected preference_consistency={pref}"})
-        if fail is not None:
-            diagnosis.append({"component": "failure_avoidance", "verdict": "keep" if float(fail or 0) >= 0.5 else "strengthen", "evidence": f"selected failure_avoidance={fail}"})
+    def _component_diagnosis(self, selection_report: dict[str, Any] | None, tage_summary: dict[str, Any] | None, coverage_report: dict[str, Any]) -> list[dict[str, Any]]:
+        diagnosis: list[dict[str, Any]] = []
+        selected_report = self._selected_tage_report(selection_report, tage_summary)
+        if selected_report:
+            pref = (selected_report.get("preference_consistency") or {}).get("score")
+            fail = (selected_report.get("failure_avoidance") or {}).get("normalized_score")
+            comp = selected_report.get("component_alignment") or {}
+            if pref is not None:
+                diagnosis.append({"component": "global_reward_ranking", "verdict": "keep" if float(pref or 0) >= 0.6 else "restructure", "evidence": f"preference_consistency={pref}"})
+            if fail is not None:
+                diagnosis.append({"component": "failure_avoidance", "verdict": "keep" if float(fail or 0) >= 0.55 else "strengthen", "evidence": f"failure_avoidance={fail}"})
+            for name, report in (comp.get("components") or {}).items():
+                consistency = float(report.get("pair_consistency", 0.0) or 0.0)
+                if consistency >= 0.65:
+                    verdict = "keep"
+                elif consistency <= 0.35:
+                    verdict = "remove_or_gate"
+                else:
+                    verdict = "unknown"
+                diagnosis.append({"component": name, "verdict": verdict, "evidence": f"component_pair_consistency={consistency:.3f}; {report.get('diagnosis', '')}"})
+        if not diagnosis:
+            coverage_type = str(coverage_report.get("coverage_type", "ambiguous"))
+            label_counts = dict(coverage_report.get("label_counts") or {})
+            if label_counts.get("low_progress_survival", 0) > 0:
+                diagnosis.append({"component": "ungated_survival_or_contact_bonus", "verdict": "remove_or_gate", "evidence": "low_progress_survival trajectories exist in memory; avoid rewarding time/contact without progress"})
+            if label_counts.get("early_failure", 0) > 0:
+                diagnosis.append({"component": "terminal_failure_penalty", "verdict": "strengthen", "evidence": "early_failure trajectories exist in memory"})
+            if label_counts.get("partial_progress", 0) > 0:
+                diagnosis.append({"component": "progress_delta", "verdict": "keep", "evidence": "partial_progress trajectories exist in memory"})
+            if coverage_type in {"empty_or_too_small", "ambiguous"}:
+                diagnosis.append({"component": "all_components", "verdict": "unknown", "evidence": f"coverage_type={coverage_type}; component-specific evidence is weak"})
         return diagnosis
 
-    def _mutation_intent(self, coverage_type: str, known_failures: list[str], useful_patterns: list[str], component_diagnosis: list[dict[str, Any]]) -> dict[str, Any]:
+    def _selected_tage_report(self, selection_report: dict[str, Any] | None, tage_summary: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not tage_summary:
+            return None
+        selected_id = (selection_report or {}).get("selected_candidate")
+        reports = tage_summary.get("candidate_tage_reports") or []
+        if selected_id:
+            for report in reports:
+                if report.get("candidate_id") == selected_id:
+                    return report
+        return reports[0] if reports else None
+
+    def _component_actions(self, component_diagnosis: list[dict[str, Any]], known_failures: list[str], coverage_type: str, env_manifest: dict[str, Any] | None) -> tuple[list[str], list[str]]:
+        preserve: list[str] = []
+        remove: list[str] = []
+        for item in component_diagnosis:
+            name = str(item.get("component", ""))
+            verdict = str(item.get("verdict", "unknown"))
+            if verdict in {"keep", "keep_or_improve", "strengthen"} and name not in {"all_components", "global_reward_ranking", "failure_avoidance"}:
+                preserve.append(name)
+            if verdict in {"remove_or_gate", "restructure"} and name not in {"all_components", "global_reward_ranking"}:
+                remove.append(name)
+        if "early_failure" in known_failures and "terminal_failure_penalty" not in preserve:
+            preserve.append("terminal_failure_penalty")
+        if "low_progress_survival" in known_failures:
+            for name in ["ungated_survival_bonus", "ungated_contact_bonus", "low_progress_survival_gate"]:
+                if name not in remove:
+                    remove.append(name)
+        if coverage_type in {"failure_plus_partial_progress", "balanced"} and "progress_delta" not in preserve:
+            preserve.append("progress_delta")
+        env_name = str((env_manifest or {}).get("env_name", "")).lower()
+        if "bipedalwalker" in env_name and "forward_velocity" not in preserve:
+            preserve.append("forward_velocity")
+        return sorted(set(preserve)), sorted(set(remove))
+
+    def _mutation_intent(self, coverage_type: str, known_failures: list[str], useful_patterns: list[str], component_diagnosis: list[dict[str, Any]], preserve: list[str], remove: list[str]) -> dict[str, Any]:
         if coverage_type in {"failure_plus_partial_progress", "balanced"}:
             primary = "progress_conditioned"
             required = ["preserve components that favor partial_progress over known failures", "reduce reward assigned to known failure labels"]
@@ -154,7 +224,18 @@ class AnalyzerAgent:
             required.append(f"explicitly avoid known failures: {', '.join(known_failures)}")
         if useful_patterns:
             required.append("preserve useful patterns: " + "; ".join(useful_patterns))
-        return {"primary_family": primary, "secondary_family": "component_recomposition" if primary != "component_recomposition" else "progress_conditioned", "forbidden_changes": ["do not use official reward", "do not only scale all coefficients", "do not add global survival bonus without progress gating"], "required_changes": required, "preserve_components": [], "remove_or_gate_components": []}
+        if remove:
+            required.append("gate or remove components: " + ", ".join(remove))
+        if preserve:
+            required.append("preserve or strengthen components: " + ", ".join(preserve))
+        return {
+            "primary_family": primary,
+            "secondary_family": "component_recomposition" if primary != "component_recomposition" else "progress_conditioned",
+            "forbidden_changes": ["do not use official reward", "do not only scale all coefficients", "do not add global survival bonus without progress gating"],
+            "required_changes": required,
+            "preserve_components": preserve,
+            "remove_or_gate_components": remove,
+        }
 
     def _lesson(self, coverage_type: str, known_failures: list[str], useful_patterns: list[str]) -> str:
         if coverage_type in {"failure_plus_partial_progress", "balanced"}:
