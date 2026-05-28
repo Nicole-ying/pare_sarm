@@ -1,9 +1,9 @@
 """Trajectory Judge Agent for ASE-MTAGE.
 
 The judge is rule-first and LLM-assisted. High-confidence rule labels are accepted
-after hard consistency checks. Low-confidence or ambiguous evidence cards are sent
-to the LLM when a client is available. The final label is always guarded by the
-LabelConsistencyChecker before it can enter Memory-TAGE preference pairs.
+after hard consistency checks. Low-confidence cards are sent to the LLM when a
+client is available. In strict paper runs, LLM failure raises instead of silently
+falling back to ambiguous labels.
 """
 
 from __future__ import annotations
@@ -58,6 +58,7 @@ class TrajectoryJudgeAgent:
         output_dir: str | Path | None = None,
         task_manifest: str | None = None,
         env_manifest: dict[str, Any] | None = None,
+        fallback_on_error: bool = True,
     ) -> None:
         self.confidence_threshold = confidence_threshold
         self.llm_client = llm_client
@@ -65,6 +66,7 @@ class TrajectoryJudgeAgent:
         self.output_dir = ensure_dir(output_dir) if output_dir else None
         self.task_manifest = task_manifest or ""
         self.env_manifest = env_manifest or {}
+        self.fallback_on_error = fallback_on_error
         self.consistency_checker = LabelConsistencyChecker(confidence_threshold=confidence_threshold)
 
     def judge(self, card: dict[str, Any]) -> TrajectoryJudgment:
@@ -96,6 +98,8 @@ class TrajectoryJudgeAgent:
                 evidence_used = list(llm.get("evidence_used") or rule_label.get("evidence") or [])
             except Exception as exc:
                 self._save_llm_error(trajectory_id, exc)
+                if not self.fallback_on_error:
+                    raise RuntimeError("TrajectoryJudgeAgent LLM failed and fallback_on_error=false") from exc
                 label, judge_mode, agree_with_rule, do_not_use_reason, evidence_used = self._ambiguous_fallback(rule_conf, rule_label)
         else:
             label, judge_mode, agree_with_rule, do_not_use_reason, evidence_used = self._ambiguous_fallback(rule_conf, rule_label)
@@ -134,8 +138,8 @@ class TrajectoryJudgeAgent:
             "allowed_labels": ["early_failure", "low_progress_survival", "partial_progress", "success_like", "ambiguous"],
         }
         user_prompt = template.replace("{input_artifacts}", json.dumps(input_artifacts, ensure_ascii=False, indent=2))
+        safe_id = str(card.get("trajectory_id", "unknown")).replace("/", "_")
         if self.output_dir:
-            safe_id = str(card.get("trajectory_id", "unknown")).replace("/", "_")
             save_text(self.output_dir / f"{safe_id}_judge_prompt.txt", user_prompt)
         resp = self.llm_client.chat(
             system_prompt="You are the ASE-MTAGE Trajectory Judge Agent. Output only valid JSON.",
@@ -143,19 +147,13 @@ class TrajectoryJudgeAgent:
             temperature=self.temperature,
         )
         if self.output_dir:
-            safe_id = str(card.get("trajectory_id", "unknown")).replace("/", "_")
             save_text(self.output_dir / f"{safe_id}_judge_response.txt", resp.content)
             save_json(self.output_dir / f"{safe_id}_judge_raw_response.json", resp.raw)
         return extract_json_object(resp.content)
 
     def _ambiguous_fallback(self, rule_conf: float, rule_label: dict[str, Any]) -> tuple[dict[str, Any], str, bool, str, list[str]]:
         return (
-            {
-                "coarse_label": "ambiguous",
-                "detail_label": "low_confidence_rule_label",
-                "confidence": min(rule_conf, 0.49),
-                "use_for_tage_pair": False,
-            },
+            {"coarse_label": "ambiguous", "detail_label": "low_confidence_rule_label", "confidence": min(rule_conf, 0.49), "use_for_tage_pair": False},
             "guarded_no_llm_or_llm_failed",
             False,
             "Rule confidence is low and LLM judge is unavailable or failed.",
