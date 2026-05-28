@@ -1,8 +1,8 @@
 """Reflection / Memory Agent for ASE-MTAGE.
 
-The reflector can use an LLM when a client is available. It writes compact memory
-records for later Analyzer prompts, and falls back to a deterministic record if
-the LLM is disabled or unavailable.
+The reflector can use an LLM when a client is available. In paper-mode LLM runs,
+set fallback_on_error=false so LLM failure fails fast rather than silently writing
+deterministic reflection memory.
 """
 
 from __future__ import annotations
@@ -19,12 +19,13 @@ from ase_mtage.utils.io import append_jsonl, ensure_dir, save_json, save_text
 class ReflectionAgent:
     """Write round-level lessons into memory."""
 
-    def __init__(self, *, output_dir: str | Path, failure_memory_path: str | Path, archival_lessons_path: str | Path, llm_client: LLMClient | None = None, temperature: float = 0.3) -> None:
+    def __init__(self, *, output_dir: str | Path, failure_memory_path: str | Path, archival_lessons_path: str | Path, llm_client: LLMClient | None = None, temperature: float = 0.3, fallback_on_error: bool = True) -> None:
         self.output_dir = ensure_dir(output_dir)
         self.failure_memory = FailureRepairMemory(failure_memory_path)
         self.archival_lessons_path = Path(archival_lessons_path)
         self.llm_client = llm_client
         self.temperature = temperature
+        self.fallback_on_error = fallback_on_error
 
     def run(self, *, round_idx: int, analyzer_report: dict[str, Any] | None, selection_report: dict[str, Any] | None, coverage_report: dict[str, Any] | None, rollback_report: dict[str, Any] | None, trajectory_judgment_summary: dict[str, Any] | None = None, tage_summary: dict[str, Any] | None = None, elite_archive: dict[str, Any] | None = None) -> dict[str, Any]:
         if self.llm_client is not None:
@@ -32,6 +33,8 @@ class ReflectionAgent:
                 reflection = self._run_llm(round_idx, analyzer_report, selection_report, coverage_report, rollback_report, trajectory_judgment_summary, tage_summary, elite_archive)
             except Exception as exc:
                 save_text(self.output_dir / "llm_error.txt", str(exc) + "\n")
+                if not self.fallback_on_error:
+                    raise RuntimeError("ReflectionAgent LLM failed and fallback_on_error=false") from exc
                 reflection = self._run_deterministic(round_idx, analyzer_report, selection_report, coverage_report, rollback_report, "llm_failed")
         else:
             reflection = self._run_deterministic(round_idx, analyzer_report, selection_report, coverage_report, rollback_report, "no_llm")
