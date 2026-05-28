@@ -1,14 +1,4 @@
-"""ASE-MTAGE closed-loop pipeline.
-
-Runnable loop:
-Round 0 trains one selected reward and builds initial trajectory memory.
-Round 1+ performs Analyzer -> Mutator -> Validator -> Memory-TAGE -> Selector ->
-Rollback -> long training -> evidence cards -> Reflection memory.
-
-When llm.enabled=true, EnvPerception, Analyzer, Mutator, TrajectoryJudge, and
-Reflection use the DeepSeek/OpenAI-compatible client where implemented. Each LLM
-agent still has guarded deterministic fallback to keep experiments reproducible.
-"""
+"""ASE-MTAGE closed-loop pipeline."""
 
 from __future__ import annotations
 
@@ -35,22 +25,13 @@ from ase_mtage.utils.io import ensure_dir, load_config, load_json, now_timestamp
 
 
 class ASEMTAGEPipeline:
-    """Closed-loop ASE-MTAGE pipeline."""
+    """Closed-loop ASE-MTAGE pipeline with strict LLM fallback control."""
 
-    def __init__(
-        self,
-        config: ASEMTAGEConfig | dict[str, Any] | None = None,
-        *,
-        config_path: str | Path | None = None,
-        output_root: str | Path | None = None,
-        resume_from: str | Path | None = None,
-        dry_run: bool = False,
-    ) -> None:
+    def __init__(self, config: ASEMTAGEConfig | dict[str, Any] | None = None, *, config_path: str | Path | None = None, output_root: str | Path | None = None, resume_from: str | Path | None = None, dry_run: bool = False) -> None:
         if isinstance(config, ASEMTAGEConfig):
             self.config = config
         else:
-            raw = config if config is not None else load_config(config_path)
-            self.config = ASEMTAGEConfig.from_dict(raw)
+            self.config = ASEMTAGEConfig.from_dict(config if config is not None else load_config(config_path))
         if output_root is not None:
             self.config.output_root = str(output_root)
         self.config_path = Path(config_path) if config_path else None
@@ -67,18 +48,21 @@ class ASEMTAGEPipeline:
             use_short_training=self.config.method.use_short_training,
             selected_long_train_per_round=self.config.method.selected_long_train_per_round,
             notes=[
-                "Closed-loop ASE-MTAGE: selected children are long-trained and appended to trajectory memory.",
-                "LLM-enabled agents use DeepSeek/OpenAI-compatible API when llm.enabled=true.",
-                "Historical best health is not used as a gate.",
+                "Closed-loop ASE-MTAGE with long training and trajectory-memory accumulation.",
+                "If llm.enabled=true and llm.fallback_on_error=false, LLM failures stop the run.",
+                "No historical-best-health gate is used.",
             ],
         )
+
+    @property
+    def fallback_on_error(self) -> bool:
+        return bool(getattr(self.config.llm, "fallback_on_error", True))
 
     def _resolve_exp_dir(self) -> Path:
         if self.resume_from is not None:
             return self.resume_from
-        if self.config.experiment_name:
-            name = self.config.experiment_name
-        else:
+        name = self.config.experiment_name
+        if not name:
             safe_env = self.config.training.env_id.lower().replace("/", "_").replace("-", "_")
             name = f"ase_mtage_{safe_env}_{now_timestamp()}"
         return Path(self.config.output_root) / name
@@ -92,14 +76,13 @@ class ASEMTAGEPipeline:
         save_json(self.layout.exp_dir / "config.json", self.config.to_dict())
         if self.config_path and self.config_path.exists():
             save_text(self.layout.exp_dir / "config_source.txt", f"Original config path: {self.config_path}\n")
-
         sanitized = EnvSanitizer().sanitize_env(env_id=self.config.training.env_id, output_dir=self.layout.core_memory_dir)
         EnvPerceptionAgent(
             self.layout.core_memory_dir,
             llm_client=self.llm_client,
             temperature=float(self.config.llm.temperature.get("env_perception", 0.2)),
+            fallback_on_error=self.fallback_on_error,
         ).run(env_id=self.config.training.env_id, sanitized_env_summary=sanitized)
-
         save_text(self.layout.memory_dir / "trajectory_cards.jsonl", "")
         save_text(self.layout.memory_dir / "failure_repair_memory.jsonl", "")
         save_text(self.layout.memory_dir / "archival_lessons.jsonl", "")
@@ -109,28 +92,15 @@ class ASEMTAGEPipeline:
 
     def run(self, n_rounds: int | None = None) -> dict[str, Any]:
         self.setup_experiment()
-        total_rounds = n_rounds if n_rounds is not None else self.config.method.max_rounds
-        if total_rounds < 0:
-            raise ValueError("n_rounds must be non-negative")
-        summaries: list[dict[str, Any]] = []
+        total_rounds = self.config.method.max_rounds if n_rounds is None else n_rounds
+        summaries = []
         for round_idx in range(total_rounds):
-            if round_idx == 0:
-                summary = self.run_round0(round_idx)
-            else:
-                summary = self.run_self_evolution_round(round_idx)
+            summary = self.run_round0(round_idx) if round_idx == 0 else self.run_self_evolution_round(round_idx)
             summaries.append(summary.to_dict())
         self._save_state("EXPERIMENT_COMPLETED")
-        final_summary = {
-            "success": True,
-            "phase": "closed_loop_ase_mtage",
-            "method": self.config.method.name,
-            "env_id": self.config.training.env_id,
-            "llm_enabled": bool(self.llm_client),
-            "exp_dir": str(self.layout.exp_dir),
-            "rounds": summaries,
-        }
-        save_json(self.layout.exp_dir / "summary.json", final_summary)
-        return final_summary
+        result = {"success": True, "phase": "closed_loop_ase_mtage", "method": self.config.method.name, "env_id": self.config.training.env_id, "llm_enabled": bool(self.llm_client), "llm_fallback_on_error": self.fallback_on_error, "exp_dir": str(self.layout.exp_dir), "rounds": summaries}
+        save_json(self.layout.exp_dir / "summary.json", result)
+        return result
 
     def _load_core_context(self) -> tuple[dict[str, Any], str]:
         env_manifest = load_json(self.layout.core_memory_dir / "env_manifest.json")
@@ -138,89 +108,40 @@ class ASEMTAGEPipeline:
         task_manifest = task_manifest_path.read_text(encoding="utf-8") if task_manifest_path.exists() else ""
         return env_manifest, task_manifest
 
-    def _generate_and_validate_candidates(
-        self,
-        *,
-        round_idx: int,
-        round_dir: Path,
-        analyzer_report: dict[str, Any] | None = None,
-        parent_reward_code: str | None = None,
-        coverage_report: dict[str, Any] | None = None,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    def _generate_and_validate_candidates(self, *, round_idx: int, round_dir: Path, analyzer_report: dict[str, Any] | None = None, parent_reward_code: str | None = None, coverage_report: dict[str, Any] | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
         candidates_root = ensure_dir(round_dir / "candidates")
         artifacts: list[str] = []
         env_manifest, task_manifest = self._load_core_context()
-        mutator = MutatorAgent(
-            candidates_root,
-            llm_client=self.llm_client,
-            temperature=float(self.config.llm.temperature.get("mutator", 0.6)),
-        )
-        candidates = mutator.generate_candidates(
-            env_manifest=env_manifest,
-            k_candidates=self.config.method.k_candidates,
-            round_idx=round_idx,
-            analyzer_report=analyzer_report,
-            parent_reward_code=parent_reward_code,
-            task_manifest=task_manifest,
-            coverage_report=coverage_report,
-        )
-        validator = RewardValidator()
-        validation_results: list[dict[str, Any]] = []
+        mutator = MutatorAgent(candidates_root, llm_client=self.llm_client, temperature=float(self.config.llm.temperature.get("mutator", 0.6)))
+        candidates = mutator.generate_candidates(env_manifest=env_manifest, k_candidates=self.config.method.k_candidates, round_idx=round_idx, analyzer_report=analyzer_report, parent_reward_code=parent_reward_code, task_manifest=task_manifest, coverage_report=coverage_report)
         records: list[dict[str, Any]] = []
+        validation_results: list[dict[str, Any]] = []
+        validator = RewardValidator()
         for idx, cand in enumerate(candidates):
             report_path = cand.candidate_dir / "validator_report.json"
             result = validator.validate_file(cand.reward_path, candidate_id=cand.candidate_id, report_path=report_path)
             validation_results.append(result.to_dict())
-            records.append({
-                "index": idx,
-                "candidate_id": cand.candidate_id,
-                "mutation_family": cand.mutation_family,
-                "candidate_dir": str(cand.candidate_dir),
-                "reward_path": str(cand.reward_path),
-                "metadata_path": str(cand.metadata_path),
-                "validator_report_path": str(report_path),
-                "valid": result.valid,
-                "selection_static_score": self._round0_static_score(cand.mutation_family, result.valid),
-            })
-            artifacts.extend([
-                str(cand.reward_path.relative_to(round_dir)),
-                str(cand.metadata_path.relative_to(round_dir)),
-                str(report_path.relative_to(round_dir)),
-            ])
+            records.append({"index": idx, "candidate_id": cand.candidate_id, "mutation_family": cand.mutation_family, "candidate_dir": str(cand.candidate_dir), "reward_path": str(cand.reward_path), "metadata_path": str(cand.metadata_path), "validator_report_path": str(report_path), "valid": result.valid, "selection_static_score": self._round0_static_score(cand.mutation_family, result.valid)})
+            artifacts.extend([str(cand.reward_path.relative_to(round_dir)), str(cand.metadata_path.relative_to(round_dir)), str(report_path.relative_to(round_dir))])
         return records, validation_results, artifacts
 
     def run_round0(self, round_idx: int) -> RoundSummary:
         round_dir = ensure_dir(self.layout.exp_dir / f"round{round_idx}")
         artifacts: list[str] = []
-        records, validation_results, cand_artifacts = self._generate_and_validate_candidates(round_idx=round_idx, round_dir=round_dir)
-        artifacts.extend(cand_artifacts)
+        records, validation_results, created = self._generate_and_validate_candidates(round_idx=round_idx, round_dir=round_dir)
+        artifacts.extend(created)
         valid_records = [r for r in records if r["valid"]]
         selected = max(valid_records, key=lambda r: r["selection_static_score"]) if valid_records else None
-        selection = {
-            "round": round_idx,
-            "selection_mode": "round0_static_selection",
-            "memory_tage_used": False,
-            "selected_candidate": selected["candidate_id"] if selected else None,
-            "candidate_scores": records,
-            "reason": "Round 0 has no trajectory memory yet; use static selection.",
-        }
+        selection = {"round": round_idx, "selection_mode": "round0_static_selection", "memory_tage_used": False, "selected_candidate": selected["candidate_id"] if selected else None, "candidate_scores": records, "reason": "Round 0 has no trajectory memory yet; use static selection."}
         save_json(round_dir / "selection_report.json", selection)
-        save_json(round_dir / "candidate_generation_report.json", {"round": round_idx, "candidates": validation_results, "selected_candidate": selection["selected_candidate"], "llm_called": bool(self.llm_client)})
+        save_json(round_dir / "candidate_generation_report.json", {"round": round_idx, "candidates": validation_results, "selected_candidate": selection["selected_candidate"], "llm_called": bool(self.llm_client), "llm_fallback_on_error": self.fallback_on_error})
         artifacts.extend(["selection_report.json", "candidate_generation_report.json"])
         training_result = self._train_selected_and_update_memory(round_idx=round_idx, round_dir=round_dir, selected_record=selected, artifacts=artifacts)
-        self._write_reflection(
-            round_idx=round_idx,
-            round_dir=round_dir,
-            analyzer_report={"parent_reward_id": None, "self_evaluation_lesson": "Round 0 bootstrapped initial trajectory memory.", "mutation_intent": {"required_changes": []}},
-            selection_report=selection,
-            coverage_report={"coverage_type": "bootstrap", "label_counts": {}},
-            rollback_report={"rollback_triggered": False, "next_parent_reward_id": selection["selected_candidate"], "reason": "bootstrap"},
-            artifacts=artifacts,
-        )
+        real_coverage = self._coverage_for_reflection(round_dir)
+        self._write_reflection(round_idx=round_idx, round_dir=round_dir, analyzer_report={"parent_reward_id": None, "self_evaluation_lesson": "Round 0 bootstrapped initial trajectory memory.", "mutation_intent": {"primary_family": "bootstrap", "secondary_family": "bootstrap", "required_changes": [], "preserve_components": [], "remove_or_gate_components": []}}, selection_report=selection, coverage_report=real_coverage, rollback_report={"rollback_triggered": False, "next_parent_reward_id": selection["selected_candidate"], "reason": "bootstrap"}, artifacts=artifacts)
         self._write_round_readme(round_dir, round_idx, "Round 0 generated, selected, long-trained one reward, and built initial trajectory memory.")
         artifacts.append("README.md")
-        state = {"round": round_idx, "phase": "round0_bootstrap", "selected_candidate": selection["selected_candidate"], "long_training_executed": training_result["executed"], "long_training_success": training_result["success"], "num_trajectory_cards": training_result["num_cards"], "memory_tage_executed": False, "llm_called": bool(self.llm_client)}
-        save_json(round_dir / "round_state.json", state)
+        save_json(round_dir / "round_state.json", {"round": round_idx, "phase": "round0_bootstrap", "selected_candidate": selection["selected_candidate"], "long_training_executed": training_result["executed"], "long_training_success": training_result["success"], "num_trajectory_cards": training_result["num_cards"], "llm_called": bool(self.llm_client), "llm_fallback_on_error": self.fallback_on_error})
         artifacts.append("round_state.json")
         summary = RoundSummary(round=round_idx, status="completed" if training_result["success"] else "completed_with_training_failure", phase="round0_bootstrap", message=f"Round 0 selected {selection['selected_candidate']}; trajectory_cards={training_result['num_cards']}.", round_dir=str(round_dir), artifacts_created=artifacts, long_training_executed=training_result["executed"], short_training_executed=False)
         save_json(round_dir / "round_summary.json", summary.to_dict())
@@ -237,28 +158,12 @@ class ASEMTAGEPipeline:
         parent_code = ""
         if best and best.get("reward_path") and Path(best["reward_path"]).exists():
             parent_code = Path(best["reward_path"]).read_text(encoding="utf-8")
-
         analyzer_dir = ensure_dir(round_dir / "analyzer")
-        analyzer_report = AnalyzerAgent(
-            analyzer_dir,
-            llm_client=self.llm_client,
-            temperature=float(self.config.llm.temperature.get("analyzer", 0.4)),
-        ).run(
-            round_idx=round_idx,
-            parent_reward_id=(best or {}).get("reward_id"),
-            coverage_report=coverage,
-            previous_selection_report=None,
-            failure_memory_records=FailureRepairMemory(self.layout.memory_dir / "failure_repair_memory.jsonl").read_recent(limit=5),
-            elite_archive=archive.read(),
-            task_manifest=task_manifest,
-            env_manifest=env_manifest,
-            parent_reward_code=parent_code,
-        )
+        analyzer_report = AnalyzerAgent(analyzer_dir, llm_client=self.llm_client, temperature=float(self.config.llm.temperature.get("analyzer", 0.4)), fallback_on_error=self.fallback_on_error).run(round_idx=round_idx, parent_reward_id=(best or {}).get("reward_id"), coverage_report=coverage, previous_selection_report=None, failure_memory_records=FailureRepairMemory(self.layout.memory_dir / "failure_repair_memory.jsonl").read_recent(limit=5), elite_archive=archive.read(), task_manifest=task_manifest, env_manifest=env_manifest, parent_reward_code=parent_code)
         artifacts.extend(["analyzer/prompt.txt", "analyzer/response.txt", "analyzer/self_evaluation.json"])
-
-        records, validation_results, cand_artifacts = self._generate_and_validate_candidates(round_idx=round_idx, round_dir=round_dir, analyzer_report=analyzer_report, parent_reward_code=parent_code, coverage_report=coverage)
-        artifacts.extend(cand_artifacts)
-        save_json(round_dir / "candidate_generation_report.json", {"round": round_idx, "analyzer_self_evaluation_path": str(analyzer_dir / "self_evaluation.json"), "candidates": validation_results, "llm_called": bool(self.llm_client)})
+        records, validation_results, created = self._generate_and_validate_candidates(round_idx=round_idx, round_dir=round_dir, analyzer_report=analyzer_report, parent_reward_code=parent_code, coverage_report=coverage)
+        artifacts.extend(created)
+        save_json(round_dir / "candidate_generation_report.json", {"round": round_idx, "analyzer_self_evaluation_path": str(analyzer_dir / "self_evaluation.json"), "candidates": validation_results, "llm_called": bool(self.llm_client), "llm_fallback_on_error": self.fallback_on_error})
         artifacts.append("candidate_generation_report.json")
         tage_reports = self._run_tage(round_idx=round_idx, round_dir=round_dir, records=records, coverage=coverage, artifacts=artifacts)
         selection = CandidateSelector().select(round_idx=round_idx, candidate_records=records, coverage_report=coverage, output_path=round_dir / "selection_report.json", selection_mode="memory_tage_offline_selection")
@@ -270,19 +175,22 @@ class ASEMTAGEPipeline:
         self._write_reflection(round_idx=round_idx, round_dir=round_dir, analyzer_report=analyzer_report, selection_report=selection, coverage_report=coverage, rollback_report=rollback, artifacts=artifacts, tage_summary={"candidate_tage_reports": tage_reports}, elite_archive=archive.read())
         self._write_round_readme(round_dir, round_idx, "Self-evolution round: Analyzer -> Mutator -> Memory-TAGE -> Rollback -> Long training -> New trajectory memory -> Reflection.")
         artifacts.append("README.md")
-        save_json(round_dir / "round_state.json", {"round": round_idx, "phase": "closed_loop_self_evolution", "llm_called": bool(self.llm_client), "memory_coverage_type": coverage.get("coverage_type"), "selected_candidate": selection.get("selected_candidate"), "rollback_triggered": rollback.get("rollback_triggered"), "next_parent_reward_id": rollback.get("next_parent_reward_id"), "long_training_executed": training_result["executed"], "long_training_success": training_result["success"], "num_trajectory_cards": training_result["num_cards"], "reflection_written": True})
+        save_json(round_dir / "round_state.json", {"round": round_idx, "phase": "closed_loop_self_evolution", "llm_called": bool(self.llm_client), "llm_fallback_on_error": self.fallback_on_error, "memory_coverage_type": coverage.get("coverage_type"), "selected_candidate": selection.get("selected_candidate"), "rollback_triggered": rollback.get("rollback_triggered"), "next_parent_reward_id": rollback.get("next_parent_reward_id"), "long_training_executed": training_result["executed"], "long_training_success": training_result["success"], "num_trajectory_cards": training_result["num_cards"], "reflection_written": True})
         artifacts.append("round_state.json")
         summary = RoundSummary(round=round_idx, status="completed" if training_result["success"] else "completed_with_training_failure", phase="closed_loop_self_evolution", message=f"Round {round_idx} selected {selection.get('selected_candidate')}; rollback={rollback.get('rollback_triggered')}; new_cards={training_result['num_cards']}.", round_dir=str(round_dir), artifacts_created=artifacts, long_training_executed=training_result["executed"], short_training_executed=False)
         save_json(round_dir / "round_summary.json", summary.to_dict())
         self._mark_round_completed(round_idx)
         return summary
 
+    def _coverage_for_reflection(self, round_dir: Path) -> dict[str, Any]:
+        summary_path = round_dir / "trajectory_judgment_summary.json"
+        if summary_path.exists():
+            summary = load_json(summary_path, default={})
+            return {"coverage_type": "bootstrap_after_training", "label_counts": summary.get("label_counts", {}), "num_trajectories": summary.get("num_trajectories", 0), "num_use_for_tage_pair": summary.get("num_use_for_tage_pair", 0)}
+        return {"coverage_type": "bootstrap", "label_counts": {}}
+
     def _analyze_coverage(self, round_dir: Path, artifacts: list[str]) -> dict[str, Any]:
-        coverage = MemoryCoverageAnalyzer(
-            min_trajectories=self.config.trajectory_memory.min_trajectories,
-            min_high_confidence_trajectories=self.config.trajectory_memory.min_high_confidence_trajectories,
-            confidence_threshold=self.config.trajectory_memory.label_confidence_threshold,
-        ).analyze_file(memory_cards_path=self.layout.memory_dir / "trajectory_cards.jsonl", output_path=round_dir / "coverage_report.json")
+        coverage = MemoryCoverageAnalyzer(min_trajectories=self.config.trajectory_memory.min_trajectories, min_high_confidence_trajectories=self.config.trajectory_memory.min_high_confidence_trajectories, confidence_threshold=self.config.trajectory_memory.label_confidence_threshold).analyze_file(memory_cards_path=self.layout.memory_dir / "trajectory_cards.jsonl", output_path=round_dir / "coverage_report.json")
         save_json(self.layout.memory_dir / "coverage_report.json", coverage)
         artifacts.extend(["coverage_report.json", "memory/coverage_report.json"])
         return coverage
@@ -321,7 +229,6 @@ class ASEMTAGEPipeline:
             save_json(round_dir / "full_training_skipped.json", {"skipped": True, "reason": "dry_run=True"})
             artifacts.append("full_training_skipped.json")
             return {"executed": False, "success": True, "num_cards": 0}
-
         full_training_dir = ensure_dir(round_dir / "full_training")
         result = LongTrainer(env_id=self.config.training.env_id, reward_path=Path(selected_record["reward_path"]), output_dir=full_training_dir, selected_candidate_id=str(selected_record["candidate_id"]), seed=self.config.training.seed + round_idx * 100, full_timesteps=self.config.training.full_timesteps, final_eval_episodes=self.config.training.final_eval_episodes).run()
         artifacts.extend(["full_training/training_config.json", "full_training/long_training_result.json"])
@@ -329,19 +236,10 @@ class ASEMTAGEPipeline:
             artifacts.append(str(result.model_path.relative_to(round_dir)))
         if result.eval_summary_path:
             artifacts.extend([str(result.eval_summary_path.relative_to(round_dir)), "full_training/trajectory_logs/", "full_training/component_logs/"])
-
         num_cards = 0
         if result.success:
             env_manifest, task_manifest = self._load_core_context()
-            card_result = EvidenceCardBuilder(
-                env_id=self.config.training.env_id,
-                confidence_threshold=self.config.trajectory_memory.label_confidence_threshold,
-                llm_client=self.llm_client,
-                judge_temperature=float(self.config.llm.temperature.get("trajectory_judge", 0.2)),
-                task_manifest=task_manifest,
-                env_manifest=env_manifest,
-                output_dir=round_dir / "trajectory_judge",
-            ).build_from_training_dir(full_training_dir=full_training_dir, round_dir=round_dir, memory_dir=self.layout.memory_dir, source_round=round_idx, source_reward_id=str(selected_record["candidate_id"]))
+            card_result = EvidenceCardBuilder(env_id=self.config.training.env_id, confidence_threshold=self.config.trajectory_memory.label_confidence_threshold, llm_client=self.llm_client, judge_temperature=float(self.config.llm.temperature.get("trajectory_judge", 0.2)), task_manifest=task_manifest, env_manifest=env_manifest, output_dir=round_dir / "trajectory_judge", fallback_on_error=self.fallback_on_error).build_from_training_dir(full_training_dir=full_training_dir, round_dir=round_dir, memory_dir=self.layout.memory_dir, source_round=round_idx, source_reward_id=str(selected_record["candidate_id"]))
             num_cards = int(card_result.get("num_cards", 0))
             artifacts.extend(["trajectory_cards.jsonl", "trajectory_judgment.jsonl", "trajectory_judgment_summary.json", "trajectory_judge/", "memory/trajectory_cards.jsonl"])
             score = float(selected_record.get("selection_score", selected_record.get("tage_score", selected_record.get("selection_static_score", 0.0))) or 0.0)
@@ -353,13 +251,7 @@ class ASEMTAGEPipeline:
         summary_path = round_dir / "trajectory_judgment_summary.json"
         if trajectory_judgment_summary is None and summary_path.exists():
             trajectory_judgment_summary = load_json(summary_path, default={})
-        ReflectionAgent(
-            output_dir=ensure_dir(round_dir / "reflection"),
-            failure_memory_path=self.layout.memory_dir / "failure_repair_memory.jsonl",
-            archival_lessons_path=self.layout.memory_dir / "archival_lessons.jsonl",
-            llm_client=self.llm_client,
-            temperature=float(self.config.llm.temperature.get("reflector", 0.3)),
-        ).run(round_idx=round_idx, analyzer_report=analyzer_report, selection_report=selection_report, coverage_report=coverage_report, rollback_report=rollback_report, trajectory_judgment_summary=trajectory_judgment_summary, tage_summary=tage_summary, elite_archive=elite_archive)
+        ReflectionAgent(output_dir=ensure_dir(round_dir / "reflection"), failure_memory_path=self.layout.memory_dir / "failure_repair_memory.jsonl", archival_lessons_path=self.layout.memory_dir / "archival_lessons.jsonl", llm_client=self.llm_client, temperature=float(self.config.llm.temperature.get("reflector", 0.3)), fallback_on_error=self.fallback_on_error).run(round_idx=round_idx, analyzer_report=analyzer_report, selection_report=selection_report, coverage_report=coverage_report, rollback_report=rollback_report, trajectory_judgment_summary=trajectory_judgment_summary, tage_summary=tage_summary, elite_archive=elite_archive)
         artifacts.extend(["reflection/reflection.json", "memory/failure_repair_memory.jsonl", "memory/archival_lessons.jsonl"])
 
     def _round0_static_score(self, mutation_family: str, valid: bool) -> float:
@@ -380,13 +272,7 @@ class ASEMTAGEPipeline:
         save_json(self.layout.exp_dir / "experiment_state.json", self.state.to_dict())
 
 
-def run_phase1(
-    *,
-    config_path: str | Path | None = None,
-    output_root: str | Path | None = None,
-    n_rounds: int | None = None,
-    experiment_name: str | None = None,
-) -> dict[str, Any]:
+def run_phase1(*, config_path: str | Path | None = None, output_root: str | Path | None = None, n_rounds: int | None = None, experiment_name: str | None = None) -> dict[str, Any]:
     raw_config = load_config(config_path)
     if experiment_name:
         raw_config["experiment_name"] = experiment_name
