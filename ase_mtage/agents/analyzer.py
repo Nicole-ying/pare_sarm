@@ -1,4 +1,9 @@
-"""Analyzer Agent for ASE-MTAGE."""
+"""Analyzer Agent for ASE-MTAGE.
+
+Analyzer is the reward-diagnosis agent. It must not only read a coverage report;
+it also receives previous selection, trajectory judgment summaries, component
+summaries, TAGE reports, failure memory, and elite archive evidence.
+"""
 
 from __future__ import annotations
 
@@ -26,6 +31,8 @@ class AnalyzerAgent:
         parent_reward_id: str | None,
         coverage_report: dict[str, Any],
         previous_selection_report: dict[str, Any] | None = None,
+        trajectory_judgment_summary: dict[str, Any] | None = None,
+        component_summary: dict[str, Any] | None = None,
         failure_memory_records: list[dict[str, Any]] | None = None,
         elite_archive: dict[str, Any] | None = None,
         task_manifest: str | None = None,
@@ -40,6 +47,8 @@ class AnalyzerAgent:
                     parent_reward_id=parent_reward_id,
                     coverage_report=coverage_report,
                     previous_selection_report=previous_selection_report,
+                    trajectory_judgment_summary=trajectory_judgment_summary,
+                    component_summary=component_summary,
                     failure_memory_records=failure_memory_records,
                     elite_archive=elite_archive,
                     task_manifest=task_manifest,
@@ -56,6 +65,8 @@ class AnalyzerAgent:
             parent_reward_id=parent_reward_id,
             coverage_report=coverage_report,
             previous_selection_report=previous_selection_report,
+            trajectory_judgment_summary=trajectory_judgment_summary,
+            component_summary=component_summary,
             failure_memory_records=failure_memory_records,
             elite_archive=elite_archive,
             env_manifest=env_manifest,
@@ -71,8 +82,10 @@ class AnalyzerAgent:
             "env_manifest": kwargs.get("env_manifest") or {},
             "parent_reward_code": kwargs.get("parent_reward_code") or "",
             "coverage_report": kwargs.get("coverage_report") or {},
+            "trajectory_judgment_summary": kwargs.get("trajectory_judgment_summary") or {},
+            "component_summary": kwargs.get("component_summary") or {},
             "tage_summary": kwargs.get("tage_summary") or {},
-            "selection_report": kwargs.get("previous_selection_report") or {},
+            "previous_selection_report": kwargs.get("previous_selection_report") or {},
             "failure_repair_memory_recent": kwargs.get("failure_memory_records") or [],
             "elite_archive": kwargs.get("elite_archive") or {},
         }
@@ -93,53 +106,61 @@ class AnalyzerAgent:
         parent_reward_id: str | None,
         coverage_report: dict[str, Any],
         previous_selection_report: dict[str, Any] | None = None,
+        trajectory_judgment_summary: dict[str, Any] | None = None,
+        component_summary: dict[str, Any] | None = None,
         failure_memory_records: list[dict[str, Any]] | None = None,
         elite_archive: dict[str, Any] | None = None,
         env_manifest: dict[str, Any] | None = None,
         tage_summary: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         coverage_type = str(coverage_report.get("coverage_type", "ambiguous"))
-        label_counts = dict(coverage_report.get("label_counts") or {})
+        label_counts = dict(coverage_report.get("label_counts") or (trajectory_judgment_summary or {}).get("label_counts") or {})
         known_failures = [label for label in ["early_failure", "low_progress_survival"] if label_counts.get(label, 0) > 0]
         useful_patterns: list[str] = []
         if label_counts.get("partial_progress", 0) > 0:
             useful_patterns.append("partial_progress trajectories exist and should be preserved or improved")
         if label_counts.get("success_like", 0) > 0:
             useful_patterns.append("success_like trajectories exist and should be strongly preferred")
-        component_diagnosis = self._component_diagnosis(previous_selection_report, tage_summary, coverage_report)
+        component_diagnosis = self._component_diagnosis(previous_selection_report, tage_summary, coverage_report, component_summary)
         preserve_components, remove_or_gate_components = self._component_actions(component_diagnosis, known_failures, coverage_type, env_manifest)
-        mutation_intent = self._mutation_intent(coverage_type, known_failures, useful_patterns, component_diagnosis, preserve_components, remove_or_gate_components)
+        mutation_intent = self._mutation_intent(coverage_type, known_failures, useful_patterns, preserve_components, remove_or_gate_components)
         overall = "memory_insufficient_for_strong_diagnosis" if coverage_type in {"empty_or_too_small", "ambiguous"} else "parent_reward_provides_usable_memory_but_needs_evolution"
-        uncertainties = [] if useful_patterns else ["Memory may still be too weak for strong conclusions."]
-        if coverage_type in {"single_failure_mode", "multiple_failure_modes"}:
-            uncertainties.append("Memory mainly contains failure trajectories, so positive preference construction is limited.")
+        uncertainties = list(coverage_report.get("forbidden_assumptions") or [])
+        if not useful_patterns:
+            uncertainties.append("Memory may still be too weak for positive reward-design conclusions.")
+        if (trajectory_judgment_summary or {}).get("num_use_for_tage_pair", 0) == 0:
+            uncertainties.append("The latest round contributed no usable TAGE preference trajectories.")
         evaluation = {
             "round": round_idx,
             "parent_reward_id": parent_reward_id,
             "overall_judgment": overall,
-            "failure_summary": f"Memory coverage is {coverage_type}; label_counts={label_counts}.",
+            "failure_summary": f"coverage_type={coverage_type}; label_counts={label_counts}; decision_level={coverage_report.get('decision_level', 'unknown')}.",
             "memory_interpretation": {
                 "coverage_type": coverage_type,
-                "usable_preference_level": "strong_pairwise" if coverage_type == "balanced" else ("weak_pairwise" if coverage_type == "failure_plus_partial_progress" else "weak_or_none"),
+                "decision_level": coverage_report.get("decision_level", "unknown"),
+                "usable_preference_level": self._usable_preference_level(coverage_report.get("decision_level")),
                 "main_known_failures": known_failures,
                 "main_useful_patterns": useful_patterns,
-                "uncertainties": uncertainties,
+                "uncertainties": sorted(set(uncertainties)),
                 "label_counts": label_counts,
+                "trajectory_judgment_summary": trajectory_judgment_summary or {},
             },
             "component_diagnosis": component_diagnosis,
             "mutation_intent": mutation_intent,
             "rollback_decision": {"recommend_rollback": False, "rollback_target": None, "reason": "Hard rollback is handled by RollbackManager, not Analyzer."},
             "self_evaluation_lesson": self._lesson(coverage_type, known_failures, useful_patterns),
+            "previous_selection_used": previous_selection_report or {},
+            "component_summary_used": component_summary or {},
             "recent_failure_memory_used": failure_memory_records or [],
             "elite_archive_summary": elite_archive or {},
-            "agent_mode": "deterministic_component_aware_analyzer",
+            "agent_mode": "deterministic_full_evidence_analyzer",
         }
-        save_text(self.output_dir / "prompt.txt", "Deterministic component-aware AnalyzerAgent; no LLM prompt was sent.\n")
-        save_text(self.output_dir / "response.txt", "Deterministic self_evaluation.json generated.\n")
+        save_text(self.output_dir / "prompt.txt", "Deterministic full-evidence AnalyzerAgent; no LLM prompt was sent.\n")
+        save_text(self.output_dir / "response.txt", "Deterministic self_evaluation.json generated from coverage, trajectories, components, selection, and memory.\n")
         save_json(self.output_dir / "self_evaluation.json", evaluation)
         return evaluation
 
-    def _component_diagnosis(self, selection_report: dict[str, Any] | None, tage_summary: dict[str, Any] | None, coverage_report: dict[str, Any]) -> list[dict[str, Any]]:
+    def _component_diagnosis(self, selection_report: dict[str, Any] | None, tage_summary: dict[str, Any] | None, coverage_report: dict[str, Any], component_summary: dict[str, Any] | None) -> list[dict[str, Any]]:
         diagnosis: list[dict[str, Any]] = []
         selected_report = self._selected_tage_report(selection_report, tage_summary)
         if selected_report:
@@ -154,6 +175,14 @@ class AnalyzerAgent:
                 consistency = float(report.get("pair_consistency", 0.0) or 0.0)
                 verdict = "keep" if consistency >= 0.65 else ("remove_or_gate" if consistency <= 0.35 else "unknown")
                 diagnosis.append({"component": name, "verdict": verdict, "evidence": f"component_pair_consistency={consistency:.3f}; {report.get('diagnosis', '')}"})
+        if component_summary:
+            for name, item in dict(component_summary.get("component_stats", {}) or {}).items():
+                failure_mean = float(item.get("failure_mean", 0.0) or 0.0)
+                positive_mean = float(item.get("positive_mean", 0.0) or 0.0)
+                if failure_mean > positive_mean and item.get("num_failure", 0) > 0:
+                    diagnosis.append({"component": name, "verdict": "remove_or_gate", "evidence": f"component_summary: failure_mean={failure_mean:.3f} > positive_mean={positive_mean:.3f}"})
+                elif positive_mean > failure_mean and item.get("num_positive", 0) > 0:
+                    diagnosis.append({"component": name, "verdict": "keep", "evidence": f"component_summary: positive_mean={positive_mean:.3f} > failure_mean={failure_mean:.3f}"})
         if not diagnosis:
             coverage_type = str(coverage_report.get("coverage_type", "ambiguous"))
             label_counts = dict(coverage_report.get("label_counts") or {})
@@ -179,8 +208,7 @@ class AnalyzerAgent:
         return reports[0] if reports else None
 
     def _component_actions(self, component_diagnosis: list[dict[str, Any]], known_failures: list[str], coverage_type: str, env_manifest: dict[str, Any] | None) -> tuple[list[str], list[str]]:
-        preserve: list[str] = []
-        remove: list[str] = []
+        preserve, remove = [], []
         for item in component_diagnosis:
             name = str(item.get("component", ""))
             verdict = str(item.get("verdict", "unknown"))
@@ -188,29 +216,25 @@ class AnalyzerAgent:
                 preserve.append(name)
             if verdict in {"remove_or_gate", "restructure"} and name not in {"all_components", "global_reward_ranking"}:
                 remove.append(name)
-        if "early_failure" in known_failures and "terminal_failure_penalty" not in preserve:
+        if "early_failure" in known_failures:
             preserve.append("terminal_failure_penalty")
         if "low_progress_survival" in known_failures:
-            for name in ["ungated_survival_bonus", "ungated_contact_bonus", "low_progress_survival_gate"]:
-                if name not in remove:
-                    remove.append(name)
-        if coverage_type in {"failure_plus_partial_progress", "balanced"} and "progress_delta" not in preserve:
+            remove.extend(["ungated_survival_bonus", "ungated_contact_bonus", "low_progress_survival_gate"])
+        if coverage_type in {"failure_plus_partial_progress", "balanced"}:
             preserve.append("progress_delta")
-        env_name = str((env_manifest or {}).get("env_name", "")).lower()
-        if "bipedalwalker" in env_name and "forward_velocity" not in preserve:
+        if "bipedalwalker" in str((env_manifest or {}).get("env_name", "")).lower():
             preserve.append("forward_velocity")
         return sorted(set(preserve)), sorted(set(remove))
 
-    def _mutation_intent(self, coverage_type: str, known_failures: list[str], useful_patterns: list[str], component_diagnosis: list[dict[str, Any]], preserve: list[str], remove: list[str]) -> dict[str, Any]:
-        if coverage_type in {"failure_plus_partial_progress", "balanced"}:
-            primary = "progress_conditioned"
-            required = ["preserve components that favor partial_progress over known failures", "reduce reward assigned to known failure labels"]
-        elif coverage_type in {"single_failure_mode", "multiple_failure_modes"}:
-            primary = "component_recomposition"
-            required = ["escape known failure modes", "increase structural diversity"]
-        else:
-            primary = "local_repair"
-            required = ["use conservative interpretable components", "avoid relying on unreliable memory coverage"]
+    def _mutation_intent(self, coverage_type: str, known_failures: list[str], useful_patterns: list[str], preserve: list[str], remove: list[str]) -> dict[str, Any]:
+        decision_family = {
+            "balanced": "progress_conditioned",
+            "failure_plus_partial_progress": "progress_conditioned",
+            "failure_plus_weak_or_noisy_partial": "component_recomposition",
+            "single_failure_mode": "component_recomposition",
+            "multiple_failure_modes": "component_recomposition",
+        }.get(coverage_type, "local_repair")
+        required = []
         if known_failures:
             required.append(f"explicitly avoid known failures: {', '.join(known_failures)}")
         if useful_patterns:
@@ -219,11 +243,16 @@ class AnalyzerAgent:
             required.append("gate or remove components: " + ", ".join(remove))
         if preserve:
             required.append("preserve or strengthen components: " + ", ".join(preserve))
-        return {"primary_family": primary, "secondary_family": "component_recomposition" if primary != "component_recomposition" else "progress_conditioned", "forbidden_changes": ["do not use official reward", "do not only scale all coefficients", "do not add global survival bonus without progress gating"], "required_changes": required, "preserve_components": preserve, "remove_or_gate_components": remove}
+        if not required:
+            required.append("keep mutation conservative and gather more reliable trajectory evidence")
+        return {"primary_family": decision_family, "secondary_family": "component_recomposition" if decision_family != "component_recomposition" else "progress_conditioned", "forbidden_changes": ["do not use official reward", "do not only scale all coefficients", "do not add global survival bonus without progress gating", "do not treat noisy partial_progress as success_like"], "required_changes": required, "preserve_components": preserve, "remove_or_gate_components": remove}
+
+    def _usable_preference_level(self, decision_level: Any) -> str:
+        return {"no_decision": "none", "failure_filter_only": "failure_only", "weak_pairwise_selection": "weak_pairwise", "strong_pairwise_selection": "strong_pairwise"}.get(str(decision_level), "none")
 
     def _lesson(self, coverage_type: str, known_failures: list[str], useful_patterns: list[str]) -> str:
         if coverage_type in {"failure_plus_partial_progress", "balanced"}:
-            return "Trajectory memory is informative enough to guide reward evolution using preference consistency."
+            return "Trajectory memory supports preference-guided mutation, but partial progress must remain distinct from success."
         if known_failures:
             return "Current memory mainly supports avoiding known failures, not claiming success."
-        return "Memory is still weak; keep mutation conservative and collect more long-training trajectories."
+        return "Memory is weak or noisy; mutate conservatively and collect more long-training trajectories."
