@@ -1,28 +1,33 @@
-"""ASE-MTAGE Phase 1 pipeline skeleton.
+"""ASE-MTAGE Phase 2 pipeline skeleton.
 
-This module implements only the bootstrapping skeleton required by Phase 1:
+This module now supports the first functional ASE-MTAGE artifacts:
 - create a reproducible experiment directory;
 - save normalized config;
-- create the initial memory folders and placeholder memory files;
-- run empty rounds;
+- build Core Memory with Env Perception Agent;
+- generate K=3 initial reward candidates for round 0;
+- validate every candidate reward;
+- run later rounds as empty placeholders until Phase 3+ are implemented;
 - save experiment_state.json and round_summary.json.
 
-No LLM calls, reward generation, training, trajectory collection, or TAGE scoring
-are performed in Phase 1. Later phases will replace the placeholder round steps
-with the real ASE-MTAGE workflow.
+No policy training, trajectory collection, Memory-TAGE scoring, or rollback is
+performed in Phase 2.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
+from ase_mtage.agents.env_perception import EnvPerceptionAgent
+from ase_mtage.agents.mutator import MutatorAgent
 from ase_mtage.schemas import ASEMTAGEConfig, ExperimentLayout, ExperimentState, RoundSummary
-from ase_mtage.utils.io import ensure_dir, load_config, now_timestamp, save_json, save_text
+from ase_mtage.tools.reward_validator import RewardValidator
+from ase_mtage.utils.io import ensure_dir, load_config, load_json, now_timestamp, save_json, save_text
 
 
 class ASEMTAGEPipeline:
-    """Minimal ASE-MTAGE pipeline used to validate project layout and resume state."""
+    """ASE-MTAGE pipeline skeleton through Phase 2."""
 
     def __init__(
         self,
@@ -56,7 +61,8 @@ class ASEMTAGEPipeline:
             use_short_training=self.config.method.use_short_training,
             selected_long_train_per_round=self.config.method.selected_long_train_per_round,
             notes=[
-                "Phase 1 skeleton only: no LLM calls, reward generation, training, or TAGE scoring.",
+                "Phase 2 skeleton: Env Perception, reward candidate generation, and reward validation are enabled.",
+                "No policy training, trajectory collection, Memory-TAGE scoring, or rollback is executed yet.",
                 "Historical best health is not used as a gate in ASE-MTAGE.",
             ],
         )
@@ -89,40 +95,11 @@ class ASEMTAGEPipeline:
                 f"Original config path: {self.config_path}\n",
             )
 
-        # Placeholder memory artifacts. Later phases will populate these files.
-        save_text(
-            self.layout.core_memory_dir / "task_manifest.md",
-            "# Task Manifest\n\nPhase 1 placeholder. Env Perception Agent will fill this in Phase 2.\n",
-        )
-        save_json(
-            self.layout.core_memory_dir / "env_manifest.json",
-            {
-                "env_name": self.config.training.env_id,
-                "task_goal": "unknown_phase_1_placeholder",
-                "official_reward_visible": False,
-                "phase": "phase_1_placeholder",
-            },
-        )
-        save_json(
-            self.layout.core_memory_dir / "outcome_label_schema.json",
-            {
-                "coarse_outcome_labels": [
-                    "early_failure",
-                    "low_progress_survival",
-                    "partial_progress",
-                    "success_like",
-                    "ambiguous",
-                ],
-                "phase": "phase_1_placeholder",
-            },
-        )
-        save_json(
-            self.layout.core_memory_dir / "feature_schema.json",
-            {
-                "trajectory_features_to_extract": [],
-                "phase": "phase_1_placeholder",
-            },
-        )
+        # Phase 2: Env Perception Agent creates real placeholder-safe Core Memory.
+        env_agent = EnvPerceptionAgent(self.layout.core_memory_dir)
+        env_agent.run(env_id=self.config.training.env_id)
+
+        # Shared memory placeholders. Later phases will populate these files.
         save_text(self.layout.memory_dir / "trajectory_cards.jsonl", "")
         save_text(self.layout.memory_dir / "failure_repair_memory.jsonl", "")
         save_text(self.layout.memory_dir / "archival_lessons.jsonl", "")
@@ -130,7 +107,7 @@ class ASEMTAGEPipeline:
             self.layout.memory_dir / "elite_archive.json",
             {
                 "elite_rewards": [],
-                "phase": "phase_1_placeholder",
+                "phase": "phase_2_placeholder",
             },
         )
         save_json(
@@ -140,13 +117,13 @@ class ASEMTAGEPipeline:
                 "num_high_confidence": 0,
                 "coverage_type": "empty_or_too_small",
                 "can_build_preference_pairs": False,
-                "phase": "phase_1_placeholder",
+                "phase": "phase_2_placeholder",
             },
         )
         self._save_state("INIT")
 
     def run(self, n_rounds: int | None = None) -> dict[str, Any]:
-        """Run empty Phase 1 rounds and return a summary dict."""
+        """Run Phase 2 rounds and return a summary dict."""
         self.setup_experiment()
         total_rounds = n_rounds if n_rounds is not None else self.config.method.max_rounds
         if total_rounds < 0:
@@ -154,34 +131,75 @@ class ASEMTAGEPipeline:
 
         round_summaries: list[dict[str, Any]] = []
         for round_idx in range(total_rounds):
-            summary = self.run_empty_round(round_idx)
+            if round_idx == 0:
+                summary = self.run_round0_candidate_generation(round_idx)
+            else:
+                summary = self.run_empty_round(round_idx)
             round_summaries.append(summary.to_dict())
 
         self.state.last_completed_node = "EXPERIMENT_COMPLETED"
         self._save_state("EXPERIMENT_COMPLETED")
         final_summary = {
             "success": True,
-            "phase": "phase_1_skeleton",
+            "phase": "phase_2_reward_generation_and_validation",
             "method": self.config.method.name,
             "env_id": self.config.training.env_id,
             "exp_dir": str(self.layout.exp_dir),
             "rounds": round_summaries,
-            "message": "Phase 1 completed: experiment directory, empty rounds, and experiment_state.json were created.",
+            "message": "Phase 2 completed: experiment directory, core memory, K reward candidates, validation reports, and experiment_state.json were created.",
         }
         save_json(self.layout.exp_dir / "summary.json", final_summary)
         return final_summary
 
-    def run_empty_round(self, round_idx: int) -> RoundSummary:
-        """Create a placeholder round directory and round_summary.json."""
+    def run_round0_candidate_generation(self, round_idx: int) -> RoundSummary:
+        """Generate and validate K initial reward candidates for round 0."""
         round_dir = ensure_dir(self.layout.exp_dir / f"round{round_idx}")
+        candidates_root = ensure_dir(round_dir / "candidates")
         artifacts: list[str] = []
+
+        env_manifest = load_json(self.layout.core_memory_dir / "env_manifest.json")
+        mutator = MutatorAgent(candidates_root)
+        candidates = mutator.generate_initial_candidates(
+            env_manifest=env_manifest,
+            k_candidates=self.config.method.k_candidates,
+            round_idx=round_idx,
+        )
+
+        validator = RewardValidator()
+        validation_results = []
+        for cand in candidates:
+            report_path = cand.candidate_dir / "validator_report.json"
+            result = validator.validate_file(
+                cand.reward_path,
+                candidate_id=cand.candidate_id,
+                report_path=report_path,
+            )
+            validation_results.append(result.to_dict())
+            artifacts.append(str(cand.reward_path.relative_to(round_dir)))
+            artifacts.append(str(cand.metadata_path.relative_to(round_dir)))
+            artifacts.append(str(report_path.relative_to(round_dir)))
+
+        valid_candidates = [r for r in validation_results if r.get("valid")]
+        generation_report = {
+            "round": round_idx,
+            "phase": "phase_2_reward_generation_and_validation",
+            "k_requested": self.config.method.k_candidates,
+            "num_generated": len(candidates),
+            "num_valid": len(valid_candidates),
+            "llm_called": False,
+            "generation_mode": "deterministic_templates",
+            "candidates": validation_results,
+            "next_phase_note": "Phase 3 will add Round0 selection and long training. Phase 2 only validates candidates.",
+        }
+        save_json(round_dir / "candidate_generation_report.json", generation_report)
+        artifacts.append("candidate_generation_report.json")
 
         save_text(
             round_dir / "README.md",
             (
                 f"# ASE-MTAGE Round {round_idx}\n\n"
-                "Phase 1 empty round. Later phases will add candidates, training, "
-                "trajectory cards, TAGE reports, and reflection artifacts.\n"
+                "Phase 2 generated and validated initial reward candidates. "
+                "No long training is executed until Phase 3.\n"
             ),
         )
         artifacts.append("README.md")
@@ -190,8 +208,62 @@ class ASEMTAGEPipeline:
             round_dir / "round_state.json",
             {
                 "round": round_idx,
-                "phase": "phase_1_empty_round",
+                "phase": "phase_2_reward_generation_and_validation",
                 "llm_called": False,
+                "reward_candidates_generated": True,
+                "reward_candidates_validated": True,
+                "num_candidates": len(candidates),
+                "num_valid_candidates": len(valid_candidates),
+                "long_training_executed": False,
+                "short_training_executed": False,
+                "memory_tage_executed": False,
+            },
+        )
+        artifacts.append("round_state.json")
+
+        summary = RoundSummary(
+            round=round_idx,
+            status="completed" if valid_candidates else "completed_with_no_valid_candidates",
+            phase="phase_2_reward_generation_and_validation",
+            message=(
+                f"Generated {len(candidates)} candidates and validated {len(valid_candidates)}. "
+                "No LLM or training executed in Phase 2."
+            ),
+            round_dir=str(round_dir),
+            artifacts_created=artifacts,
+            long_training_executed=False,
+            short_training_executed=False,
+        )
+        save_json(round_dir / "round_summary.json", summary.to_dict())
+
+        self.state.current_round = round_idx
+        self.state.completed_rounds.append(round_idx)
+        self.state.last_completed_node = "ROUND_COMPLETED"
+        self._save_state("ROUND_COMPLETED")
+        return summary
+
+    def run_empty_round(self, round_idx: int) -> RoundSummary:
+        """Create a placeholder round directory for phases not implemented yet."""
+        round_dir = ensure_dir(self.layout.exp_dir / f"round{round_idx}")
+        artifacts: list[str] = []
+
+        save_text(
+            round_dir / "README.md",
+            (
+                f"# ASE-MTAGE Round {round_idx}\n\n"
+                "Placeholder round. Phase 3+ will add parent selection, Analyzer, "
+                "Mutator children, Memory-TAGE, training, and reflection artifacts.\n"
+            ),
+        )
+        artifacts.append("README.md")
+
+        save_json(
+            round_dir / "round_state.json",
+            {
+                "round": round_idx,
+                "phase": "phase_2_placeholder_for_later_rounds",
+                "llm_called": False,
+                "reward_candidates_generated": False,
                 "long_training_executed": False,
                 "short_training_executed": False,
                 "memory_tage_executed": False,
@@ -202,8 +274,8 @@ class ASEMTAGEPipeline:
         summary = RoundSummary(
             round=round_idx,
             status="completed",
-            phase="phase_1_empty_round",
-            message="Empty round completed. No LLM or training executed in Phase 1.",
+            phase="phase_2_placeholder_for_later_rounds",
+            message="Placeholder round completed. Later phases will implement the full cross-round workflow.",
             round_dir=str(round_dir),
             artifacts_created=artifacts,
             long_training_executed=False,
@@ -229,7 +301,7 @@ def run_phase1(
     n_rounds: int | None = None,
     experiment_name: str | None = None,
 ) -> dict[str, Any]:
-    """Convenience function used by the CLI and tests."""
+    """Backward-compatible convenience function used by the Phase 1 CLI path."""
     raw_config = load_config(config_path)
     if experiment_name:
         raw_config["experiment_name"] = experiment_name
