@@ -1,40 +1,30 @@
-"""Structured dataclasses for the PARE-SARM framework (§9 in spec).
-
-Provides type-safe data structures for RewardCandidate, ComponentStats,
-DiagnosisReport, and DiversityReport.
-"""
+"""Structured dataclasses and scoring helpers for PARE-SARM."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# §9.1 RewardCandidate
-# ═══════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class RewardCandidate:
     """A reward function candidate generated or mutated by an agent."""
     candidate_id: str
     iteration: int
-    mutation_type: str  # "initial", "direct_fix", "component_edit", "progress_gated"
+    mutation_type: str  # initial, direct_fix, component_edit, progress_gated
     code: str
     component_names: list[str] = field(default_factory=list)
     parent_candidate_id: str | None = None
     valid: bool = False
     validation_errors: list[str] = field(default_factory=list)
     health_score: float = 0.0
+    behavior_quality: float = 0.0
+    promotion_score: float = 0.0
     proxy_result: dict | None = None
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# §9.2 ComponentStats
-# ═══════════════════════════════════════════════════════════════════════════
-
 @dataclass
 class ComponentStats:
-    """Per-component statistics computed from training trajectories."""
     name: str
     mean: float = 0.0
     std: float = 0.0
@@ -47,36 +37,32 @@ class ComponentStats:
     progress_corr: float = 0.0
     failure_corr: float = 0.0
     health_score: float = 0.0
-    status: str = "unknown"  # "active", "inactive"
-    verdict: str = ""        # "keep", "reduce", "remove", "strengthen", "reconsider"
+    status: str = "unknown"
+    verdict: str = ""
     reason: str = ""
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# §9.3 DiagnosisReport
-# ═══════════════════════════════════════════════════════════════════════════
-
 @dataclass
 class DiagnosisReport:
-    """Structured diagnosis output from the Analyzer agent."""
     candidate_id: str = ""
     overall_judgment: str = ""
     overall_health: float = 0.0
+    failure_mode: str = "unknown"
+    root_cause_type: str = "unknown"
+    behavior_evidence: list[str] = field(default_factory=list)
+    component_evidence: list[str] = field(default_factory=list)
     component_stats: list[ComponentStats] = field(default_factory=list)
     component_diagnosis: list[dict] = field(default_factory=list)
     mutation_recommendations: list[str] = field(default_factory=list)
     suggested_mutation_types: list[str] = field(default_factory=list)
-    escalation_level: str = "coefficient"  # "coefficient", "structural", "rewrite"
-    pipeline_action: str = "continue"      # "continue", "regenerate", "stop"
+    forbidden_mutation_types: list[str] = field(default_factory=list)
+    tool_requests: list[str] = field(default_factory=list)
+    escalation_level: str = "coefficient"
+    pipeline_action: str = "continue"
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# §9.4 DiversityReport
-# ═══════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class DiversityReport:
-    """Diversity check results between reward candidates."""
     candidate_ids: list[str] = field(default_factory=list)
     component_jaccard_matrix: list[list[float]] = field(default_factory=list)
     reward_vector_correlation_matrix: list[list[float]] = field(default_factory=list)
@@ -85,78 +71,64 @@ class DiversityReport:
     passed: bool = True
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Update diversity to use reward-vector correlation + weighted selection
-# ═══════════════════════════════════════════════════════════════════════════
-
 def compute_candidate_score(
-    health: dict,
-    eval_history: list[dict],
-    diversity_bonus: float = 1.0,
+    health: dict[str, Any],
+    eval_history: list[dict[str, Any]],
+    diversity_bonus: float = 0.5,
     max_episode_steps: int = 1000,
+    behavior_report: dict[str, Any] | None = None,
 ) -> float:
-    """Compute candidate selection score.
+    """Backward-compatible candidate score.
 
-    KEY INSIGHT: Pure component health doesn't capture reward quality.
-    A reward with health=66 can produce hovering (bad), while health=48
-    might actually train a landing policy (good).
-
-    The behavior penalty fixes this: hovering and crashing are both penalized.
-    Only moderate-length episodes (actual task progress) get full credit.
-
-    Score = 0.30 * behavior_quality    ← NEW: penalizes hovering AND crashing
-          + 0.25 * component_health
-          + 0.20 * progress_alignment
-          + 0.15 * episode_quality
-          + 0.10 * diversity_bonus
+    New code should prefer ``selection.selector.compute_promotion_score``.  This
+    helper remains so older pipeline code and tests keep working, but it no
+    longer treats episode length alone as a reliable behavior signal when a
+    behavior report is available.
     """
-    overall_health = health.get("overall_health", 0) / 100.0
-    comps = health.get("components", [])
+    overall_health = float(health.get("overall_health", 0)) / 100.0
+    comps = health.get("components", []) or []
 
-    # ── Behavior quality: penalize both extremes ──
-    # Hovering (near max steps, no task completion) = reward hacking
-    # Crashing (very short episodes) = penalties dominate
-    # Ideal: moderate length, actual task progress
-    behavior_quality = 0.5  # default neutral
-    if eval_history:
-        try:
-            last_len = float(eval_history[-1].get("mean_length", 0))
-            ratio = last_len / max_episode_steps
+    if behavior_report:
+        behavior_quality = float(behavior_report.get("behavior_quality", 0.35) or 0.35)
+    else:
+        behavior_quality = _length_fallback_behavior_quality(eval_history, max_episode_steps)
 
-            if ratio > 0.85:
-                # Hovering/stalling: agent found a way to survive without completing task
-                # The closer to max, the more likely it's reward hacking
-                behavior_quality = 0.1
-            elif ratio < 0.15:
-                # Crashing immediately: negative rewards dominate
-                behavior_quality = 0.1
-            elif 0.30 <= ratio <= 0.70:
-                # Sweet spot: likely making genuine progress
-                behavior_quality = 1.0
-            else:
-                # Transitional: between crashing and making progress
-                behavior_quality = 0.5
-        except (ValueError, IndexError, KeyError):
-            behavior_quality = 0.5
-
-    # ── Component health ──
-    component_health = overall_health
-
-    # ── Progress alignment ──
     if comps:
-        progress_align = sum(max(0, c.get("progress_corr", 0)) for c in comps) / len(comps)
+        progress_align = sum(max(0.0, _float(c.get("progress_corr", 0.0))) for c in comps) / len(comps)
+        component_activation_ratio = sum(1 for c in comps if c.get("active", False)) / max(len(comps), 1)
     else:
         progress_align = 0.5
-
-    # ── Episode quality ──
-    n_active = sum(1 for c in comps if c.get("active", False))
-    episode_quality = n_active / max(len(comps), 1)
+        component_activation_ratio = 0.0
 
     score = (
         0.30 * behavior_quality
-        + 0.25 * component_health
+        + 0.20 * overall_health
         + 0.20 * progress_align
-        + 0.15 * episode_quality
-        + 0.10 * diversity_bonus
+        + 0.15 * component_activation_ratio
+        + 0.15 * float(diversity_bonus)
     )
-    return round(score, 4)
+    return round(max(0.0, min(1.0, score)), 4)
+
+
+def _length_fallback_behavior_quality(eval_history: list[dict[str, Any]], max_episode_steps: int) -> float:
+    if not eval_history:
+        return 0.35
+    try:
+        last_len = float(eval_history[-1].get("mean_length", 0))
+        ratio = last_len / max(max_episode_steps, 1)
+    except (ValueError, IndexError, KeyError, TypeError):
+        return 0.35
+    if ratio > 0.85:
+        return 0.15  # generic fallback: could be stalling unless env-specific classifier says otherwise
+    if ratio < 0.15:
+        return 0.10
+    if 0.30 <= ratio <= 0.70:
+        return 0.55
+    return 0.35
+
+
+def _float(v: Any) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
