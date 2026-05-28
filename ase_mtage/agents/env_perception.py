@@ -1,8 +1,8 @@
 """Environment Perception Agent for ASE-MTAGE.
 
-The agent builds reward-safe task/env manifests. It can use an LLM over sanitized
-environment summaries, but falls back to deterministic manifests when LLM is
-disabled or fails.
+The agent builds reward-safe task/env manifests. In paper-mode LLM runs set
+fallback_on_error=False so an LLM failure fails fast instead of silently becoming
+a deterministic manifest.
 """
 
 from __future__ import annotations
@@ -30,10 +30,11 @@ class EnvPerceptionArtifacts:
 class EnvPerceptionAgent:
     """Create sanitized task/env manifests without exposing official reward code."""
 
-    def __init__(self, output_core_dir: str | Path, *, llm_client: LLMClient | None = None, temperature: float = 0.2) -> None:
+    def __init__(self, output_core_dir: str | Path, *, llm_client: LLMClient | None = None, temperature: float = 0.2, fallback_on_error: bool = True) -> None:
         self.output_core_dir = ensure_dir(output_core_dir)
         self.llm_client = llm_client
         self.temperature = temperature
+        self.fallback_on_error = fallback_on_error
 
     def run(self, *, env_id: str, task_description: str | None = None, sanitized_env_summary: dict[str, Any] | None = None) -> EnvPerceptionArtifacts:
         task_goal = task_description or self._default_task_goal(env_id)
@@ -42,6 +43,8 @@ class EnvPerceptionAgent:
                 manifest = self._build_llm_manifest(env_id=env_id, task_goal=task_goal, sanitized_env_summary=sanitized_env_summary or {})
             except Exception as exc:
                 save_text(self.output_core_dir / "env_perception_llm_error.txt", str(exc) + "\n")
+                if not self.fallback_on_error:
+                    raise RuntimeError("EnvPerceptionAgent LLM failed and fallback_on_error=false") from exc
                 manifest = self.build_env_manifest(env_id=env_id, task_goal=task_goal, sanitized_env_summary=sanitized_env_summary)
         else:
             manifest = self.build_env_manifest(env_id=env_id, task_goal=task_goal, sanitized_env_summary=sanitized_env_summary)
@@ -49,6 +52,7 @@ class EnvPerceptionAgent:
         manifest.setdefault("coarse_outcome_labels", COARSE_OUTCOME_LABELS)
         manifest.setdefault("labeling_cautions", ["Do not use or infer the official environment reward."])
         manifest.setdefault("trajectory_features_to_extract", ["episode_length", "terminated", "truncated", "progress_improvement", "reward_component_totals"])
+        manifest["llm_used"] = bool(self.llm_client is not None and not (self.output_core_dir / "env_perception_llm_error.txt").exists())
 
         task_manifest_text = self._build_task_manifest_md(manifest)
         task_manifest_path = save_text(self.output_core_dir / "task_manifest.md", task_manifest_text)
