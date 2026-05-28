@@ -1,0 +1,47 @@
+# PARE-SARM configuration for CartPole-v1
+env_id: CartPole-v1
+
+# Training budget (small for CartPole — it's a simple env)
+proxy_timesteps: 10000
+full_timesteps: 100000
+n_envs_proxy: 4
+n_envs_full: 4
+seed: 42
+device: cuda
+normalize: false
+max_episode_steps: 500
+
+# Pipeline
+n_rounds: 3
+k_candidates: 3
+
+# Evaluation during training
+eval_freq: 20000
+eval_episodes: 10
+
+# Checkpoints
+checkpoint_freq: 50000
+
+# GIF recording (steps during full training phase)
+gif_steps: [30000, 60000, 90000]
+gif_fps: 30
+gif_max_steps: 500
+
+# PPO hyperparameters (small net for CartPole)
+ppo:
+  policy: MlpPolicy
+  learning_rate: 0.0003
+  n_steps: 512
+  batch_size: 32
+  n_epochs: 4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+
+# LLM
+llm_model: deepseek-reasoner
+llm_temperature: 0.6
+llm_api_key: ""  # Set your DeepSeek API key here, or use DEEPSEEK_API_KEY env var
