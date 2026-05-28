@@ -1,4 +1,12 @@
-"""Candidate selector for ASE-MTAGE Phase 5."""
+"""Error-aware candidate selector for ASE-MTAGE.
+
+Selector no longer blindly picks the largest TAGE score. It respects the memory
+coverage decision level:
+- no_decision: prefer conservative valid candidate / static prior;
+- failure_filter_only: prioritize failure avoidance;
+- weak_pairwise_selection: use score with confidence penalty;
+- strong_pairwise_selection: use full score with confidence.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +28,7 @@ class CandidateSelector:
         output_path: str | Path | None = None,
         selection_mode: str = "memory_tage",
     ) -> dict[str, Any]:
+        decision_level = str(coverage_report.get("decision_level", "no_decision"))
         scored: list[dict[str, Any]] = []
         for record in candidate_records:
             tage_report_path = record.get("tage_report_path")
@@ -28,17 +37,36 @@ class CandidateSelector:
             validator = load_json(validator_report_path, default={}) if validator_report_path else {}
             valid = bool(validator.get("valid", record.get("valid", False)))
             tage_score = float(tage.get("tage_score", 0.0) or 0.0)
-            selection_score = tage_score if valid else -1.0
+            tage_confidence = float(tage.get("tage_confidence", 0.0) or 0.0)
+            failure_avoidance = self._float_or_default((tage.get("failure_avoidance") or {}).get("normalized_score"), 0.0)
+            preference = self._float_or_default((tage.get("preference_consistency") or {}).get("score"), 0.0)
+            novelty = self._float_or_default((tage.get("candidate_redundancy") or {}).get("novelty_score"), 0.0)
+            static_score = self._float_or_default(record.get("selection_static_score"), 0.0)
+            selection_score = self._selection_score(
+                valid=valid,
+                decision_level=decision_level,
+                tage_score=tage_score,
+                tage_confidence=tage_confidence,
+                failure_avoidance=failure_avoidance,
+                preference=preference,
+                novelty=novelty,
+                static_score=static_score,
+            )
             scored.append(
                 {
                     "candidate_id": record.get("candidate_id"),
                     "mutation_family": record.get("mutation_family"),
                     "valid": valid,
+                    "decision_level": decision_level,
                     "tage_score": tage_score,
-                    "failure_avoidance": (tage.get("failure_avoidance") or {}).get("normalized_score"),
-                    "preference_consistency": (tage.get("preference_consistency") or {}).get("score"),
-                    "novelty": (tage.get("candidate_redundancy") or {}).get("novelty_score"),
+                    "tage_confidence": tage_confidence,
+                    "failure_avoidance": failure_avoidance,
+                    "preference_consistency": preference,
+                    "novelty": novelty,
+                    "static_score": static_score,
                     "selection_score": selection_score,
+                    "recommended_use": tage.get("recommended_use"),
+                    "allowed_decision": tage.get("allowed_decision", coverage_report.get("allowed_decision")),
                     "reward_path": record.get("reward_path"),
                     "candidate_dir": record.get("candidate_dir"),
                     "tage_report_path": tage_report_path,
@@ -55,10 +83,42 @@ class CandidateSelector:
             "selected_candidate": selected["candidate_id"] if selected else None,
             "selection_mode": selection_mode,
             "memory_coverage_type": coverage_report.get("coverage_type", "unknown"),
+            "decision_level": decision_level,
+            "allowed_decision": coverage_report.get("allowed_decision"),
             "candidate_scores": scored,
-            "reason": "Selected valid candidate with highest Memory-TAGE score." if selected else "No valid candidate available.",
-            "phase": "phase_5_selector",
+            "reason": self._reason(selected, decision_level),
+            "phase": "error_aware_selector",
         }
         if output_path is not None:
             save_json(output_path, report)
         return report
+
+    def _selection_score(self, *, valid: bool, decision_level: str, tage_score: float, tage_confidence: float, failure_avoidance: float, preference: float, novelty: float, static_score: float) -> float:
+        if not valid:
+            return -1.0
+        if decision_level == "no_decision":
+            # TAGE has no authority; prefer conservative structure and slight novelty.
+            return 0.75 * static_score + 0.25 * novelty
+        if decision_level == "failure_filter_only":
+            return 0.70 * failure_avoidance + 0.20 * novelty + 0.10 * static_score
+        if decision_level == "weak_pairwise_selection":
+            return 0.45 * failure_avoidance + 0.30 * preference + 0.15 * novelty + 0.10 * tage_confidence
+        if decision_level == "strong_pairwise_selection":
+            return 0.75 * tage_score + 0.25 * tage_confidence
+        return tage_score
+
+    def _reason(self, selected: dict[str, Any] | None, decision_level: str) -> str:
+        if not selected:
+            return "No valid candidate available."
+        return {
+            "no_decision": "Memory coverage has no selection authority; selected conservative valid candidate using static/novelty prior.",
+            "failure_filter_only": "Selected valid candidate that best avoids known failure modes.",
+            "weak_pairwise_selection": "Selected valid candidate using weak preference evidence with confidence penalty.",
+            "strong_pairwise_selection": "Selected valid candidate using full Memory-TAGE ranking and confidence.",
+        }.get(decision_level, "Selected valid candidate using available evidence.")
+
+    def _float_or_default(self, value: Any, default: float) -> float:
+        try:
+            return float(value)
+        except Exception:
+            return default
