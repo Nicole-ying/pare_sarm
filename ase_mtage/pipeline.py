@@ -21,13 +21,21 @@ from ase_mtage.tools.reward_validator import RewardValidator
 from ase_mtage.tools.rollback import RollbackManager
 from ase_mtage.tools.selector import CandidateSelector
 from ase_mtage.training.long_trainer import LongTrainer
-from ase_mtage.utils.io import ensure_dir, load_config, load_json, now_timestamp, save_json, save_text
+from ase_mtage.utils.io import ensure_dir, load_config, load_json, load_jsonl, now_timestamp, save_json, save_text
 
 
 class ASEMTAGEPipeline:
     """Closed-loop ASE-MTAGE pipeline with strict LLM fallback control."""
 
-    def __init__(self, config: ASEMTAGEConfig | dict[str, Any] | None = None, *, config_path: str | Path | None = None, output_root: str | Path | None = None, resume_from: str | Path | None = None, dry_run: bool = False) -> None:
+    def __init__(
+        self,
+        config: ASEMTAGEConfig | dict[str, Any] | None = None,
+        *,
+        config_path: str | Path | None = None,
+        output_root: str | Path | None = None,
+        resume_from: str | Path | None = None,
+        dry_run: bool = False,
+    ) -> None:
         if isinstance(config, ASEMTAGEConfig):
             self.config = config
         else:
@@ -50,6 +58,7 @@ class ASEMTAGEPipeline:
             notes=[
                 "Closed-loop ASE-MTAGE with long training and trajectory-memory accumulation.",
                 "If llm.enabled=true and llm.fallback_on_error=false, LLM failures stop the run.",
+                "Analyzer receives full round evidence: coverage, trajectory labels, components, selection, TAGE, and memory.",
                 "No historical-best-health gate is used.",
             ],
         )
@@ -93,12 +102,27 @@ class ASEMTAGEPipeline:
     def run(self, n_rounds: int | None = None) -> dict[str, Any]:
         self.setup_experiment()
         total_rounds = self.config.method.max_rounds if n_rounds is None else n_rounds
-        summaries = []
+        summaries: list[dict[str, Any]] = []
+        previous_selection_report: dict[str, Any] | None = None
         for round_idx in range(total_rounds):
-            summary = self.run_round0(round_idx) if round_idx == 0 else self.run_self_evolution_round(round_idx)
+            if round_idx == 0:
+                summary = self.run_round0(round_idx)
+            else:
+                summary = self.run_self_evolution_round(round_idx, previous_selection_report=previous_selection_report)
             summaries.append(summary.to_dict())
+            sel_path = self.layout.exp_dir / f"round{round_idx}" / "selection_report.json"
+            previous_selection_report = load_json(sel_path, default={}) if sel_path.exists() else None
         self._save_state("EXPERIMENT_COMPLETED")
-        result = {"success": True, "phase": "closed_loop_ase_mtage", "method": self.config.method.name, "env_id": self.config.training.env_id, "llm_enabled": bool(self.llm_client), "llm_fallback_on_error": self.fallback_on_error, "exp_dir": str(self.layout.exp_dir), "rounds": summaries}
+        result = {
+            "success": True,
+            "phase": "closed_loop_ase_mtage",
+            "method": self.config.method.name,
+            "env_id": self.config.training.env_id,
+            "llm_enabled": bool(self.llm_client),
+            "llm_fallback_on_error": self.fallback_on_error,
+            "exp_dir": str(self.layout.exp_dir),
+            "rounds": summaries,
+        }
         save_json(self.layout.exp_dir / "summary.json", result)
         return result
 
@@ -108,12 +132,32 @@ class ASEMTAGEPipeline:
         task_manifest = task_manifest_path.read_text(encoding="utf-8") if task_manifest_path.exists() else ""
         return env_manifest, task_manifest
 
-    def _generate_and_validate_candidates(self, *, round_idx: int, round_dir: Path, analyzer_report: dict[str, Any] | None = None, parent_reward_code: str | None = None, coverage_report: dict[str, Any] | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    def _generate_and_validate_candidates(
+        self,
+        *,
+        round_idx: int,
+        round_dir: Path,
+        analyzer_report: dict[str, Any] | None = None,
+        parent_reward_code: str | None = None,
+        coverage_report: dict[str, Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
         candidates_root = ensure_dir(round_dir / "candidates")
         artifacts: list[str] = []
         env_manifest, task_manifest = self._load_core_context()
-        mutator = MutatorAgent(candidates_root, llm_client=self.llm_client, temperature=float(self.config.llm.temperature.get("mutator", 0.6)))
-        candidates = mutator.generate_candidates(env_manifest=env_manifest, k_candidates=self.config.method.k_candidates, round_idx=round_idx, analyzer_report=analyzer_report, parent_reward_code=parent_reward_code, task_manifest=task_manifest, coverage_report=coverage_report)
+        mutator = MutatorAgent(
+            candidates_root,
+            llm_client=self.llm_client,
+            temperature=float(self.config.llm.temperature.get("mutator", 0.6)),
+        )
+        candidates = mutator.generate_candidates(
+            env_manifest=env_manifest,
+            k_candidates=self.config.method.k_candidates,
+            round_idx=round_idx,
+            analyzer_report=analyzer_report,
+            parent_reward_code=parent_reward_code,
+            task_manifest=task_manifest,
+            coverage_report=coverage_report,
+        )
         records: list[dict[str, Any]] = []
         validation_results: list[dict[str, Any]] = []
         validator = RewardValidator()
@@ -121,8 +165,24 @@ class ASEMTAGEPipeline:
             report_path = cand.candidate_dir / "validator_report.json"
             result = validator.validate_file(cand.reward_path, candidate_id=cand.candidate_id, report_path=report_path)
             validation_results.append(result.to_dict())
-            records.append({"index": idx, "candidate_id": cand.candidate_id, "mutation_family": cand.mutation_family, "candidate_dir": str(cand.candidate_dir), "reward_path": str(cand.reward_path), "metadata_path": str(cand.metadata_path), "validator_report_path": str(report_path), "valid": result.valid, "selection_static_score": self._round0_static_score(cand.mutation_family, result.valid)})
-            artifacts.extend([str(cand.reward_path.relative_to(round_dir)), str(cand.metadata_path.relative_to(round_dir)), str(report_path.relative_to(round_dir))])
+            records.append(
+                {
+                    "index": idx,
+                    "candidate_id": cand.candidate_id,
+                    "mutation_family": cand.mutation_family,
+                    "candidate_dir": str(cand.candidate_dir),
+                    "reward_path": str(cand.reward_path),
+                    "metadata_path": str(cand.metadata_path),
+                    "validator_report_path": str(report_path),
+                    "valid": result.valid,
+                    "selection_static_score": self._round0_static_score(cand.mutation_family, result.valid),
+                }
+            )
+            artifacts.extend([
+                str(cand.reward_path.relative_to(round_dir)),
+                str(cand.metadata_path.relative_to(round_dir)),
+                str(report_path.relative_to(round_dir)),
+            ])
         return records, validation_results, artifacts
 
     def run_round0(self, round_idx: int) -> RoundSummary:
@@ -132,13 +192,32 @@ class ASEMTAGEPipeline:
         artifacts.extend(created)
         valid_records = [r for r in records if r["valid"]]
         selected = max(valid_records, key=lambda r: r["selection_static_score"]) if valid_records else None
-        selection = {"round": round_idx, "selection_mode": "round0_static_selection", "memory_tage_used": False, "selected_candidate": selected["candidate_id"] if selected else None, "candidate_scores": records, "reason": "Round 0 has no trajectory memory yet; use static selection."}
+        selection = {
+            "round": round_idx,
+            "selection_mode": "round0_static_selection",
+            "memory_tage_used": False,
+            "selected_candidate": selected["candidate_id"] if selected else None,
+            "candidate_scores": records,
+            "reason": "Round 0 has no trajectory memory yet; use static selection.",
+        }
         save_json(round_dir / "selection_report.json", selection)
         save_json(round_dir / "candidate_generation_report.json", {"round": round_idx, "candidates": validation_results, "selected_candidate": selection["selected_candidate"], "llm_called": bool(self.llm_client), "llm_fallback_on_error": self.fallback_on_error})
         artifacts.extend(["selection_report.json", "candidate_generation_report.json"])
         training_result = self._train_selected_and_update_memory(round_idx=round_idx, round_dir=round_dir, selected_record=selected, artifacts=artifacts)
         real_coverage = self._coverage_for_reflection(round_dir)
-        self._write_reflection(round_idx=round_idx, round_dir=round_dir, analyzer_report={"parent_reward_id": None, "self_evaluation_lesson": "Round 0 bootstrapped initial trajectory memory.", "mutation_intent": {"primary_family": "bootstrap", "secondary_family": "bootstrap", "required_changes": [], "preserve_components": [], "remove_or_gate_components": []}}, selection_report=selection, coverage_report=real_coverage, rollback_report={"rollback_triggered": False, "next_parent_reward_id": selection["selected_candidate"], "reason": "bootstrap"}, artifacts=artifacts)
+        self._write_reflection(
+            round_idx=round_idx,
+            round_dir=round_dir,
+            analyzer_report={
+                "parent_reward_id": None,
+                "self_evaluation_lesson": "Round 0 bootstrapped initial trajectory memory.",
+                "mutation_intent": {"primary_family": "bootstrap", "secondary_family": "bootstrap", "required_changes": [], "preserve_components": [], "remove_or_gate_components": []},
+            },
+            selection_report=selection,
+            coverage_report=real_coverage,
+            rollback_report={"rollback_triggered": False, "next_parent_reward_id": selection["selected_candidate"], "reason": "bootstrap"},
+            artifacts=artifacts,
+        )
         self._write_round_readme(round_dir, round_idx, "Round 0 generated, selected, long-trained one reward, and built initial trajectory memory.")
         artifacts.append("README.md")
         save_json(round_dir / "round_state.json", {"round": round_idx, "phase": "round0_bootstrap", "selected_candidate": selection["selected_candidate"], "long_training_executed": training_result["executed"], "long_training_success": training_result["success"], "num_trajectory_cards": training_result["num_cards"], "llm_called": bool(self.llm_client), "llm_fallback_on_error": self.fallback_on_error})
@@ -148,7 +227,7 @@ class ASEMTAGEPipeline:
         self._mark_round_completed(round_idx)
         return summary
 
-    def run_self_evolution_round(self, round_idx: int) -> RoundSummary:
+    def run_self_evolution_round(self, round_idx: int, previous_selection_report: dict[str, Any] | None = None) -> RoundSummary:
         round_dir = ensure_dir(self.layout.exp_dir / f"round{round_idx}")
         artifacts: list[str] = []
         coverage = self._analyze_coverage(round_dir, artifacts)
@@ -159,7 +238,26 @@ class ASEMTAGEPipeline:
         if best and best.get("reward_path") and Path(best["reward_path"]).exists():
             parent_code = Path(best["reward_path"]).read_text(encoding="utf-8")
         analyzer_dir = ensure_dir(round_dir / "analyzer")
-        analyzer_report = AnalyzerAgent(analyzer_dir, llm_client=self.llm_client, temperature=float(self.config.llm.temperature.get("analyzer", 0.4)), fallback_on_error=self.fallback_on_error).run(round_idx=round_idx, parent_reward_id=(best or {}).get("reward_id"), coverage_report=coverage, previous_selection_report=None, failure_memory_records=FailureRepairMemory(self.layout.memory_dir / "failure_repair_memory.jsonl").read_recent(limit=5), elite_archive=archive.read(), task_manifest=task_manifest, env_manifest=env_manifest, parent_reward_code=parent_code)
+        latest_summary = self._latest_trajectory_judgment_summary(round_idx)
+        latest_component_summary = self._component_summary_from_memory()
+        analyzer_report = AnalyzerAgent(
+            analyzer_dir,
+            llm_client=self.llm_client,
+            temperature=float(self.config.llm.temperature.get("analyzer", 0.4)),
+            fallback_on_error=self.fallback_on_error,
+        ).run(
+            round_idx=round_idx,
+            parent_reward_id=(best or {}).get("reward_id"),
+            coverage_report=coverage,
+            previous_selection_report=previous_selection_report,
+            trajectory_judgment_summary=latest_summary,
+            component_summary=latest_component_summary,
+            failure_memory_records=FailureRepairMemory(self.layout.memory_dir / "failure_repair_memory.jsonl").read_recent(limit=5),
+            elite_archive=archive.read(),
+            task_manifest=task_manifest,
+            env_manifest=env_manifest,
+            parent_reward_code=parent_code,
+        )
         artifacts.extend(["analyzer/prompt.txt", "analyzer/response.txt", "analyzer/self_evaluation.json"])
         records, validation_results, created = self._generate_and_validate_candidates(round_idx=round_idx, round_dir=round_dir, analyzer_report=analyzer_report, parent_reward_code=parent_code, coverage_report=coverage)
         artifacts.extend(created)
@@ -175,12 +273,44 @@ class ASEMTAGEPipeline:
         self._write_reflection(round_idx=round_idx, round_dir=round_dir, analyzer_report=analyzer_report, selection_report=selection, coverage_report=coverage, rollback_report=rollback, artifacts=artifacts, tage_summary={"candidate_tage_reports": tage_reports}, elite_archive=archive.read())
         self._write_round_readme(round_dir, round_idx, "Self-evolution round: Analyzer -> Mutator -> Memory-TAGE -> Rollback -> Long training -> New trajectory memory -> Reflection.")
         artifacts.append("README.md")
-        save_json(round_dir / "round_state.json", {"round": round_idx, "phase": "closed_loop_self_evolution", "llm_called": bool(self.llm_client), "llm_fallback_on_error": self.fallback_on_error, "memory_coverage_type": coverage.get("coverage_type"), "selected_candidate": selection.get("selected_candidate"), "rollback_triggered": rollback.get("rollback_triggered"), "next_parent_reward_id": rollback.get("next_parent_reward_id"), "long_training_executed": training_result["executed"], "long_training_success": training_result["success"], "num_trajectory_cards": training_result["num_cards"], "reflection_written": True})
+        save_json(round_dir / "round_state.json", {"round": round_idx, "phase": "closed_loop_self_evolution", "llm_called": bool(self.llm_client), "llm_fallback_on_error": self.fallback_on_error, "memory_coverage_type": coverage.get("coverage_type"), "decision_level": coverage.get("decision_level"), "selected_candidate": selection.get("selected_candidate"), "rollback_triggered": rollback.get("rollback_triggered"), "next_parent_reward_id": rollback.get("next_parent_reward_id"), "long_training_executed": training_result["executed"], "long_training_success": training_result["success"], "num_trajectory_cards": training_result["num_cards"], "reflection_written": True})
         artifacts.append("round_state.json")
-        summary = RoundSummary(round=round_idx, status="completed" if training_result["success"] else "completed_with_training_failure", phase="closed_loop_self_evolution", message=f"Round {round_idx} selected {selection.get('selected_candidate')}; rollback={rollback.get('rollback_triggered')}; new_cards={training_result['num_cards']}.", round_dir=str(round_dir), artifacts_created=artifacts, long_training_executed=training_result["executed"], short_training_executed=False)
+        msg = f"Round {round_idx} selected {selection.get('selected_candidate')}; decision_level={coverage.get('decision_level')}; new_cards={training_result['num_cards']}."
+        summary = RoundSummary(round=round_idx, status="completed" if training_result["success"] else "completed_with_training_failure", phase="closed_loop_self_evolution", message=msg, round_dir=str(round_dir), artifacts_created=artifacts, long_training_executed=training_result["executed"], short_training_executed=False)
         save_json(round_dir / "round_summary.json", summary.to_dict())
         self._mark_round_completed(round_idx)
         return summary
+
+    def _latest_trajectory_judgment_summary(self, round_idx: int) -> dict[str, Any]:
+        for r in range(round_idx - 1, -1, -1):
+            path = self.layout.exp_dir / f"round{r}" / "trajectory_judgment_summary.json"
+            if path.exists():
+                return load_json(path, default={})
+        return {}
+
+    def _component_summary_from_memory(self) -> dict[str, Any]:
+        cards = load_jsonl(self.layout.memory_dir / "trajectory_cards.jsonl")
+        stats: dict[str, dict[str, list[float]]] = {}
+        for card in cards:
+            label = (card.get("final_label") or {}).get("coarse_label", "ambiguous")
+            is_failure = label in {"early_failure", "low_progress_survival"}
+            is_positive = label in {"partial_progress", "success_like"}
+            for name, value in dict(card.get("reward_component_totals") or {}).items():
+                item = stats.setdefault(str(name), {"failure_values": [], "positive_values": []})
+                try:
+                    v = float(value)
+                except Exception:
+                    continue
+                if is_failure:
+                    item["failure_values"].append(v)
+                if is_positive:
+                    item["positive_values"].append(v)
+        compact: dict[str, Any] = {}
+        for name, item in stats.items():
+            fvals = item["failure_values"]
+            pvals = item["positive_values"]
+            compact[name] = {"failure_mean": sum(fvals) / len(fvals) if fvals else 0.0, "positive_mean": sum(pvals) / len(pvals) if pvals else 0.0, "num_failure": len(fvals), "num_positive": len(pvals)}
+        return {"component_stats": compact}
 
     def _coverage_for_reflection(self, round_dir: Path) -> dict[str, Any]:
         summary_path = round_dir / "trajectory_judgment_summary.json"
@@ -190,7 +320,11 @@ class ASEMTAGEPipeline:
         return {"coverage_type": "bootstrap", "label_counts": {}}
 
     def _analyze_coverage(self, round_dir: Path, artifacts: list[str]) -> dict[str, Any]:
-        coverage = MemoryCoverageAnalyzer(min_trajectories=self.config.trajectory_memory.min_trajectories, min_high_confidence_trajectories=self.config.trajectory_memory.min_high_confidence_trajectories, confidence_threshold=self.config.trajectory_memory.label_confidence_threshold).analyze_file(memory_cards_path=self.layout.memory_dir / "trajectory_cards.jsonl", output_path=round_dir / "coverage_report.json")
+        coverage = MemoryCoverageAnalyzer(
+            min_trajectories=self.config.trajectory_memory.min_trajectories,
+            min_high_confidence_trajectories=self.config.trajectory_memory.min_high_confidence_trajectories,
+            confidence_threshold=self.config.trajectory_memory.label_confidence_threshold,
+        ).analyze_file(memory_cards_path=self.layout.memory_dir / "trajectory_cards.jsonl", output_path=round_dir / "coverage_report.json")
         save_json(self.layout.memory_dir / "coverage_report.json", coverage)
         artifacts.extend(["coverage_report.json", "memory/coverage_report.json"])
         return coverage
@@ -206,7 +340,7 @@ class ASEMTAGEPipeline:
                 record["tage_score"] = report.get("tage_score")
                 reports.append(report)
             else:
-                save_json(report_path, {"candidate_id": record["candidate_id"], "valid": False, "tage_score": -1.0})
+                save_json(report_path, {"candidate_id": record["candidate_id"], "valid": False, "tage_score": -1.0, "tage_confidence": 0.0, "decision_level": coverage.get("decision_level")})
                 record["tage_report_path"] = str(report_path)
                 record["tage_score"] = -1.0
             artifacts.append(str(report_path.relative_to(round_dir)))
