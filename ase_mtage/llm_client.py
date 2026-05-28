@@ -34,6 +34,7 @@ class LLMClient:
         api_key: str | None = None,
         timeout_seconds: int = 120,
         max_tokens: int = 4096,
+        fallback_on_error: bool = True,
     ) -> None:
         self.provider = provider
         self.model = model
@@ -42,6 +43,7 @@ class LLMClient:
         self.api_key = api_key or os.environ.get(api_key_env)
         self.timeout_seconds = timeout_seconds
         self.max_tokens = max_tokens
+        self.fallback_on_error = bool(fallback_on_error)
         if not self.api_key:
             raise RuntimeError(
                 f"LLM is enabled but API key is missing. Set environment variable {api_key_env} "
@@ -60,6 +62,7 @@ class LLMClient:
             api_key=getattr(llm_config, "api_key", None),
             timeout_seconds=int(getattr(llm_config, "timeout_seconds", 120)),
             max_tokens=int(getattr(llm_config, "max_tokens", 4096)),
+            fallback_on_error=bool(getattr(llm_config, "fallback_on_error", True)),
         )
 
     def chat(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2, max_tokens: int | None = None) -> LLMResponse:
@@ -130,5 +133,4 @@ def extract_python_code(text: str) -> str:
         p = part.strip()
         if p.startswith("python"):
             return p[len("python") :].strip()
-    # fallback to first fenced block
     return parts[1].strip() if len(parts) > 1 else cleaned
