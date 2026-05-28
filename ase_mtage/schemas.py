@@ -1,8 +1,8 @@
-"""Core data schemas for ASE-MTAGE Phase 1.
+"""Core data schemas for ASE-MTAGE.
 
-These dataclasses define the minimum stable artifact protocol used by the empty
-pipeline. Later phases can extend them without changing the basic directory and
-state layout.
+These dataclasses define the stable artifact protocol used by the pipeline.
+They intentionally keep LLM credentials in env vars by default, so config files
+can be committed without leaking API keys.
 """
 
 from __future__ import annotations
@@ -34,11 +34,7 @@ class MethodConfig:
 
 @dataclass(slots=True)
 class TrainingConfig:
-    """Training-related configuration.
-
-    Phase 1 does not train a policy yet, but these fields are saved to make the
-    experiment directory compatible with later phases.
-    """
+    """Training-related configuration."""
 
     env_id: str = "CartPole-v1"
     full_timesteps: int = 100_000
@@ -50,10 +46,21 @@ class TrainingConfig:
 
 @dataclass(slots=True)
 class LLMConfig:
-    """LLM configuration placeholder for later phases."""
+    """LLM configuration.
 
+    Prefer setting api_key_env="DEEPSEEK_API_KEY" and exporting that environment
+    variable locally. Do not commit literal API keys. If api_key is provided, the
+    saved normalized config masks it.
+    """
+
+    enabled: bool = False
     provider: str = "none"
     model: str = "dry-run"
+    api_key_env: str = "DEEPSEEK_API_KEY"
+    api_key: str | None = None
+    base_url: str = "https://api.deepseek.com"
+    timeout_seconds: int = 120
+    max_tokens: int = 4096
     temperature: dict[str, float] = field(
         default_factory=lambda: {
             "env_perception": 0.2,
@@ -106,7 +113,10 @@ class ASEMTAGEConfig:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        if data.get("llm", {}).get("api_key"):
+            data["llm"]["api_key"] = "***MASKED***"
+        return data
 
 
 @dataclass(slots=True)
@@ -131,7 +141,7 @@ class ExperimentState:
 
 @dataclass(slots=True)
 class RoundSummary:
-    """Minimal round summary produced by the Phase 1 empty round."""
+    """Minimal round summary produced by each pipeline round."""
 
     round: int
     status: str
