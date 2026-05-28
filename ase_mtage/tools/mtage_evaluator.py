@@ -1,9 +1,8 @@
-"""Memory-TAGE evaluator for ASE-MTAGE Phase 5.
+"""Error-aware Memory-TAGE evaluator for ASE-MTAGE.
 
-Memory-TAGE scores candidate reward functions offline on historical trajectories.
-It does not train a policy. It asks whether a candidate reward ranks higher-
-quality remembered trajectories above known lower-quality trajectories and
-whether it avoids assigning high reward to known failures.
+Memory-TAGE is not a ground-truth fitness function. It is a conservative offline
+filter over remembered trajectories. Its report therefore contains score,
+confidence, decision authority, allowed decision, and forbidden assumptions.
 """
 
 from __future__ import annotations
@@ -21,7 +20,7 @@ FAILURE_LABELS = {"early_failure", "low_progress_survival"}
 
 
 class MemoryTAGEEvaluator:
-    """Evaluate one or more reward candidates on trajectory memory."""
+    """Evaluate one reward candidate on trajectory memory."""
 
     def evaluate_candidate(
         self,
@@ -43,44 +42,91 @@ class MemoryTAGEEvaluator:
         reward_vector = [float(x["candidate_reward_total"]) for x in scored_cards]
         novelty_report = self._novelty(candidate_id, reward_vector, other_reward_vectors or {})
 
+        decision_level = str(coverage_report.get("decision_level", "no_decision"))
         coverage_type = str(coverage_report.get("coverage_type", "ambiguous"))
-        if coverage_type in {"balanced", "failure_plus_partial_progress", "partial_or_success_only"}:
-            tage_score = (
-                0.45 * preference_report["score"]
-                + 0.20 * component_report["mean_component_consistency"]
-                + 0.20 * failure_report["normalized_score"]
-                + 0.15 * novelty_report["novelty_score"]
-            )
-            score_mode = "preference_consistency_weighted"
-        else:
-            # Low-coverage memory: do not pretend ranking is reliable.
-            static_structure_score = 0.50
-            tage_score = (
-                0.35 * failure_report["normalized_score"]
-                + 0.30 * static_structure_score
-                + 0.20 * novelty_report["novelty_score"]
-                + 0.15 * 0.50
-            )
-            score_mode = "low_coverage_failure_avoidance_weighted"
-
+        tage_score, score_mode = self._score_by_decision_level(
+            decision_level=decision_level,
+            preference_score=float(preference_report.get("score", 0.0) or 0.0),
+            failure_score=float(failure_report.get("normalized_score", 0.0) or 0.0),
+            component_score=float(component_report.get("mean_component_consistency", 0.0) or 0.0),
+            novelty_score=float(novelty_report.get("novelty_score", 0.0) or 0.0),
+        )
+        tage_confidence = self._confidence(
+            decision_level=decision_level,
+            coverage_report=coverage_report,
+            preference_report=preference_report,
+            scored_cards=scored_cards,
+        )
+        recommended_use = self._recommended_use(tage_score, tage_confidence, decision_level)
         report = {
             "candidate_id": candidate_id,
             "reward_path": str(reward_path),
             "memory_coverage_type": coverage_type,
+            "decision_level": decision_level,
             "score_mode": score_mode,
             "preference_consistency": preference_report,
             "failure_avoidance": failure_report,
             "component_alignment": component_report,
             "candidate_redundancy": novelty_report,
             "tage_score": float(tage_score),
+            "tage_confidence": float(tage_confidence),
+            "allowed_decision": coverage_report.get("allowed_decision", self._allowed_decision(decision_level)),
+            "forbidden_assumptions": list(coverage_report.get("forbidden_assumptions") or []),
             "num_scored_trajectories": len(scored_cards),
             "warnings": list(coverage_report.get("forbidden_assumptions") or []),
-            "recommended_use": "promote_candidate" if tage_score >= 0.50 else "do_not_promote",
-            "phase": "phase_5_memory_tage",
+            "recommended_use": recommended_use,
+            "phase": "error_aware_memory_tage",
         }
         if output_path is not None:
             save_json(output_path, report)
         return report
+
+    def _score_by_decision_level(self, *, decision_level: str, preference_score: float, failure_score: float, component_score: float, novelty_score: float) -> tuple[float, str]:
+        if decision_level == "strong_pairwise_selection":
+            return (0.45 * preference_score + 0.20 * component_score + 0.20 * failure_score + 0.15 * novelty_score, "strong_pairwise_weighted")
+        if decision_level == "weak_pairwise_selection":
+            return (0.30 * preference_score + 0.20 * component_score + 0.35 * failure_score + 0.15 * novelty_score, "weak_pairwise_failure_aware")
+        if decision_level == "failure_filter_only":
+            return (0.70 * failure_score + 0.20 * novelty_score + 0.10 * max(component_score, 0.0), "failure_filter_only")
+        # no_decision: do not pretend TAGE can choose a better reward; use only weak safety priors.
+        return (0.50 * failure_score + 0.30 * novelty_score + 0.20 * 0.50, "no_decision_safety_prior")
+
+    def _confidence(self, *, decision_level: str, coverage_report: dict[str, Any], preference_report: dict[str, Any], scored_cards: list[dict[str, Any]]) -> float:
+        num_high = float(coverage_report.get("num_high_confidence", 0) or 0)
+        min_high = max(float(coverage_report.get("dynamic_min_count_per_label", 3) or 3), 1.0)
+        memory_factor = min(1.0, num_high / max(2.0 * min_high, 1.0))
+        pair_count = float(preference_report.get("num_pairs", 0) or 0)
+        pair_factor = min(1.0, pair_count / 10.0)
+        margin_ok = bool((coverage_report.get("label_margin") or {}).get("is_margin_sufficient", False))
+        margin_factor = 1.0 if margin_ok else 0.45
+        level_factor = {
+            "no_decision": 0.20,
+            "failure_filter_only": 0.40,
+            "weak_pairwise_selection": 0.65,
+            "strong_pairwise_selection": 0.90,
+        }.get(decision_level, 0.20)
+        if decision_level in {"no_decision", "failure_filter_only"}:
+            pair_factor = max(pair_factor, 0.5)
+        runtime_bad = any(float(s.get("candidate_reward_total", 0.0) or 0.0) < -1e5 for s in scored_cards)
+        runtime_factor = 0.2 if runtime_bad else 1.0
+        return max(0.0, min(1.0, level_factor * (0.45 * memory_factor + 0.35 * pair_factor + 0.20 * margin_factor) * runtime_factor))
+
+    def _recommended_use(self, score: float, confidence: float, decision_level: str) -> str:
+        if decision_level == "no_decision":
+            return "do_not_promote_by_tage"
+        if decision_level == "failure_filter_only":
+            return "use_only_as_failure_filter" if score >= 0.45 else "do_not_promote"
+        if confidence < 0.35:
+            return "low_confidence_do_not_promote"
+        return "promote_candidate_for_long_training" if score >= 0.50 else "do_not_promote"
+
+    def _allowed_decision(self, decision_level: str) -> str:
+        return {
+            "no_decision": "Do not use Memory-TAGE as a strong selector.",
+            "failure_filter_only": "Use only to avoid known failure modes.",
+            "weak_pairwise_selection": "Use weak preference pairs with caution.",
+            "strong_pairwise_selection": "Use full preference-aware Memory-TAGE ranking.",
+        }.get(decision_level, "Conservative selection only.")
 
     def _score_cards(self, *, cards: list[dict[str, Any]], reward_fn: RewardFn) -> list[dict[str, Any]]:
         scored: list[dict[str, Any]] = []
@@ -95,31 +141,15 @@ class MemoryTAGEEvaluator:
             total = 0.0
             component_totals: dict[str, float] = {}
             for step in trajectory.get("steps", []):
-                obs = step.get("obs")
-                action = step.get("action")
-                next_obs = step.get("next_obs")
-                terminated = bool(step.get("terminated", False))
-                truncated = bool(step.get("truncated", False))
-                info = dict(step.get("info") or {})
                 try:
-                    reward_value, components = reward_fn(obs, action, next_obs, terminated, truncated, info)
-                    reward_value = self._finite(float(reward_value))
-                    total += reward_value
+                    reward_value, components = reward_fn(step.get("obs"), step.get("action"), step.get("next_obs"), bool(step.get("terminated", False)), bool(step.get("truncated", False)), dict(step.get("info") or {}))
+                    total += self._finite(float(reward_value))
                     for name, value in dict(components).items():
                         component_totals[str(name)] = component_totals.get(str(name), 0.0) + self._finite(float(value))
                 except Exception:
-                    # Bad runtime on a remembered trajectory should strongly hurt the candidate.
                     total -= 1e6
             label = (card.get("final_label") or {}).get("coarse_label", "ambiguous")
-            scored.append(
-                {
-                    "trajectory_id": card.get("trajectory_id"),
-                    "label": label,
-                    "use_for_tage_pair": bool(card.get("use_for_tage_pair", False)),
-                    "candidate_reward_total": total,
-                    "component_totals": component_totals,
-                }
-            )
+            scored.append({"trajectory_id": card.get("trajectory_id"), "label": label, "use_for_tage_pair": bool(card.get("use_for_tage_pair", False)), "candidate_reward_total": total, "component_totals": component_totals})
         return scored
 
     def _preference_consistency(self, scored: list[dict[str, Any]], coverage_report: dict[str, Any]) -> dict[str, Any]:
@@ -142,13 +172,7 @@ class MemoryTAGEEvaluator:
             if float(high["candidate_reward_total"]) > float(low["candidate_reward_total"]):
                 satisfied += 1
                 relation_counts[key]["satisfied"] += 1
-        return {
-            "num_pairs": len(pairs),
-            "num_satisfied": satisfied,
-            "score": satisfied / len(pairs),
-            "relations": allowed,
-            "relation_counts": relation_counts,
-        }
+        return {"num_pairs": len(pairs), "num_satisfied": satisfied, "score": satisfied / len(pairs), "relations": allowed, "relation_counts": relation_counts}
 
     def _failure_avoidance(self, scored: list[dict[str, Any]]) -> dict[str, Any]:
         if not scored:
@@ -162,12 +186,7 @@ class MemoryTAGEEvaluator:
         normalized_failure_rewards = [(float(s["candidate_reward_total"]) - min_r) / denom for s in failure_cards]
         mean_norm_failure = sum(normalized_failure_rewards) / len(normalized_failure_rewards)
         mean_raw_failure = sum(float(s["candidate_reward_total"]) for s in failure_cards) / len(failure_cards)
-        return {
-            "known_failure_labels": sorted(FAILURE_LABELS),
-            "num_failure_trajectories": len(failure_cards),
-            "mean_reward_on_failure": mean_raw_failure,
-            "normalized_score": 1.0 - mean_norm_failure,
-        }
+        return {"known_failure_labels": sorted(FAILURE_LABELS), "num_failure_trajectories": len(failure_cards), "mean_reward_on_failure": mean_raw_failure, "normalized_score": 1.0 - mean_norm_failure}
 
     def _component_alignment(self, scored: list[dict[str, Any]], coverage_report: dict[str, Any]) -> dict[str, Any]:
         allowed = list(coverage_report.get("allowed_preference_relations") or [])
@@ -182,21 +201,12 @@ class MemoryTAGEEvaluator:
                 for h in high_cards:
                     for l in low_cards:
                         pairs.append((h, l))
-            if not pairs:
-                consistency = 0.0
-                satisfied = 0
-            else:
-                satisfied = 0
-                for h, l in pairs:
-                    if float(h.get("component_totals", {}).get(name, 0.0)) > float(l.get("component_totals", {}).get(name, 0.0)):
-                        satisfied += 1
-                consistency = satisfied / len(pairs)
-            component_reports[name] = {
-                "pair_consistency": consistency,
-                "num_pairs": len(pairs),
-                "num_satisfied": satisfied,
-                "diagnosis": self._component_diagnosis(name, consistency),
-            }
+            satisfied = 0
+            for h, l in pairs:
+                if float(h.get("component_totals", {}).get(name, 0.0)) > float(l.get("component_totals", {}).get(name, 0.0)):
+                    satisfied += 1
+            consistency = satisfied / len(pairs) if pairs else 0.0
+            component_reports[name] = {"pair_consistency": consistency, "num_pairs": len(pairs), "num_satisfied": satisfied, "diagnosis": self._component_diagnosis(name, consistency)}
             scores.append(consistency)
         mean_score = sum(scores) / len(scores) if scores else 0.0
         return {"mean_component_consistency": mean_score, "components": component_reports}
@@ -212,19 +222,16 @@ class MemoryTAGEEvaluator:
         if not other_vectors:
             return {"max_reward_vector_corr_with_other_candidates": 0.0, "novelty_score": 0.50}
         max_corr = 0.0
-        for other_id, other_vec in other_vectors.items():
-            corr = abs(self._pearson(reward_vector, other_vec))
-            max_corr = max(max_corr, corr)
+        for _, other_vec in other_vectors.items():
+            max_corr = max(max_corr, abs(self._pearson(reward_vector, other_vec)))
         return {"max_reward_vector_corr_with_other_candidates": max_corr, "novelty_score": 1.0 - max_corr}
 
     def _pearson(self, a: list[float], b: list[float]) -> float:
         n = min(len(a), len(b))
         if n < 2:
             return 0.0
-        x = a[:n]
-        y = b[:n]
-        mx = sum(x) / n
-        my = sum(y) / n
+        x, y = a[:n], b[:n]
+        mx, my = sum(x) / n, sum(y) / n
         num = sum((x[i] - mx) * (y[i] - my) for i in range(n))
         denx = math.sqrt(sum((v - mx) ** 2 for v in x))
         deny = math.sqrt(sum((v - my) ** 2 for v in y))
