@@ -1,31 +1,69 @@
-"""Reflection / Memory Agent for ASE-MTAGE Phase 6."""
+"""Reflection / Memory Agent for ASE-MTAGE.
+
+The reflector can use an LLM when a client is available. It writes compact memory
+records for later Analyzer prompts, and falls back to a deterministic record if
+the LLM is disabled or unavailable.
+"""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
+from ase_mtage.llm_client import LLMClient, extract_json_object, load_prompt
 from ase_mtage.memory.failure_repair_memory import FailureRepairMemory
 from ase_mtage.utils.io import append_jsonl, ensure_dir, save_json, save_text
 
 
 class ReflectionAgent:
-    """Write round-level failure-repair lessons into memory."""
+    """Write round-level lessons into memory."""
 
-    def __init__(self, *, output_dir: str | Path, failure_memory_path: str | Path, archival_lessons_path: str | Path) -> None:
+    def __init__(self, *, output_dir: str | Path, failure_memory_path: str | Path, archival_lessons_path: str | Path, llm_client: LLMClient | None = None, temperature: float = 0.3) -> None:
         self.output_dir = ensure_dir(output_dir)
         self.failure_memory = FailureRepairMemory(failure_memory_path)
         self.archival_lessons_path = Path(archival_lessons_path)
+        self.llm_client = llm_client
+        self.temperature = temperature
 
-    def run(
-        self,
-        *,
-        round_idx: int,
-        analyzer_report: dict[str, Any] | None,
-        selection_report: dict[str, Any] | None,
-        coverage_report: dict[str, Any] | None,
-        rollback_report: dict[str, Any] | None,
-    ) -> dict[str, Any]:
+    def run(self, *, round_idx: int, analyzer_report: dict[str, Any] | None, selection_report: dict[str, Any] | None, coverage_report: dict[str, Any] | None, rollback_report: dict[str, Any] | None, trajectory_judgment_summary: dict[str, Any] | None = None, tage_summary: dict[str, Any] | None = None, elite_archive: dict[str, Any] | None = None) -> dict[str, Any]:
+        if self.llm_client is not None:
+            try:
+                reflection = self._run_llm(round_idx, analyzer_report, selection_report, coverage_report, rollback_report, trajectory_judgment_summary, tage_summary, elite_archive)
+            except Exception as exc:
+                save_text(self.output_dir / "llm_error.txt", str(exc) + "\n")
+                reflection = self._run_deterministic(round_idx, analyzer_report, selection_report, coverage_report, rollback_report, "llm_failed")
+        else:
+            reflection = self._run_deterministic(round_idx, analyzer_report, selection_report, coverage_report, rollback_report, "no_llm")
+
+        save_json(self.output_dir / "reflection.json", reflection)
+        self.failure_memory.add(reflection)
+        append_jsonl(self.archival_lessons_path, {"round": round_idx, "lesson": reflection.get("lesson", ""), "future_guidance": reflection.get("future_guidance", []), "uncertainties": reflection.get("uncertainties", [])})
+        return reflection
+
+    def _run_llm(self, round_idx: int, analyzer_report: dict[str, Any] | None, selection_report: dict[str, Any] | None, coverage_report: dict[str, Any] | None, rollback_report: dict[str, Any] | None, trajectory_judgment_summary: dict[str, Any] | None, tage_summary: dict[str, Any] | None, elite_archive: dict[str, Any] | None) -> dict[str, Any]:
+        template = load_prompt("reflector.md")
+        input_artifacts = {
+            "round_index": round_idx,
+            "analyzer_self_evaluation": analyzer_report or {},
+            "selection_report": selection_report or {},
+            "coverage_report": coverage_report or {},
+            "trajectory_judgment_summary_optional": trajectory_judgment_summary or {},
+            "tage_summary_optional": tage_summary or {},
+            "rollback_report": rollback_report or {},
+            "elite_archive_optional": elite_archive or {},
+        }
+        user_prompt = template.replace("{input_artifacts}", json.dumps(input_artifacts, ensure_ascii=False, indent=2))
+        save_text(self.output_dir / "prompt.txt", user_prompt)
+        resp = self.llm_client.chat(system_prompt="You are the ASE-MTAGE Reflection Agent. Output only valid JSON.", user_prompt=user_prompt, temperature=self.temperature)
+        save_text(self.output_dir / "response.txt", resp.content)
+        save_json(self.output_dir / "llm_raw_response.json", resp.raw)
+        reflection = extract_json_object(resp.content)
+        reflection.setdefault("agent_mode", "llm_reflector")
+        reflection.setdefault("round", round_idx)
+        return reflection
+
+    def _run_deterministic(self, round_idx: int, analyzer_report: dict[str, Any] | None, selection_report: dict[str, Any] | None, coverage_report: dict[str, Any] | None, rollback_report: dict[str, Any] | None, mode: str) -> dict[str, Any]:
         selected_id = (selection_report or {}).get("selected_candidate")
         mutation_family = None
         for item in (selection_report or {}).get("candidate_scores", []) or []:
@@ -53,17 +91,16 @@ class ReflectionAgent:
             "lesson": (analyzer_report or {}).get("self_evaluation_lesson") or "No analyzer lesson available.",
             "future_guidance": ((analyzer_report or {}).get("mutation_intent") or {}).get("required_changes", []),
             "archive_update": {
+                "add_to_elite_archive": False,
                 "rollback_triggered": (rollback_report or {}).get("rollback_triggered", False),
                 "next_parent_reward_id": (rollback_report or {}).get("next_parent_reward_id"),
                 "reason": (rollback_report or {}).get("reason"),
             },
-            "agent_mode": "phase_6_deterministic_reflector",
+            "uncertainties": [f"Reflection generated by deterministic fallback: {mode}."],
+            "agent_mode": "deterministic_reflector",
         }
-        save_text(self.output_dir / "prompt.txt", "Phase 6 deterministic ReflectionAgent; no LLM prompt was sent.\n")
+        save_text(self.output_dir / "prompt.txt", f"Deterministic ReflectionAgent fallback: {mode}.\n")
         save_text(self.output_dir / "response.txt", "Deterministic reflection.json generated from round artifacts.\n")
-        save_json(self.output_dir / "reflection.json", reflection)
-        self.failure_memory.add(reflection)
-        append_jsonl(self.archival_lessons_path, {"round": round_idx, "lesson": reflection["lesson"], "future_guidance": reflection["future_guidance"]})
         return reflection
 
     def _coarse_result(self, coverage_type: str | None, label_counts: dict[str, Any]) -> str:
