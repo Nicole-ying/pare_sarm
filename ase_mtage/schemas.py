@@ -51,6 +51,10 @@ class LLMConfig:
     Prefer setting api_key_env="DEEPSEEK_API_KEY" and exporting that environment
     variable locally. Do not commit literal API keys. If api_key is provided, the
     saved normalized config masks it.
+
+    fallback_on_error controls whether an LLM failure may fall back to deterministic
+    logic. For paper/main experiments set fallback_on_error=false so any LLM-path
+    issue fails fast instead of silently becoming a deterministic run.
     """
 
     enabled: bool = False
@@ -61,6 +65,7 @@ class LLMConfig:
     base_url: str = "https://api.deepseek.com"
     timeout_seconds: int = 120
     max_tokens: int = 4096
+    fallback_on_error: bool = True
     temperature: dict[str, float] = field(
         default_factory=lambda: {
             "env_perception": 0.2,
