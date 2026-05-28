@@ -1,0 +1,41 @@
+"""Proxy reward candidate."""
+
+import math
+import numpy as np
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Unpack state components
+    x, y, vx, vy, angle, angvel, leg_left, leg_right = state
+
+    # Per-step shaping rewards (all scaled to similar magnitudes)
+    proximity_penalty = -5.0 * (x**2 + y**2)           # encourage closeness to pad
+    velocity_penalty  = -0.5 * (vx**2 + vy**2)         # penalize high speed
+    angle_penalty     = -2.0 * abs(angle)              # prefer upright attitude
+    leg_bonus         = 2.0 * (leg_left + leg_right)   # reward leg contact
+    fuel_penalty      = -0.3 * m_power - 0.03 * abs(s_power)  # discourage wasteful firing
+
+    # Terminal outcome (only on final step)
+    terminal_bonus = 0.0
+    if terminated:
+        on_pad = (abs(x) < 0.1) and (abs(y) < 0.1)
+        both_legs = (leg_left > 0.5) and (leg_right > 0.5)
+        if on_pad and both_legs:
+            terminal_bonus = 100.0   # safe landing
+        else:
+            terminal_bonus = -100.0  # crash/out-of-bounds/bad landing
+
+    # Component dictionary (3–5 shaping components + diagnostic _outcome)
+    components = {
+        "proximity": proximity_penalty,
+        "velocity": velocity_penalty,
+        "angle": angle_penalty,
+        "legs": leg_bonus,
+        "fuel": fuel_penalty,
+        "_outcome": 1.0 if (terminated and on_pad and both_legs) else (-1.0 if terminated else 0.0)
+    }
+
+    # Total reward is the sum of all non-outcome components (including terminal_bonus)
+    total = (proximity_penalty + velocity_penalty + angle_penalty +
+             leg_bonus + fuel_penalty + terminal_bonus)
+
+    return float(total), components

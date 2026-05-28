@@ -1,0 +1,240 @@
+You are a reward engineer designing a reward function for reinforcement learning.
+
+=== Task Manifest ===
+### Task Objective
+The agent must control a lunar lander to safely land on a designated landing pad at coordinates (0,0) in the environment’s internal coordinate system. The lander starts at the top center of the viewport with a random initial impulse.
+
+### Success Criteria
+- The episode is considered a solution if the cumulative reward is **at least 200 points**.
+- A safe landing occurs when the lander touches down on the pad with both legs in contact with the ground and the lander comes to rest (awake flag becomes False).
+
+### Failure Conditions
+The episode terminates immediately if any of the following occur:
+1. **Crash**: Any part of the lander body touches the ground (detected via contact listener).
+2. **Out of bounds**: The lander’s normalized x-coordinate (`state[0]`) exceeds ±1.0 (i.e., leaves the viewport horizontally).
+3. **Not awake**: The lander body enters a sleep state (Box2D awake flag becomes False). This happens when the lander comes to rest, either on the pad or off it.
+
+### Observation Space
+The observation is an 8‑dimensional vector. Dimensions and their raw meanings:
+
+| Index | Raw Quantity | Normalization | Range (low..high) | Unit |
+|-------|--------------|---------------|-------------------|------|
+| 0 | Horizontal position (x) | `(pos.x - center) / (half_viewport_width)` | -1.5 … 1.5 | – |
+| 1 | Vertical position (y) | `(pos.y - (helipad_y+LEG_DOWN/SCALE)) / (half_viewport_height)` | -1.5 … 1.5 | – |
+| 2 | Horizontal velocity (vx) | `vel.x * (half_viewport_width/SCALE) / FPS` | -5.0 … 5.0 | – |
+| 3 | Vertical velocity (vy) | `vel.y * (half_viewport_height/SCALE) / FPS` | -5.0 … 5.0 | – |
+| 4 | Angle | `self.lander.angle` (radians) | -π … π | radians |
+| 5 | Angular velocity | `20.0 * self.lander.angularVelocity / FPS` | -5.0 … 5.0 | – |
+| 6 | Left leg ground contact | 1.0 if contact, else 0.0 | 0 … 1 | bool |
+| 7 | Right leg ground contact | 1.0 if contact, else 0.0 | 0 … 1 | bool |
+
+*Note:* The raw physical values can be recovered by applying the inverse scale factors given in the environment notes (x:10, y:6.666, vx:5, vy:7.5, angular velocity:2.5).
+
+### Action Space
+Two variants are available:
+- **Discrete** (`Discrete(4)`):
+  - 0: Do nothing
+  - 1: Fire left orientation engine
+  - 2: Fire main engine
+  - 3: Fire right orientation engine
+- **Continuous** (`Box(-1, +1, (2,), dtype=np.float32)`):
+  - `action[0]` = main engine throttle: `<0` off, `0…1` maps to 50%–100% power.
+  - `action[1]` = lateral boosters: `<-0.5` fires left, `>0.5` fires right, throttle scales 50%–100%; values in `[-0.5, 0.5]` are off.
+
+### Key Dynamics
+- **Gravity**: Default -10.0, can be set between -12 and 0.
+- **Wind & turbulence** (optional): Simulated via `tanh(sin(…)+sin(…))`. Wind applies a horizontal force; turbulence applies torque.
+- **Engine impulses**: Applied at an offset from the center of mass, creating torque. The side engine offset changes with lander orientation (a known “bug”).
+- **Legs**: Two spring‑loaded legs. Ground contact gives +10 reward per step; losing contact gives -10.
+- **Termination on sleep**: The lander must come to rest (awake=False) to end the episode without crashing. This means the lander must settle, not just touch the ground briefly.
+
+### Reward Design Hints
+The environment’s built‑in reward (which is overridden by `compute_reward`) suggests:
+- Reward should increase as the lander gets closer to the pad (distance penalty).
+- Reward should increase as the lander slows down (velocity penalty).
+- Reward should increase when the lander is upright (angle penalty).
+- Strong positive signal for each leg making ground contact (+10 per leg).
+- Small negative penalty for firing side engines (-0.03 per frame) and main engine (-0.3 per frame).
+- Large terminal reward: +100 for safe landing, -100 for crash.
+A good reward function combines these components, scaled appropriately. The episode is considered solved if the cumulative reward reaches 200.
+
+---
+
+=== Exploration Data ===
+{
+  "zero_action": {
+    "n_episodes": 10,
+    "mean_length": 71.4,
+    "min_length": 57,
+    "max_length": 89,
+    "early_deaths": 10,
+    "death_rate": 1.0,
+    "termination_reasons": {
+      "terminated": 10
+    },
+    "gravity_hypothesis": "strong"
+  },
+  "env_id": "LunarLander-v2",
+  "spaces": {
+    "observation": {
+      "shape": [
+        8
+      ],
+      "low": -5.0,
+      "high": 5.0
+    },
+    "action": {
+      "type": "Discrete",
+      "shape": [],
+      "n": 4
+    }
+  },
+  "obs_dim": 8,
+  "episode_length_stats": {
+    "mean": 95.67,
+    "std": 23.33,
+    "min": 56,
+    "max": 158
+  },
+  "termination_summary": {
+    "terminated": {
+      "count": 30,
+      "fraction": 1.0
+    }
+  },
+  "info_keys": {},
+  "obs_dim_stats": [
+    {
+      "dim": 0,
+      "space_low": -1.5,
+      "space_high": 1.5,
+      "mean": 0.051345,
+      "std": 0.296156,
+      "sample_min": -1.014068,
+      "sample_max": 1.011963
+    },
+    {
+      "dim": 1,
+      "space_low": -1.5,
+      "space_high": 1.5,
+      "mean": 0.952027,
+      "std": 0.481199,
+      "sample_min": -0.26775,
+      "sample_max": 1.608509
+    },
+    {
+      "dim": 2,
+      "space_low": -5.0,
+      "space_high": 5.0,
+      "mean": 0.08523,
+      "std": 0.638302,
+      "sample_min": -1.839192,
+      "sample_max": 2.273234
+    },
+    {
+      "dim": 3,
+      "space_low": -5.0,
+      "space_high": 5.0,
+      "mean": -0.648952,
+      "std": 0.476888,
+      "sample_min": -1.93974,
+      "sample_max": 0.497079
+    },
+    {
+      "dim": 4,
+      "space_low": -3.141593,
+      "space_high": 3.141593,
+      "mean": 0.060824,
+      "std": 0.575734,
+      "sample_min": -1.727544,
+      "sample_max": 3.280743
+    },
+    {
+      "dim": 5,
+      "space_low": -5.0,
+      "space_high": 5.0,
+      "mean": 0.053678,
+      "std": 0.545114,
+      "sample_min": -6.137633,
+      "sample_max": 5.065858
+    },
+    {
+      "dim": 6,
+      "space_low": -0.0,
+      "space_high": 1.0,
+      "mean": 0.02,
+      "std": 0.14,
+      "sample_min": 0.0,
+      "sample_max": 1.0
+    },
+    {
+      "dim": 7,
+      "space_low": -0.0,
+      "space_high": 1.0,
+      "mean": 0.01931,
+      "std": 0.137613,
+      "sample_min": 0.0,
+      "sample_max": 1.0
+    }
+  ],
+  "max_episode_steps": 1000
+}
+
+=== Progress Function (for understanding only — do NOT call this in your reward) ===
+```python
+def progress_fn(obs):
+    """
+    Measures task progress from observation alone.
+    Returns a float in [0, 1] that increases monotonically as the lander
+    approaches a safe landing on the pad.
+    """
+    # Normalized position (ideal is (0,0) when on pad)
+    x = obs[0]
+    y = obs[1]
+    # Angle (ideal is 0 radians, upright)
+    angle = abs(obs[4])
+    # Leg contacts (both should be 1 when landed)
+    leg_contact = (obs[6] + obs[7]) / 2.0
+
+    # Distance in the normalized coordinate system (max possible ~2.12)
+    dist = (x**2 + y**2) ** 0.5
+    max_dist = 2.12  # sqrt(2 * 1.5^2)
+
+    # Progress based on position: 1 when at origin, 0 at max distance
+    pos_progress = 1.0 - dist / max_dist
+
+    # Penalty for large angle (scaled so 180° gives ~0.3 penalty)
+    angle_penalty = angle / (2 * 3.14159)  # max penalty ~0.5
+    angle_progress = 1.0 - angle_penalty
+
+    # Combine: position (60%), angle (20%), leg contact (20%)
+    progress = 0.6 * pos_progress + 0.2 * angle_progress + 0.2 *
+```
+
+=== Design Principles ===
+1. Return (float, dict). Total is a scalar. Component dict maps descriptive names (3-5 components) to per-step float values.
+2. Provide DENSE shaping. Every step should give meaningful feedback to the agent.
+3. Balance magnitudes. All per-step components should be within 50x of each other.
+4. Include "_outcome" in the component dict: +1.0 for success, -1.0 for failure, 0.0 otherwise.
+   Do NOT add _outcome to total — it is for diagnosis only.
+5. Use raw observation values (obs[0], obs[1], etc.) — do NOT call progress_fn.
+6. Use `import math` and `import numpy as np` as needed. They are pre-imported.
+
+=== Exact Function Signature (MUST MATCH) ===
+```python
+def compute_reward(state, m_power, s_power, terminated):
+    # Compute per-step reward components
+    comp1 = ...
+    comp2 = ...
+    components = {"name1": comp1, "name2": comp2}
+    total = sum(components.values())  # BEFORE _outcome
+    components["_outcome"] = 1.0 if success_condition else (-1.0 if failure else 0.0)
+    return float(total), components
+```
+
+=== Output ===
+Output ONLY one Python code block:
+```python
+def compute_reward(state, m_power, s_power, terminated):
+    ...
+```

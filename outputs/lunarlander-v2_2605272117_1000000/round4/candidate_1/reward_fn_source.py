@@ -1,0 +1,51 @@
+"""Proxy reward candidate."""
+
+import math
+import numpy as np
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Extract observation components
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = state[4]
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # Shaping components (all per-step)
+    alive_bonus = 0.5
+    pad_proximity = -0.5 * math.sqrt(x*x + y*y)
+    velocity_penalty = -0.1 * (abs(vx) + abs(vy))
+    angle_penalty = -0.1 * abs(angle)
+    leg_bonus = 5.0 * (left_leg + right_leg)
+    fuel_penalty = -0.3 * abs(m_power) - 0.03 * abs(s_power)
+
+    components = {
+        "alive_bonus": alive_bonus,
+        "pad_proximity": pad_proximity,
+        "velocity_penalty": velocity_penalty,
+        "angle_penalty": angle_penalty,
+        "leg_bonus": leg_bonus,
+        "fuel_penalty": fuel_penalty,
+    }
+
+    # Determine terminal bonus (only on the last step)
+    if terminated:
+        success = (left_leg == 1.0 and right_leg == 1.0)
+        terminal_bonus = 100.0 if success else -100.0
+        components["terminal_bonus"] = terminal_bonus
+    else:
+        components["terminal_bonus"] = 0.0
+
+    # Total reward (sum of all components except _outcome)
+    total = sum(components.values())
+
+    # Outcome component for diagnosis (not added to total)
+    if terminated:
+        success = (left_leg == 1.0 and right_leg == 1.0)
+        components["_outcome"] = 1.0 if success else -1.0
+    else:
+        components["_outcome"] = 0.0
+
+    return float(total), components

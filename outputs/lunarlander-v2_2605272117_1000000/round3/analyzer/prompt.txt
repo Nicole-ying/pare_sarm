@@ -1,0 +1,182 @@
+You are the Analyzer Agent. Your job: diagnose WHY the current reward function
+produced the observed training dynamics, and produce a structured JSON diagnosis report.
+
+=== Task ===
+### Task Objective
+The agent must control a lunar lander to safely land on a designated landing pad at coordinates (0,0) in the environment’s internal coordinate system. The lander starts at the top center of the viewport with a random initial impulse.
+
+### Success Criteria
+- The episode is considered a solution if the cumulative reward is **at least 200 points**.
+- A safe landing occurs when the lander touches down on the pad with both legs in contact with the ground and the lander comes to rest (awake flag becomes False).
+
+### Failure Conditions
+The episode terminates immediately if any of the following occur:
+1. **Crash**: Any part of the lander body touches the ground (detected via contact listener).
+2. **Out of bounds**: The lander’s normalized x-coordinate (`state[0]`) exceeds ±1.0 (i.e., leaves the viewport horizontally).
+3. **Not awake**: The lander body enters a sleep state (Box2D awake flag becomes False). This happens when the lander comes to rest, either on the pad or off it.
+
+### Observation Space
+The observation is an 8‑dimensional vector. Dimensions and their raw meanings:
+
+| Index | Raw Quantity | Normalization | Range (low..high) | Unit |
+|-------|--------------|---------------|-------------------|------|
+| 0 | Horizontal position (x) | `(pos.x - center) / (half_viewport_width)` | -1.5 … 1.5 | – |
+| 1 | Vertical position (y) | `(pos.y - (helipad_y+LEG_DOWN/SCALE)) / (half_viewport_height)` | -1.5 … 1.5 | – |
+| 2 | Horizontal velocity (vx) | `vel.x * (half_viewport_width/SCALE) / FPS` | -5.0 … 5.0 | – |
+| 3 | Vertical velocity (vy) | `vel.y * (half_viewport_height/SCALE) / FPS` | -5.0 … 5.0 | – |
+| 4 | Angle | `self.lander.angle` (radians) | -π … π | radians |
+| 5 | Angular velocity | `20.0 * self.lander.angularVelocity / FPS` | -5.0 … 5.0 | – |
+| 6 | Left leg ground contact | 1.0 if contact, else 0.0 | 0 … 1 | bool |
+| 7 | Right leg ground contact | 1.0 if contact, else 0.0 | 0 … 1 | bool |
+
+*Note:* The raw physical values can be recovered by applyi
+
+=== Observed Agent Behavior ===
+## Current Round Behavior
+Episode length trend: improving (95 → 115 steps, max=115)
+Max episode steps: 1000
+Pattern: The agent terminates very early. This suggests negative rewards dominate — the agent learns that dying quickly minimizes punishment. Check if penalty components overwhelm any positive signals.
+
+## Cross-Round Behavior History
+
+| Round | Health | Final Len | Pattern | Diagnosis (abbreviated) |
+|-------|--------|-----------|---------|------------------------|
+| 0 | 66 | 69 | crashing | 5 components: 5 active, 2 aligned with progress, 0 misaligned, health=66/100 |
+
+**Pattern interpretation:**
+- 'hovering' = agent survives near max steps without completing task (per-step reward farming)
+- 'crashing' = agent terminates very early (penalties dominate, learns to die fast)
+- 'moderate' = in between, not clearly good or bad
+
+
+IMPORTANT: Use the behavioral observations to understand what the agent is ACTUALLY
+doing. The health metrics tell you WHICH component is problematic; the behavior tells
+you WHY — what perverse incentive the reward created. Combine both to trace the
+causal chain from reward code → agent behavior → task failure.
+
+=== Component Health Summary ===
+Overall Score: 0/100
+no data
+
+*(no health data)*
+
+=== Current Reward Code ===
+```python
+"""LLM-generated reward function.
+"""
+
+import math
+import numpy as np
+
+
+def compute_reward(state, m_power, s_power, terminated):
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = state[4]
+    angvel = state[5]
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # Dense reward for being in a desirable state (position, speed, orientation)
+    dist_sq = x * x + y * y
+    speed_sq = vx * vx + vy * vy
+    angle_sq = angle * angle + angvel * angvel
+    desired_state_reward = 5.0 * math.exp(-(dist_sq + speed_sq + angle_sq))
+
+    # Small positive alive bonus to encourage survival
+    alive_bonus = 0.1
+
+    # Conditional leg bonus: only when both legs contact and the lander is near the pad
+    leg_bonus = 0.0
+    if left_leg == 1.0 and right_leg == 1.0:
+        if abs(y) < 0.2 and speed_sq < 0.5:
+            leg_bonus = 0.5
+
+    # Minimal fuel penalty to avoid waste but not discourage necessary thrust
+    fuel_penalty = -0.001 * (m_power + abs(s_power))
+
+    # Terminal bonus for a safe landing (large sparse reward)
+    safe_landing = (
+        terminated
+        and left_leg == 1.0
+        and right_leg == 1.0
+        and abs(x) < 0.1
+        and abs(y) < 0.1
+        and abs(angle) < 0.1
+        and speed_sq < 0.1
+    )
+    terminal_bonus = 500.0 if safe_landing else 0.0
+
+    # Sum all per-step components (terminal bonus added after per-step)
+    total = desired_state_reward + alive_bonus + leg_bonus + fuel_penalty + terminal_bonus
+
+    # Outcome for diagnosis: 1.0 = safe landing, -1.0 = termination without landing, 0.0 = ongoing
+    if safe_landing:
+        outcome = 1.0
+    elif terminated:
+        outcome = -1.0
+    else:
+        outcome = 0.0
+
+    components = {
+        "desired_state_reward": desired_state_reward,
+        "alive_bonus": alive_bonus,
+        "leg_bonus": leg_bonus,
+        "fuel_penalty": fuel_penalty,
+        "terminal_bonus": terminal_bonus,
+        "_outcome": outcome
+    }
+
+    return float(total), components
+
+```
+
+=== Previous Rounds History ===
+Round 0: Round 0: winner health=66
+Round 1: Round 1: winner health=49, The proximity component has negative progress correlation (-0.396), rewarding the agent for being near the landing pad without guiding safe descent, while the fuel penalty (
+Round 2: Round 2: winner health=36, The per-step survival penalty (-0.05) and fuel penalty (-0.01*(|main|+|side|)) make each timestep costly, so the agent learns to terminate early (crash) to minimize cumulati
+
+=== How the Health Metrics Work (for deeper diagnostic reasoning) ===
+These metrics are computed from ~100K per-step training records. Understanding how they are derived helps you diagnose root causes more precisely:
+
+- **Progress Corr**: Pearson correlation between this component's per-step values and the per-step task progress change (Δp = progress_fn(obs_next) - progress_fn(obs_current)).
+  * P > 0 = component values move in the SAME direction as task progress (component is HELPING the agent make progress).
+  * P ≈ 0 = component values have no consistent relationship with progress (component provides no usable learning signal).
+  * P < 0 = component values move OPPOSITE to task progress direction (component is ACTIVELY MISLEADING the agent).
+  * Common root cause of P < 0: the component conflates two conflicting goals (e.g., a single term mixing descent and drift), or uses the wrong sign.
+
+- **Failure Corr**: Pearson correlation with episode termination. F > 0 means higher component values tend to co-occur with crashing.
+
+- **Active**: |mean| > 0.01. Inactive components are essentially dead — their magnitude is too small to affect learning.
+
+- **Share**: fraction of total absolute reward contributed by this component. Share > 50% means this component dominates all others, suppressing their gradient signal.
+
+- **Health**: weighted score = 0.25×(activation) + 0.25×(balance) + 0.40×(progress_alignment) − 0.10×(failure_conflict). Progress alignment is weighted highest because a component is only useful if it drives task progress.
+
+=== Instructions ===
+1. Identify the ROOT CAUSE of any poor health (not just symptoms).
+2. For each component with issues, say WHY:
+   - "keep" if progress_corr > 0.2 and active and not dominating
+   - "reduce" if progress_corr < -0.2 (misaligned) or share > 0.5 (dominating)
+   - "remove" if inactive (|mean| ≈ 0)
+   - "strengthen" if active but progress_corr between 0 and 0.2 (weak alignment)
+   - "reconsider" if |progress_corr| < 0.1 (no signal at all)
+3. Set escalation_level:
+   - "coefficient": small weight adjustments will fix the issues
+   - "structural": need to add/remove/restructure components
+   - "rewrite": fundamental approach is flawed
+   IF the same diagnosis appeared in 2+ previous rounds, escalate to "structural" or "rewrite".
+4. Set pipeline_action: "continue" (proceed), "regenerate" (restart from scratch), or "stop" (converged).
+
+=== Output Format ===
+Output ONLY valid JSON (no markdown, no surrounding text):
+{
+  "diagnosis": "Root cause: ... (2-4 sentences)",
+  "escalation_level": "coefficient",
+  "component_verdicts": [
+    {"component": "name", "verdict": "keep", "reason": "Strong progress alignment (P=+0.72)"}
+  ],
+  "pipeline_action": "continue"
+}

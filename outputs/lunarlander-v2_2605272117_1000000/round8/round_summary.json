@@ -1,0 +1,48 @@
+{
+  "round": 8,
+  "success": true,
+  "winner_health": {
+    "overall_health": 53.0,
+    "components": [
+      {
+        "name": "alive_bonus",
+        "mean": 0.5,
+        "std": 0.0,
+        "share": 0.306,
+        "active": true,
+        "progress_corr": 0.0,
+        "failure_corr": 0.0,
+        "health": 0.386,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=+0.00)"
+      },
+      {
+        "name": "progress_reward",
+        "mean": 1.015879,
+        "std": 0.105532,
+        "share": 0.622,
+        "active": true,
+        "progress_corr": 0.2988,
+        "failure_corr": 0.212,
+        "health": 0.6062,
+        "verdict": "reduce",
+        "reason": "dominates reward (62% share)"
+      },
+      {
+        "name": "terminal_bonus",
+        "mean": 0.117401,
+        "std": 0.536427,
+        "share": 0.072,
+        "active": true,
+        "progress_corr": 0.0192,
+        "failure_corr": 0.2172,
+        "health": 0.5985,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=+0.02)"
+      }
+    ],
+    "summary": "3 components: 3 active, 1 aligned with progress, 0 misaligned, health=53/100",
+    "verdict": "ok"
+  },
+  "stopped": false
+}

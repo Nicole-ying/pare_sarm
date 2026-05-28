@@ -1,0 +1,65 @@
+"""LLM-generated reward function.
+"""
+
+import math
+import numpy as np
+
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Unpack observation
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = abs(state[4])
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # ---- Per-step components ----
+    # 1. Survival bonus: small constant to keep agent alive
+    alive_bonus = 0.2
+
+    # 2. Progress shaping: quadratic in task progress to give strong gradient near pad
+    progress = progress_fn(state)  # in [0, 1]
+    progress_reward = 0.5 * (progress ** 2)  # range [0, 0.5]
+
+    # 3. Speed penalty: penalise both horizontal and vertical speed, capped at -1.0
+    combined_speed = abs(vx) + abs(vy)
+    speed_penalty = -0.2 * min(combined_speed, 5.0)  # range [-1.0, 0]
+
+    # 4. Angle penalty: penalise deviation from upright
+    angle_penalty = -0.1 * angle  # range [-0.314, 0]
+
+    # 5. Fuel penalty: discourage unnecessary thrust (hovering)
+    fuel_penalty = -0.01 * (abs(m_power) + abs(s_power))  # range [-0.02, 0]
+
+    # Per-step total
+    per_step = alive_bonus + progress_reward + speed_penalty + angle_penalty + fuel_penalty
+
+    # ---- Terminal bonus (large for success, moderate for failure) ----
+    if terminated:
+        success = (
+            left_leg == 1.0 and right_leg == 1.0 and
+            abs(x) < 0.3 and angle < 0.2 and
+            abs(vx) < 0.5 and abs(vy) < 0.5
+        )
+        terminal_bonus = 150.0 if success else -50.0
+        outcome_val = 1.0 if success else -1.0
+    else:
+        terminal_bonus = 0.0
+        outcome_val = 0.0
+
+    total = per_step + terminal_bonus
+
+    # ---- Component dictionary ----
+    components = {
+        "alive_bonus": alive_bonus,
+        "progress_reward": progress_reward,
+        "speed_penalty": speed_penalty,
+        "angle_penalty": angle_penalty,
+        "fuel_penalty": fuel_penalty,
+        "terminal_bonus": terminal_bonus,
+        "_outcome": outcome_val,
+    }
+
+    return float(total), components

@@ -1,0 +1,56 @@
+```python
+def compute_reward(state, m_power, s_power, terminated):
+    """
+    Computes a dense reward for the LunarLander task.
+    state: length-8 observation array.
+    m_power: main engine throttle (continuous) or binary indicator (discrete).
+    s_power: side engine signal (continuous) or binary indicator (discrete).
+    terminated: boolean, True if episode ended (crash, out-of-bounds, or sleep).
+    """
+    import math
+
+    x, y, vx, vy, angle, ang_vel, left_leg, right_leg = state
+
+    # Euclidean distance to landing pad (normalized coordinates)
+    dist = math.sqrt(x * x + y * y)
+
+    # --- Dense shaping components (all in a balanced range ~[-2, 1]) ---
+    # Closer to pad → higher reward
+    dist_reward = -0.5 * dist
+
+    # Penalize large linear velocities
+    vel_penalty = -0.2 * (abs(vx) + abs(vy))
+
+    # Penalize tilt (normalized angle by pi)
+    angle_penalty = -0.3 * abs(angle) / math.pi
+
+    # Reward for each leg in contact with ground
+    leg_reward = 0.5 * (left_leg + right_leg)
+
+    # Small penalty for engine usage (main and side)
+    main_penalty = -0.05 if m_power > 0 else 0.0
+    side_penalty = -0.02 if (s_power > 0.5 or s_power < -0.5) else 0.0
+    engine_penalty = main_penalty + side_penalty
+
+    components = {
+        "dist_reward": dist_reward,
+        "vel_penalty": vel_penalty,
+        "angle_penalty": angle_penalty,
+        "leg_reward": leg_reward,
+        "engine_penalty": engine_penalty
+    }
+    total = sum(components.values())
+
+    # --- Terminal outcome (not added to total) ---
+    if terminated:
+        # Safe landing: both legs down, nearly zero position/velocity/angle
+        safe = (abs(x) < 0.1 and abs(y) < 0.1 and
+                abs(vx) < 0.1 and abs(vy) < 0.1 and
+                abs(angle) < 0.1 and left_leg == 1.0 and right_leg == 1.0)
+        outcome = 1.0 if safe else -1.0
+    else:
+        outcome = 0.0
+    components["_outcome"] = outcome
+
+    return float(total), components
+```

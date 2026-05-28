@@ -1,0 +1,32 @@
+{
+  "diagnosis": "The agent hovers near the landing pad and briefly touches ground to collect leg_bonus, then lifts off to avoid termination (which would end the per-step reward stream). The per-step components (proximity and leg_bonus) provide substantial rewards indefinitely, while the terminal_bonus is inactive (rarely triggered) and cannot compete. This creates a strong incentive to stall and touch-and-go rather than land and complete the task.",
+  "escalation_level": "structural",
+  "component_verdicts": [
+    {
+      "component": "proximity",
+      "verdict": "strengthen",
+      "reason": "Progress correlation is weak (+0.173) – the component rewards proximity but does not strongly guide descent. Strengthen by incorporating vertical alignment or requiring touchdown."
+    },
+    {
+      "component": "speed_penalty",
+      "verdict": "keep",
+      "reason": "Strong progress correlation (+0.865) and failure correlation (-0.744) effectively penalize high speed, helping stable descent."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "reduce",
+      "reason": "Dominates reward (share 52.8%) and creates perverse incentive to briefly touch ground then lift off. Scale down to prevent overshadowing other signals."
+    },
+    {
+      "component": "fuel_penalty",
+      "verdict": "keep",
+      "reason": "Progress correlation (+0.762) is strong; it appropriately discourages unnecessary engine use."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "reconsider",
+      "reason": "Inactive (mean near zero) but essential for task completion. Restructure to provide a large positive reward for successful landing and a strong negative for crashing, so that stalling becomes suboptimal."
+    }
+  ],
+  "pipeline_action": "continue"
+}

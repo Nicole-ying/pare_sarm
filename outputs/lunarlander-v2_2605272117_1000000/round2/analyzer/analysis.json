@@ -1,0 +1,32 @@
+{
+  "diagnosis": "The per-step survival penalty (-0.05) and fuel penalty (-0.01*(|main|+|side|)) make each timestep costly, so the agent learns to terminate early (crash) to minimize cumulative negative reward. The descent_reward is too small to offset these penalties until very close to the pad, causing the agent to never reach that state. Additionally, the leg_bonus may incentivize premature ground contact if it leads to termination without safe landing.",
+  "escalation_level": "coefficient",
+  "component_verdicts": [
+    {
+      "component": "descent_reward",
+      "verdict": "strengthen",
+      "reason": "Active and positively aligned with progress, but magnitude too weak to overcome per-step penalties."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "reconsider",
+      "reason": "May encourage leg contact before safe landing, potentially causing early crash termination. Correlation with progress is uncertain."
+    },
+    {
+      "component": "fuel_penalty",
+      "verdict": "reduce",
+      "reason": "Penalizes necessary thrust, creating negative incentive that discourages reaching the pad. Progress correlation is negative."
+    },
+    {
+      "component": "survival_penalty",
+      "verdict": "remove",
+      "reason": "Constant negative per-step reward forces agent to seek early termination (crash) to avoid accumulating losses. It is the primary cause of early termination behavior."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "keep",
+      "reason": "Large sparse reward for safe landing is well-aligned with the task; it is not causing any issues."
+    }
+  ],
+  "pipeline_action": "continue"
+}

@@ -1,0 +1,66 @@
+"""Proxy reward candidate."""
+
+import math
+import numpy as np
+
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Unpack observation
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = state[4]
+    angular_vel = state[5]
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # Compute progress
+    p = progress_fn(state)
+
+    # Per-step components
+    time_penalty = -0.1
+    speed_penalty = -0.2 * (abs(vx) + abs(vy))
+    angle_penalty = -0.3 * abs(angle)
+
+    # Encourage downward motion (safe descent)
+    descent_reward = 0.5 * max(0.0, -vy)  # positive for descending
+
+    # Stable leg contact (only if almost at rest and upright)
+    legs_down = (left_leg + right_leg) > 1.5
+    low_speed = (abs(vx) < 0.3) and (abs(vy) < 0.3)
+    upright = abs(angle) < 0.1
+    near_center = abs(x) < 0.2
+    leg_bonus = 2.0 if (legs_down and low_speed and upright and near_center) else 0.0
+
+    # Stall penalty: if close to pad but not descending
+    stall_penalty = -1.0 if (p > 0.5 and vy >= -0.1) else 0.0
+
+    # Sum per-step reward (without terminal)
+    per_step = time_penalty + speed_penalty + angle_penalty + descent_reward + leg_bonus + stall_penalty
+
+    # Terminal outcome
+    if terminated:
+        success = (left_leg == 1.0 and right_leg == 1.0 and
+                   abs(x) < 0.2 and abs(angle) < 0.1 and
+                   abs(vx) < 0.3 and abs(vy) < 0.3)
+        outcome = 1.0 if success else -1.0
+        terminal_bonus = 200.0 if success else -200.0
+    else:
+        outcome = 0.0
+        terminal_bonus = 0.0
+
+    total = per_step + terminal_bonus
+
+    components = {
+        "time_penalty": time_penalty,
+        "speed_penalty": speed_penalty,
+        "angle_penalty": angle_penalty,
+        "descent_reward": descent_reward,
+        "leg_bonus": leg_bonus,
+        "stall_penalty": stall_penalty,
+        "terminal_bonus": terminal_bonus,
+        "_outcome": outcome
+    }
+
+    return float(total), components

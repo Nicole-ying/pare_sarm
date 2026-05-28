@@ -1,0 +1,37 @@
+{
+  "diagnosis": "Root cause: The per-step reward is dominated by negative penalties (speed, angle, fuel) that are active from the start, while the positive components (alive_bonus, progress_reward) are too weak to offset them, leading the agent to learn to crash quickly to minimize cumulative negative reward. The terminal failure penalty of -50 further discourages survival, and repeated attempts at coefficient tweaks have not resolved the early-termination pattern.",
+  "escalation_level": "structural",
+  "component_verdicts": [
+    {
+      "component": "alive_bonus",
+      "verdict": "strengthen",
+      "reason": "Current value 0.2 is too small to offset penalties, resulting in negative per-step reward early in the episode. Should be increased to ensure survival is positively reinforced."
+    },
+    {
+      "component": "progress_reward",
+      "verdict": "strengthen",
+      "reason": "Quadratic scaling makes it very small when progress is low. Consider a linear or exponential shape to provide immediate positive signal for any movement towards the pad."
+    },
+    {
+      "component": "speed_penalty",
+      "verdict": "reduce",
+      "reason": "Penalty can reach -1.0, dominating the per-step reward and punishing the initial high speed from random impulse. Reduce coefficient or scale with distance to pad."
+    },
+    {
+      "component": "angle_penalty",
+      "verdict": "reduce",
+      "reason": "Penalty up to -0.314 contributes to early negative reward. Consider reducing coefficient or applying only when close to ground."
+    },
+    {
+      "component": "fuel_penalty",
+      "verdict": "reconsider",
+      "reason": "Magnitude is small but may discourage necessary thrust. Its sign and alignment are unclear without health data; consider removing or making conditional."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "keep",
+      "reason": "Large positive for success provides clear goal. However, failure penalty of -50 may reinforce early termination; consider reducing or setting to zero."
+    }
+  ],
+  "pipeline_action": "continue"
+}

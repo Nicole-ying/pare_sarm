@@ -1,0 +1,12 @@
+{
+  "diagnosis": "The per-step reward is negative on average early in the episode (low proximity, high speed penalty, fuel penalty), while the terminal bonus of -100 for failure dominates the cumulative reward. This incentivizes the agent to terminate the episode as quickly as possible to avoid accumulating further negative per-step rewards, leading to early crashes or out-of-bounds events. The fuel penalty also discourages engine use, preventing corrective actions that could avoid failure.",
+  "escalation_level": "structural",
+  "component_verdicts": [
+    {"component": "proximity", "verdict": "keep", "reason": "Guides the agent toward the pad and upright orientation; likely helpful but may need coefficient tuning."},
+    {"component": "speed_penalty", "verdict": "keep", "reason": "Encourages gentle landing, but coefficient may be too high relative to positive shaping; adjust to avoid negative per-step dominance."},
+    {"component": "leg_bonus", "verdict": "keep", "reason": "Provides small incentive for ground contact without dominating; fine as is."},
+    {"component": "fuel_penalty", "verdict": "remove", "reason": "Discourages necessary engine firings, worsening crash risk; magnitude is small but adds to negative per-step sum."},
+    {"component": "terminal_bonus", "verdict": "reduce", "reason": "Dominates total reward (large +100/-100) and causes early termination; scale down significantly or replace with per-step success shaping."}
+  ],
+  "pipeline_action": "continue"
+}

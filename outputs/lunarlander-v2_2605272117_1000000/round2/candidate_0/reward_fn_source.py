@@ -1,0 +1,59 @@
+"""Proxy reward candidate."""
+
+import math
+import numpy as np
+
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Extract state components
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = state[4]
+    angvel = state[5]
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # Small alive bonus to encourage survival
+    alive_bonus = 0.02
+
+    # Progress-based reward using the provided progress function
+    progress = progress_fn(state)
+    progress_reward = 5.0 * progress
+
+    # Very small fuel cost to discourage wasteful thrust
+    fuel_cost = -0.0005 * (m_power + abs(s_power))
+
+    # Terminal bonus for a safe landing (large sparse reward)
+    # Safe landing: terminated, both legs contact, close to (0,0), low angle and velocity
+    safe_landing = (
+        terminated and
+        left_leg == 1.0 and right_leg == 1.0 and
+        abs(x) < 0.1 and abs(y) < 0.1 and
+        abs(angle) < 0.1 and
+        (vx*vx + vy*vy) < 0.1
+    )
+    terminal_bonus = 500.0 if safe_landing else 0.0
+
+    # Total per-step (excluding terminal bonus)
+    total_per_step = alive_bonus + progress_reward + fuel_cost
+    total = total_per_step + terminal_bonus
+
+    # Outcome for diagnosis
+    if safe_landing:
+        outcome = 1.0
+    elif terminated:
+        outcome = -1.0
+    else:
+        outcome = 0.0
+
+    components = {
+        "alive_bonus": alive_bonus,
+        "progress_reward": progress_reward,
+        "fuel_cost": fuel_cost,
+        "terminal_bonus": terminal_bonus,
+        "_outcome": outcome
+    }
+
+    return float(total), components

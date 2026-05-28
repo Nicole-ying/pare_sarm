@@ -1,0 +1,37 @@
+{
+  "diagnosis": "The reward function combines a constant survival penalty (-0.5 per step) with linear distance, quadratic speed, and absolute angle penalties, creating conflicting gradients: the distance penalty encourages moving toward the pad, but the speed and angle penalties discourage the necessary motion, leading to slow, oscillatory approaches. The survival penalty adds a constant negative per-step cost that encourages early termination, yet the distance penalty partly offsets this, resulting in moderate-length episodes that end in failure because the terminal bonus (500) is too sparse and its conditions (x,y,angle,speed all <0.1) are too strict to be reliably reached. The agent learns to hover near the pad but cannot satisfy all constraints, so it never attains the large bonus and accumulates negative per-step reward.",
+  "escalation_level": "structural",
+  "component_verdicts": [
+    {
+      "component": "survival_penalty",
+      "verdict": "reconsider",
+      "reason": "Constant negative per step provides no progress signal (corr≈0) and encourages early termination, which conflicts with the need for long episodes to achieve landing. Should be removed or replaced with a conditional penalty (e.g., only when far from pad)."
+    },
+    {
+      "component": "distance_penalty",
+      "verdict": "keep",
+      "reason": "Linear penalty provides a continuous gradient toward the pad and likely has positive progress correlation. However, its magnitude may be too high relative to other penalties, potentially dominating. Consider reducing coefficient slightly or making it quadratic for smoother gradient."
+    },
+    {
+      "component": "speed_penalty",
+      "verdict": "reduce",
+      "reason": "Quadratic speed penalty discourages high velocity, which is good for landing, but also penalizes necessary movement to approach the pad quickly, likely causing progress correlation to be weak or negative. Reduce coefficient to allow faster descent while still discouraging crashes."
+    },
+    {
+      "component": "angle_penalty",
+      "verdict": "reduce",
+      "reason": "Absolute angle and angular velocity penalties prevent the lander from tilting, which is required for maneuvering and attitude control. This likely has negative progress correlation. Reduce penalty or make it quadratic and only penalize extreme angles (>0.5 rad)."
+    },
+    {
+      "component": "fuel_penalty",
+      "verdict": "remove",
+      "reason": "Very small coefficient (0.001) makes it effectively inactive; it provides no useful signal and can be removed or combined with a more meaningful fuel-efficiency term."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "reconsider",
+      "reason": "Large sparse bonus is only achievable under extremely strict conditions, providing no intermediate reward for progress. This makes learning difficult. Replace with a dense shaping reward (e.g., reward for being near pad with low speed and upright orientation) and a moderate bonus upon safe landing."
+    }
+  ],
+  "pipeline_action": "regenerate"
+}

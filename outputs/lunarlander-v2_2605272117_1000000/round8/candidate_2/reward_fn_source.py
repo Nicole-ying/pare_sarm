@@ -1,0 +1,50 @@
+"""Proxy reward candidate."""
+
+import math
+import numpy as np
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Unpack observation
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = abs(state[4])
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # Compute task progress (from external function)
+    progress = progress_fn(state)  # in [0, 1]
+
+    # ---- Per-step components ----
+    # Survival bonus: constant positive to encourage living
+    alive_bonus = 0.5
+    # Progress reward: linear in progress, gives immediate positive signal
+    progress_reward = 2.0 * progress  # range [0, 2.0]
+
+    per_step = alive_bonus + progress_reward
+
+    # ---- Terminal bonus ----
+    if terminated:
+        # Success: both legs on pad, close to (0,0), upright, low speed
+        success = (
+            left_leg == 1.0 and right_leg == 1.0 and
+            abs(x) < 0.3 and angle < 0.2 and
+            abs(vx) < 0.5 and abs(vy) < 0.5
+        )
+        terminal_bonus = 200.0 if success else 0.0
+        outcome_val = 1.0 if success else 0.0
+    else:
+        terminal_bonus = 0.0
+        outcome_val = 0.0
+
+    total = per_step + terminal_bonus
+
+    components = {
+        "alive_bonus": alive_bonus,
+        "progress_reward": progress_reward,
+        "terminal_bonus": terminal_bonus,
+        "_outcome": outcome_val,
+    }
+
+    return float(total), components
