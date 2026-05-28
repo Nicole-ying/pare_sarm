@@ -1,8 +1,8 @@
-"""Evidence Card Builder for ASE-MTAGE Phase 4.
+"""Evidence Card Builder for ASE-MTAGE.
 
-This tool converts raw evaluation trajectory logs and component logs from Phase 3
-into compact trajectory evidence cards. Cards are then finalized by the guarded
-Trajectory Judge Agent.
+This tool converts raw evaluation trajectory logs and component logs into compact
+trajectory evidence cards. Cards are then finalized by the rule-first,
+LLM-assisted Trajectory Judge Agent.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from ase_mtage.agents.trajectory_judge import TrajectoryJudgeAgent
+from ase_mtage.llm_client import LLMClient
 from ase_mtage.tools.rule_labeler import RuleLabeler
 from ase_mtage.utils.io import ensure_dir, load_json, save_json
 
@@ -19,10 +20,27 @@ from ase_mtage.utils.io import ensure_dir, load_json, save_json
 class EvidenceCardBuilder:
     """Build trajectory evidence cards from raw trajectory logs."""
 
-    def __init__(self, *, env_id: str, confidence_threshold: float = 0.70) -> None:
+    def __init__(
+        self,
+        *,
+        env_id: str,
+        confidence_threshold: float = 0.70,
+        llm_client: LLMClient | None = None,
+        judge_temperature: float = 0.2,
+        task_manifest: str | None = None,
+        env_manifest: dict[str, Any] | None = None,
+        output_dir: str | Path | None = None,
+    ) -> None:
         self.env_id = env_id
         self.rule_labeler = RuleLabeler()
-        self.judge = TrajectoryJudgeAgent(confidence_threshold=confidence_threshold, llm_enabled=False)
+        self.judge = TrajectoryJudgeAgent(
+            confidence_threshold=confidence_threshold,
+            llm_client=llm_client,
+            temperature=judge_temperature,
+            output_dir=output_dir,
+            task_manifest=task_manifest,
+            env_manifest=env_manifest,
+        )
 
     def build_from_training_dir(
         self,
@@ -33,7 +51,6 @@ class EvidenceCardBuilder:
         source_round: int,
         source_reward_id: str | None,
     ) -> dict[str, Any]:
-        """Build cards for all raw trajectories in a full_training directory."""
         full_training_dir = Path(full_training_dir)
         round_dir = Path(round_dir)
         memory_dir = ensure_dir(memory_dir)
@@ -56,7 +73,7 @@ class EvidenceCardBuilder:
                 component_path=comp_path if comp_path.exists() else None,
             )
             judgment = self.judge.judge(card).to_dict()
-            card["llm_label"] = None
+            card["llm_label"] = judgment if judgment.get("judge_mode", "").startswith("llm") else None
             card["final_label"] = judgment["final_label"]
             card["use_for_tage_pair"] = judgment["use_for_tage_pair"]
             card["allowed_preference_role"] = judgment["allowed_preference_role"]
@@ -69,7 +86,6 @@ class EvidenceCardBuilder:
         self._write_jsonl(round_cards_path, cards)
         self._write_jsonl(round_judgment_path, judgments)
         self._append_jsonl(memory_cards_path, cards)
-
         summary = self._summarize(cards, judgments)
         save_json(round_dir / "trajectory_judgment_summary.json", summary)
         return {
@@ -80,16 +96,7 @@ class EvidenceCardBuilder:
             "summary": summary,
         }
 
-    def build_card(
-        self,
-        *,
-        trajectory: dict[str, Any],
-        component_record: dict[str, Any],
-        source_round: int,
-        source_reward_id: str | None,
-        trajectory_path: Path,
-        component_path: Path | None,
-    ) -> dict[str, Any]:
+    def build_card(self, *, trajectory: dict[str, Any], component_record: dict[str, Any], source_round: int, source_reward_id: str | None, trajectory_path: Path, component_path: Path | None) -> dict[str, Any]:
         steps = list(trajectory.get("steps") or [])
         episode_length = int(trajectory.get("episode_length", len(steps)) or 0)
         max_steps = self._infer_max_episode_steps(episode_length, steps)
@@ -99,13 +106,7 @@ class EvidenceCardBuilder:
         terminated = bool(final_step.get("terminated", False)) if final_step else False
         truncated = bool(final_step.get("truncated", False)) if final_step else False
         features = self._extract_features(first_obs=first_obs, final_obs=final_obs, steps=steps, episode_length=episode_length)
-        episode = {
-            "length": episode_length,
-            "max_episode_steps": max_steps,
-            "terminated": terminated,
-            "truncated": truncated,
-            "terminal_event_from_env": "unknown",
-        }
+        episode = {"length": episode_length, "max_episode_steps": max_steps, "terminated": terminated, "truncated": truncated, "terminal_event_from_env": "unknown"}
         rule_label = self.rule_labeler.label(env_id=self.env_id, episode=episode, features=features).to_dict()
         component_totals = dict(component_record.get("component_totals") or trajectory.get("component_totals") or {})
         return {
@@ -149,11 +150,10 @@ class EvidenceCardBuilder:
         final_speed = math.sqrt(vx * vx + vy * vy)
         final_angle = abs(self._at(final, 4))
         last20 = all_next[-20:] if all_next else []
+        contact_ratio = 0.0
         if last20:
             contacts = [self._at(o, 6) + self._at(o, 7) for o in last20]
             contact_ratio = sum(1.0 for c in contacts if c > 0.5) / len(last20)
-        else:
-            contact_ratio = 0.0
         return {
             "initial_distance_to_target": initial_distance,
             "min_distance_to_target": min_distance,
@@ -170,33 +170,52 @@ class EvidenceCardBuilder:
     def _extract_cartpole_features(self, final_obs: Any, steps: list[dict[str, Any]]) -> dict[str, Any]:
         final = self._list(final_obs)
         angles = [abs(self._at(self._list(s.get("next_obs")), 2)) for s in steps]
-        return {
-            "final_position_abs": abs(self._at(final, 0)),
-            "final_angle_abs": abs(self._at(final, 2)),
-            "max_angle_abs": max(angles) if angles else abs(self._at(final, 2)),
-            "progress_improvement": float(len(steps)),
-        }
+        return {"final_position_abs": abs(self._at(final, 0)), "final_angle_abs": abs(self._at(final, 2)), "max_angle_abs": max(angles) if angles else abs(self._at(final, 2)), "progress_improvement": float(len(steps))}
 
     def _extract_bipedalwalker_features(self, first_obs: Any, final_obs: Any, steps: list[dict[str, Any]]) -> dict[str, Any]:
-        # BipedalWalker observations do not directly expose x position in the standard observation.
-        # Keep conservative generic stability features until an env adapter is added.
+        first = self._list(first_obs)
         final = self._list(final_obs)
+        all_next = [self._list(s.get("next_obs")) for s in steps]
+        hull_angle = self._at(final, 0)
+        hull_ang_vel = self._at(final, 1)
+        hull_vx = self._at(final, 2)
+        hull_vy = self._at(final, 3)
+        hip1 = self._at(final, 4)
+        knee1 = self._at(final, 6)
+        hip2 = self._at(final, 9)
+        knee2 = self._at(final, 11)
+        leg_contact_values = []
+        for obs in all_next:
+            # Standard BipedalWalker observations contain two binary ground-contact-like flags near indices 8 and 13.
+            leg_contact_values.append(max(self._at(obs, 8), self._at(obs, 13)))
+        contact_ratio = sum(1.0 for v in leg_contact_values if v > 0.5) / max(1, len(leg_contact_values))
+        mean_forward_velocity = sum(self._at(o, 2) for o in all_next) / max(1, len(all_next))
+        final_forward_velocity = hull_vx
+        stability_penalty = abs(hull_angle) + 0.5 * abs(hull_ang_vel) + 0.2 * abs(hull_vy)
+        gait_activity = abs(hip1) + abs(knee1) + abs(hip2) + abs(knee2)
+        estimated_forward_progress = mean_forward_velocity * max(1, len(all_next))
+        early_forward_velocity = sum(self._at(o, 2) for o in all_next[: max(1, len(all_next)//4)]) / max(1, len(all_next[: max(1, len(all_next)//4)])) if all_next else 0.0
+        late_forward_velocity = sum(self._at(o, 2) for o in all_next[-max(1, len(all_next)//4):]) / max(1, len(all_next[-max(1, len(all_next)//4):])) if all_next else 0.0
         return {
-            "forward_displacement": 0.0,
-            "final_height": self._at(final, 0),
-            "final_angle_abs": abs(self._at(final, 1)),
-            "progress_improvement": 0.0,
+            "forward_displacement": estimated_forward_progress,
+            "estimated_forward_progress": estimated_forward_progress,
+            "mean_forward_velocity": mean_forward_velocity,
+            "final_forward_velocity": final_forward_velocity,
+            "velocity_improvement": late_forward_velocity - early_forward_velocity,
+            "final_height": self._at(final, 2),
+            "final_angle_abs": abs(hull_angle),
+            "final_angular_velocity_abs": abs(hull_ang_vel),
+            "vertical_velocity_abs": abs(hull_vy),
+            "contact_ratio": contact_ratio,
+            "gait_activity": gait_activity,
+            "stability_penalty": stability_penalty,
+            "progress_improvement": estimated_forward_progress,
         }
 
     def _extract_generic_features(self, first_obs: Any, final_obs: Any, steps: list[dict[str, Any]], episode_length: int) -> dict[str, Any]:
-        return {
-            "episode_length": episode_length,
-            "progress_improvement": 0.0,
-            "final_state_summary": self._list(final_obs),
-        }
+        return {"episode_length": episode_length, "progress_improvement": 0.0, "final_state_summary": self._list(final_obs)}
 
     def _infer_max_episode_steps(self, episode_length: int, steps: list[dict[str, Any]]) -> int:
-        # Gym wrappers do not always expose max_episode_steps in saved logs; use conservative defaults.
         if episode_length >= 1000:
             return episode_length
         if "cartpole" in self.env_id.lower():
@@ -208,18 +227,15 @@ class EvidenceCardBuilder:
     def _summarize(self, cards: list[dict[str, Any]], judgments: list[dict[str, Any]]) -> dict[str, Any]:
         counts: dict[str, int] = {}
         usable = 0
-        for card in cards:
+        modes: dict[str, int] = {}
+        for card, judgment in zip(cards, judgments):
             label = ((card.get("final_label") or {}).get("coarse_label")) or "ambiguous"
             counts[label] = counts.get(label, 0) + 1
             if card.get("use_for_tage_pair"):
                 usable += 1
-        return {
-            "num_trajectories": len(cards),
-            "num_judgments": len(judgments),
-            "num_use_for_tage_pair": usable,
-            "label_counts": counts,
-            "judge_mode": "phase_4_guarded_rule_first",
-        }
+            mode = judgment.get("judge_mode", "unknown")
+            modes[mode] = modes.get(mode, 0) + 1
+        return {"num_trajectories": len(cards), "num_judgments": len(judgments), "num_use_for_tage_pair": usable, "label_counts": counts, "judge_mode_counts": modes}
 
     def _write_jsonl(self, path: Path, rows: list[dict[str, Any]]) -> None:
         ensure_dir(path.parent)
