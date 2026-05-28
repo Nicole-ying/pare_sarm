@@ -1,4 +1,4 @@
-"""ASE-MTAGE Phase 3 pipeline skeleton.
+"""ASE-MTAGE Phase 4 pipeline skeleton.
 
 This module now supports:
 - experiment directory and Core Memory creation;
@@ -6,9 +6,10 @@ This module now supports:
 - reward validation;
 - simple Round-0 top-1 selection from valid candidates;
 - long training of the selected reward using the candidate reward, not official reward;
-- final evaluation trajectory and reward-component log collection.
+- final evaluation trajectory and reward-component log collection;
+- automatic Evidence Card construction and guarded trajectory labeling.
 
-Memory-TAGE, evidence cards, trajectory judgment, reflection, and rollback are
+Memory-TAGE, Analyzer/Mutator cross-round evolution, reflection, and rollback are
 introduced in later phases.
 """
 
@@ -20,13 +21,14 @@ from typing import Any
 from ase_mtage.agents.env_perception import EnvPerceptionAgent
 from ase_mtage.agents.mutator import MutatorAgent
 from ase_mtage.schemas import ASEMTAGEConfig, ExperimentLayout, ExperimentState, RoundSummary
+from ase_mtage.tools.evidence_card_builder import EvidenceCardBuilder
 from ase_mtage.tools.reward_validator import RewardValidator
 from ase_mtage.training.long_trainer import LongTrainer
 from ase_mtage.utils.io import ensure_dir, load_config, load_json, now_timestamp, save_json, save_text
 
 
 class ASEMTAGEPipeline:
-    """ASE-MTAGE pipeline skeleton through Phase 3."""
+    """ASE-MTAGE pipeline skeleton through Phase 4."""
 
     def __init__(
         self,
@@ -60,8 +62,8 @@ class ASEMTAGEPipeline:
             use_short_training=self.config.method.use_short_training,
             selected_long_train_per_round=self.config.method.selected_long_train_per_round,
             notes=[
-                "Phase 3: reward candidate generation, validation, Round-0 selection, long training, and trajectory/component logging are enabled.",
-                "Memory-TAGE, evidence-card conversion, trajectory judgment, reflection, and rollback are not executed yet.",
+                "Phase 4: reward candidate generation, validation, Round-0 selection, long training, trajectory/component logging, evidence-card construction, and guarded trajectory labeling are enabled.",
+                "Memory-TAGE, Analyzer/Mutator cross-round evolution, reflection, and rollback are not executed yet.",
                 "Historical best health is not used as a gate in ASE-MTAGE.",
             ],
         )
@@ -94,7 +96,7 @@ class ASEMTAGEPipeline:
         save_text(self.layout.memory_dir / "trajectory_cards.jsonl", "")
         save_text(self.layout.memory_dir / "failure_repair_memory.jsonl", "")
         save_text(self.layout.memory_dir / "archival_lessons.jsonl", "")
-        save_json(self.layout.memory_dir / "elite_archive.json", {"elite_rewards": [], "phase": "phase_3_placeholder"})
+        save_json(self.layout.memory_dir / "elite_archive.json", {"elite_rewards": [], "phase": "phase_4_placeholder"})
         save_json(
             self.layout.memory_dir / "coverage_report.json",
             {
@@ -102,13 +104,13 @@ class ASEMTAGEPipeline:
                 "num_high_confidence": 0,
                 "coverage_type": "empty_or_too_small",
                 "can_build_preference_pairs": False,
-                "phase": "phase_3_placeholder",
+                "phase": "phase_4_placeholder",
             },
         )
         self._save_state("INIT")
 
     def run(self, n_rounds: int | None = None) -> dict[str, Any]:
-        """Run Phase 3 pipeline and return a summary dict."""
+        """Run Phase 4 pipeline and return a summary dict."""
         self.setup_experiment()
         total_rounds = n_rounds if n_rounds is not None else self.config.method.max_rounds
         if total_rounds < 0:
@@ -117,7 +119,7 @@ class ASEMTAGEPipeline:
         round_summaries: list[dict[str, Any]] = []
         for round_idx in range(total_rounds):
             if round_idx == 0:
-                summary = self.run_round0_generation_selection_training(round_idx)
+                summary = self.run_round0_generation_selection_training_labeling(round_idx)
             else:
                 summary = self.run_empty_round(round_idx)
             round_summaries.append(summary.to_dict())
@@ -126,18 +128,18 @@ class ASEMTAGEPipeline:
         self._save_state("EXPERIMENT_COMPLETED")
         final_summary = {
             "success": True,
-            "phase": "phase_3_long_training_and_trajectory_collection",
+            "phase": "phase_4_evidence_cards_and_trajectory_labels",
             "method": self.config.method.name,
             "env_id": self.config.training.env_id,
             "exp_dir": str(self.layout.exp_dir),
             "rounds": round_summaries,
-            "message": "Phase 3 completed: round0 candidates were generated, one valid candidate was selected, long training was attempted, and trajectory/component logs were saved when training succeeded.",
+            "message": "Phase 4 completed: round0 candidates were generated, one valid candidate was selected, long training was attempted, and trajectory cards/final labels were saved when training succeeded.",
         }
         save_json(self.layout.exp_dir / "summary.json", final_summary)
         return final_summary
 
-    def run_round0_generation_selection_training(self, round_idx: int) -> RoundSummary:
-        """Generate, validate, select, and long-train one Round-0 candidate."""
+    def run_round0_generation_selection_training_labeling(self, round_idx: int) -> RoundSummary:
+        """Generate, validate, select, long-train, and label Round-0 trajectories."""
         round_dir = ensure_dir(self.layout.exp_dir / f"round{round_idx}")
         candidates_root = ensure_dir(round_dir / "candidates")
         artifacts: list[str] = []
@@ -183,10 +185,10 @@ class ASEMTAGEPipeline:
         selected = max(valid_records, key=lambda r: r["selection_static_score"]) if valid_records else None
         selection_report = {
             "round": round_idx,
-            "selection_mode": "phase_3_static_round0_selection",
+            "selection_mode": "phase_4_static_round0_selection",
             "memory_tage_used": False,
             "selected_candidate": selected["candidate_id"] if selected else None,
-            "reason": "Phase 3 uses a simple static Round-0 selector. Memory-TAGE selection starts in Phase 5.",
+            "reason": "Phase 4 uses a simple static Round-0 selector. Memory-TAGE selection starts in Phase 5.",
             "candidate_scores": candidate_records,
         }
         save_json(round_dir / "selection_report.json", selection_report)
@@ -194,7 +196,7 @@ class ASEMTAGEPipeline:
 
         generation_report = {
             "round": round_idx,
-            "phase": "phase_3_generation_validation_selection_training",
+            "phase": "phase_4_generation_validation_selection_training_labeling",
             "k_requested": self.config.method.k_candidates,
             "num_generated": len(candidates),
             "num_valid": len(valid_records),
@@ -208,6 +210,8 @@ class ASEMTAGEPipeline:
 
         long_training_executed = False
         long_training_success = False
+        evidence_cards_created = False
+        num_trajectory_cards = 0
         if selected is not None:
             full_training_dir = ensure_dir(round_dir / "full_training")
             reward_path = Path(selected["reward_path"])
@@ -231,13 +235,33 @@ class ASEMTAGEPipeline:
                 artifacts.append(str(training_result.eval_summary_path.relative_to(round_dir)))
                 artifacts.append("full_training/trajectory_logs/")
                 artifacts.append("full_training/component_logs/")
+
+            if training_result.success:
+                builder = EvidenceCardBuilder(
+                    env_id=self.config.training.env_id,
+                    confidence_threshold=self.config.trajectory_memory.label_confidence_threshold,
+                )
+                card_result = builder.build_from_training_dir(
+                    full_training_dir=full_training_dir,
+                    round_dir=round_dir,
+                    memory_dir=self.layout.memory_dir,
+                    source_round=round_idx,
+                    source_reward_id=selected["candidate_id"],
+                )
+                evidence_cards_created = True
+                num_trajectory_cards = int(card_result.get("num_cards", 0))
+                artifacts.extend(
+                    [
+                        "trajectory_cards.jsonl",
+                        "trajectory_judgment.jsonl",
+                        "trajectory_judgment_summary.json",
+                        "memory/trajectory_cards.jsonl",
+                    ]
+                )
         else:
             save_json(
                 round_dir / "full_training_skipped.json",
-                {
-                    "skipped": True,
-                    "reason": "No valid Round-0 reward candidates were available for long training.",
-                },
+                {"skipped": True, "reason": "No valid Round-0 reward candidates were available for long training."},
             )
             artifacts.append("full_training_skipped.json")
 
@@ -245,8 +269,8 @@ class ASEMTAGEPipeline:
             round_dir / "README.md",
             (
                 f"# ASE-MTAGE Round {round_idx}\n\n"
-                "Phase 3 generated and validated initial reward candidates, selected one candidate, "
-                "and attempted long training. Evidence cards and Memory-TAGE are added in later phases.\n"
+                "Phase 4 generated and validated initial reward candidates, selected one candidate, "
+                "attempted long training, and built guarded trajectory labels when trajectories were available.\n"
             ),
         )
         artifacts.append("README.md")
@@ -255,7 +279,7 @@ class ASEMTAGEPipeline:
             round_dir / "round_state.json",
             {
                 "round": round_idx,
-                "phase": "phase_3_generation_validation_selection_training",
+                "phase": "phase_4_generation_validation_selection_training_labeling",
                 "llm_called": False,
                 "reward_candidates_generated": True,
                 "reward_candidates_validated": True,
@@ -264,6 +288,8 @@ class ASEMTAGEPipeline:
                 "selected_candidate": selected["candidate_id"] if selected else None,
                 "long_training_executed": long_training_executed,
                 "long_training_success": long_training_success,
+                "evidence_cards_created": evidence_cards_created,
+                "num_trajectory_cards": num_trajectory_cards,
                 "short_training_executed": False,
                 "memory_tage_executed": False,
             },
@@ -275,15 +301,18 @@ class ASEMTAGEPipeline:
             status = "completed_with_no_valid_candidates"
         elif long_training_executed and not long_training_success:
             status = "completed_with_training_failure"
+        elif long_training_success and not evidence_cards_created:
+            status = "completed_without_evidence_cards"
 
         summary = RoundSummary(
             round=round_idx,
             status=status,
-            phase="phase_3_generation_validation_selection_training",
+            phase="phase_4_generation_validation_selection_training_labeling",
             message=(
                 f"Generated {len(candidates)} candidates, validated {len(valid_records)}, "
                 f"selected {selected['candidate_id'] if selected else 'none'}, "
-                f"long_training_executed={long_training_executed}, success={long_training_success}."
+                f"long_training_executed={long_training_executed}, success={long_training_success}, "
+                f"trajectory_cards={num_trajectory_cards}."
             ),
             round_dir=str(round_dir),
             artifacts_created=artifacts,
@@ -301,12 +330,7 @@ class ASEMTAGEPipeline:
     def _round0_static_score(self, mutation_family: str, valid: bool) -> float:
         if not valid:
             return -1.0
-        # Prefer the more structurally diverse candidate for Round 0 bootstrap.
-        family_prior = {
-            "progress_conditioned": 0.90,
-            "component_recomposition": 0.80,
-            "local_repair": 0.70,
-        }
+        family_prior = {"progress_conditioned": 0.90, "component_recomposition": 0.80, "local_repair": 0.70}
         return family_prior.get(mutation_family, 0.50)
 
     def run_empty_round(self, round_idx: int) -> RoundSummary:
@@ -317,8 +341,7 @@ class ASEMTAGEPipeline:
             round_dir / "README.md",
             (
                 f"# ASE-MTAGE Round {round_idx}\n\n"
-                "Placeholder round. Phase 4+ will add evidence cards, trajectory judgment, "
-                "Memory-TAGE, Analyzer, Mutator children, rollback, and reflection artifacts.\n"
+                "Placeholder round. Phase 5+ will add Memory-TAGE, Analyzer, Mutator children, rollback, and reflection artifacts.\n"
             ),
         )
         artifacts.append("README.md")
@@ -326,7 +349,7 @@ class ASEMTAGEPipeline:
             round_dir / "round_state.json",
             {
                 "round": round_idx,
-                "phase": "phase_3_placeholder_for_later_rounds",
+                "phase": "phase_4_placeholder_for_later_rounds",
                 "llm_called": False,
                 "reward_candidates_generated": False,
                 "long_training_executed": False,
@@ -338,7 +361,7 @@ class ASEMTAGEPipeline:
         summary = RoundSummary(
             round=round_idx,
             status="completed",
-            phase="phase_3_placeholder_for_later_rounds",
+            phase="phase_4_placeholder_for_later_rounds",
             message="Placeholder round completed. Later phases will implement the full cross-round workflow.",
             round_dir=str(round_dir),
             artifacts_created=artifacts,
