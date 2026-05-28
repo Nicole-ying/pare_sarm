@@ -1,10 +1,4 @@
-"""Analyzer Agent for ASE-MTAGE.
-
-LLM mode follows prompts/analyzer.md. Deterministic fallback is also
-schema-aligned and component-aware enough for no-LLM experiments: it derives
-preserve/remove-or-gate hints from TAGE selection reports, coverage, label counts,
-and failure memory.
-"""
+"""Analyzer Agent for ASE-MTAGE."""
 
 from __future__ import annotations
 
@@ -19,10 +13,11 @@ from ase_mtage.utils.io import ensure_dir, save_json, save_text
 class AnalyzerAgent:
     """Produce structured reward self-evaluation and mutation intent."""
 
-    def __init__(self, output_dir: str | Path, *, llm_client: LLMClient | None = None, temperature: float = 0.4) -> None:
+    def __init__(self, output_dir: str | Path, *, llm_client: LLMClient | None = None, temperature: float = 0.4, fallback_on_error: bool = True) -> None:
         self.output_dir = ensure_dir(output_dir)
         self.llm_client = llm_client
         self.temperature = temperature
+        self.fallback_on_error = fallback_on_error
 
     def run(
         self,
@@ -54,6 +49,8 @@ class AnalyzerAgent:
                 )
             except Exception as exc:
                 save_text(self.output_dir / "llm_error.txt", str(exc) + "\n")
+                if not self.fallback_on_error:
+                    raise RuntimeError("AnalyzerAgent LLM failed and fallback_on_error=false") from exc
         return self._run_deterministic(
             round_idx=round_idx,
             parent_reward_id=parent_reward_id,
@@ -109,7 +106,6 @@ class AnalyzerAgent:
             useful_patterns.append("partial_progress trajectories exist and should be preserved or improved")
         if label_counts.get("success_like", 0) > 0:
             useful_patterns.append("success_like trajectories exist and should be strongly preferred")
-
         component_diagnosis = self._component_diagnosis(previous_selection_report, tage_summary, coverage_report)
         preserve_components, remove_or_gate_components = self._component_actions(component_diagnosis, known_failures, coverage_type, env_manifest)
         mutation_intent = self._mutation_intent(coverage_type, known_failures, useful_patterns, component_diagnosis, preserve_components, remove_or_gate_components)
@@ -148,20 +144,15 @@ class AnalyzerAgent:
         selected_report = self._selected_tage_report(selection_report, tage_summary)
         if selected_report:
             pref = (selected_report.get("preference_consistency") or {}).get("score")
-            fail = (selected_report.get("failure_avoidance") or {}).get("normalized_score")
+            avoid_score = (selected_report.get("failure_avoidance") or {}).get("normalized_score")
             comp = selected_report.get("component_alignment") or {}
             if pref is not None:
                 diagnosis.append({"component": "global_reward_ranking", "verdict": "keep" if float(pref or 0) >= 0.6 else "restructure", "evidence": f"preference_consistency={pref}"})
-            if fail is not None:
-                diagnosis.append({"component": "failure_avoidance", "verdict": "keep" if float(fail or 0) >= 0.55 else "strengthen", "evidence": f"failure_avoidance={fail}"})
+            if avoid_score is not None:
+                diagnosis.append({"component": "failure_avoidance", "verdict": "keep" if float(avoid_score or 0) >= 0.55 else "strengthen", "evidence": f"avoidance_score={avoid_score}"})
             for name, report in (comp.get("components") or {}).items():
                 consistency = float(report.get("pair_consistency", 0.0) or 0.0)
-                if consistency >= 0.65:
-                    verdict = "keep"
-                elif consistency <= 0.35:
-                    verdict = "remove_or_gate"
-                else:
-                    verdict = "unknown"
+                verdict = "keep" if consistency >= 0.65 else ("remove_or_gate" if consistency <= 0.35 else "unknown")
                 diagnosis.append({"component": name, "verdict": verdict, "evidence": f"component_pair_consistency={consistency:.3f}; {report.get('diagnosis', '')}"})
         if not diagnosis:
             coverage_type = str(coverage_report.get("coverage_type", "ambiguous"))
@@ -228,14 +219,7 @@ class AnalyzerAgent:
             required.append("gate or remove components: " + ", ".join(remove))
         if preserve:
             required.append("preserve or strengthen components: " + ", ".join(preserve))
-        return {
-            "primary_family": primary,
-            "secondary_family": "component_recomposition" if primary != "component_recomposition" else "progress_conditioned",
-            "forbidden_changes": ["do not use official reward", "do not only scale all coefficients", "do not add global survival bonus without progress gating"],
-            "required_changes": required,
-            "preserve_components": preserve,
-            "remove_or_gate_components": remove,
-        }
+        return {"primary_family": primary, "secondary_family": "component_recomposition" if primary != "component_recomposition" else "progress_conditioned", "forbidden_changes": ["do not use official reward", "do not only scale all coefficients", "do not add global survival bonus without progress gating"], "required_changes": required, "preserve_components": preserve, "remove_or_gate_components": remove}
 
     def _lesson(self, coverage_type: str, known_failures: list[str], useful_patterns: list[str]) -> str:
         if coverage_type in {"failure_plus_partial_progress", "balanced"}:
