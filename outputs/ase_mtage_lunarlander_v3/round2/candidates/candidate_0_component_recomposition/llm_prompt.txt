@@ -1,0 +1,494 @@
+# Mutator Agent Prompt
+
+## Role
+
+You are the **Mutator Agent** in ASE-MTAGE.
+
+Your job is to generate one reward-function candidate according to a specified
+mutation family and the Analyzer Agent's self-evaluation.
+
+You write executable Python reward code. You do not run training. You do not use
+the official environment reward.
+
+## Goal
+
+Given:
+
+1. task manifest;
+2. environment manifest;
+3. parent reward code, if available;
+4. Analyzer self-evaluation;
+5. memory coverage report;
+6. one requested mutation family;
+
+produce one safe Python file defining:
+
+```python
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    ...
+    return float(total_reward), components
+```
+
+## Reward-Leakage Policy
+
+You must not use, reconstruct, or call the official environment reward.
+
+Forbidden:
+
+- calling `env.step`;
+- calling any official reward method;
+- reading hidden environment internals;
+- using official return as a target;
+- file I/O;
+- network calls;
+- subprocess;
+- random sampling;
+- importing gym/gymnasium or creating environments;
+- using APIs that make reward non-deterministic.
+
+Allowed:
+
+- using `obs`, `action`, `next_obs`, `terminated`, `truncated`, and `info`;
+- simple Python math;
+- interpretable reward components;
+- helper functions inside the same file;
+- generated reward component dictionary.
+
+## Required Function Interface
+
+Your output must contain exactly one main reward function:
+
+```python
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    ...
+    return float(total_reward), components
+```
+
+Requirements:
+
+1. `total_reward` must be finite.
+2. `components` must be a non-empty dictionary.
+3. every component key must be a string.
+4. every component value must be numeric and finite.
+5. do not return the official reward.
+6. do not use random behavior.
+7. do not only multiply all existing coefficients by a constant.
+8. do not add a global survival/alive bonus unless it is explicitly progress-gated.
+
+## Your Assigned Mutation Family
+
+### `component_recomposition` — Medium Structural Mutation
+
+You are generating a **component recomposition** candidate. Your task:
+
+1. **Remove or replace misleading components** identified by the Analyzer as rewarding failure trajectories.
+2. **Add missing components** — if the parent code lacks progress, stability, or terminal penalty terms, add them.
+3. **Turn absolute rewards into delta/progress rewards** when appropriate. For example, change an absolute position reward into a "distance decreased from previous step" delta.
+4. **Separate into clear categories:** progress terms, stability/safety terms, terminal bonuses/penalties, and penalty terms. Each category should be a distinct named component.
+5. **Avoid component interactions that reward known failures** — if two components together can create a reward-hacking loophole, the recomposition must close it.
+
+Your output should have a clearly different component structure from the parent. Don't just rename components — change what they measure and how they combine. Think "refactor with purpose." The temperature for this call is medium, encouraging moderate structural innovation.
+
+## Output Format
+
+Output **only Python code**. Do not wrap it in markdown. Do not add explanations.
+
+The code must be a complete Python module containing `compute_reward`.
+
+## Code Safety Constraints
+
+Forbidden imports:
+
+```text
+os, sys, subprocess, socket, requests, urllib, pathlib, shutil, gym, gymnasium
+```
+
+Forbidden calls:
+
+```text
+open, exec, eval, compile, __import__
+```
+
+Forbidden attribute use:
+
+```text
+.step, .reward, .unwrapped
+```
+
+Allowed import:
+
+```python
+import math
+```
+
+Use a helper like:
+
+```python
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+```
+
+## Component Design Guidelines
+
+A good generated reward should:
+
+1. be decomposed into named components;
+2. contain progress-related terms;
+3. contain stability or safety terms when relevant;
+4. contain terminal penalties or terminal bonuses only when observable evidence supports them;
+5. avoid pure survival rewards;
+6. avoid rewarding known failure trajectories from memory;
+7. preserve components that Memory-TAGE says are aligned;
+8. gate or remove components that over-reward known failures.
+
+## Input Artifacts
+
+```text
+task_manifest
+env_manifest
+parent_reward_code_optional
+analyzer_self_evaluation
+memory_coverage_report
+mutation_family
+reflection_guidance (optional)
+```
+
+**reflection_guidance**: Future guidance from the Reflector Agent of the previous round. These are high-level suggestions about what direction the reward design should take (e.g., "add progress gating", "avoid survival bonuses"). Use these to align your mutation with the broader evolution strategy.
+
+## Example Output
+
+```python
+import math
+
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0
+    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0
+    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0
+    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0
+    vx1 = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0
+    vy1 = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0
+    angle1 = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0
+
+    prev_distance = math.sqrt(x0 * x0 + y0 * y0)
+    next_distance = math.sqrt(x1 * x1 + y1 * y1)
+    progress_delta = prev_distance - next_distance
+
+    near_target = 1.0 if next_distance < 0.35 else 0.0
+    far_stage = 1.0 - near_target
+
+    approach_progress = far_stage * progress_delta
+    terminal_stability = near_target * (-(abs(vx1) + abs(vy1) + abs(angle1)))
+    unsafe_terminal = -1.0 if terminated and (abs(vy1) > 0.8 or abs(angle1) > 0.6) else 0.0
+    low_progress_timeout = -0.5 if truncated and next_distance > 0.5 else 0.0
+
+    components = {
+        "approach_progress": approach_progress,
+        "terminal_stability": terminal_stability,
+        "unsafe_terminal": unsafe_terminal,
+        "low_progress_timeout": low_progress_timeout
+    }
+    total_reward = 4.0 * approach_progress + 1.5 * terminal_stability + unsafe_terminal + low_progress_timeout
+    return float(total_reward), components
+```
+
+## Now Perform The Task
+
+Input:
+
+```text
+{
+  "task_manifest": "# Task Manifest\n\n## Environment\n\n`LunarLander-v2`\n\n## Task Goal\n\nland safely on the landing pad using observable state evidence, without using the official reward\n\n## Reward Leakage Policy\n\nOfficial environment reward is not visible and must not be used.\n\n## Coarse Outcome Labels\n\n- `early_failure`\n- `low_progress_survival`\n- `partial_progress`\n- `success_like`\n- `ambiguous`\n\n## Trajectory Features To Extract\n\n- `episode_length`\n- `terminated`\n- `truncated`\n- `initial_distance_to_pad`\n- `final_distance_to_pad`\n- `distance_improvement`\n- `final_vertical_velocity`\n- `final_horizontal_velocity`\n- `final_angle_abs`\n- `final_angular_velocity_abs`\n- `final_left_leg_contact`\n- `final_right_leg_contact`\n- `both_legs_contact_final`\n- `final_y_position`\n\n## Labeling Cautions\n\n- Do not use or infer the official environment reward.\n- Do not treat long episode length alone as success_like.\n- Do not treat stable hover at low altitude without both legs contacting ground as success_like.\n- Do not treat low velocity with high angle or off-pad location as success_like.\n- Success_like requires strong evidence: both legs in contact, lander near upright (angle close to 0), near zero velocity, and position near landing pad (x near 0, y near ground within viewport).\n- If termination occurred by landing on pad but with significant velocity or angle, classify as partial_progress or ambiguous.\n",
+  "env_manifest": {
+    "env_name": "LunarLander-v2",
+    "task_goal": "land safely on the landing pad using observable state evidence, without using the official reward",
+    "official_reward_visible": false,
+    "observation_schema": [
+      {
+        "index": 0,
+        "name": "x_position",
+        "meaning": "horizontal position relative to the center of the viewport (landing pad at 0)",
+        "used_for_labeling": true
+      },
+      {
+        "index": 1,
+        "name": "y_position",
+        "meaning": "vertical position relative to the ground (higher is up)",
+        "used_for_labeling": true
+      },
+      {
+        "index": 2,
+        "name": "x_velocity",
+        "meaning": "horizontal velocity",
+        "used_for_labeling": true
+      },
+      {
+        "index": 3,
+        "name": "y_velocity",
+        "meaning": "vertical velocity",
+        "used_for_labeling": true
+      },
+      {
+        "index": 4,
+        "name": "angle",
+        "meaning": "orientation angle in radians (0 is upright)",
+        "used_for_labeling": true
+      },
+      {
+        "index": 5,
+        "name": "angular_velocity",
+        "meaning": "angular velocity in radians per second (after scaling factor 2.5)",
+        "used_for_labeling": true
+      },
+      {
+        "index": 6,
+        "name": "left_leg_contact",
+        "meaning": "boolean indicating whether the left leg is in contact with the ground",
+        "used_for_labeling": true
+      },
+      {
+        "index": 7,
+        "name": "right_leg_contact",
+        "meaning": "boolean indicating whether the right leg is in contact with the ground",
+        "used_for_labeling": true
+      }
+    ],
+    "action_schema": [
+      {
+        "id": 0,
+        "meaning": "do nothing"
+      },
+      {
+        "id": 1,
+        "meaning": "fire left orientation engine"
+      },
+      {
+        "id": 2,
+        "meaning": "fire main engine"
+      },
+      {
+        "id": 3,
+        "meaning": "fire right orientation engine"
+      }
+    ],
+    "termination_signals": [
+      "terminated indicates an environment terminal event from the gym env; from docstring: crashes (lander body contacts moon), lander goes outside viewport (x > 1), or lander becomes not awake (sleeping). Use observable state to detect these: low y position with leg contact not both sure? but we can infer from state after termination.",
+      "truncated indicates time limit or wrapper-dependent cutoff"
+    ],
+    "available_info_keys": [],
+    "trajectory_features_to_extract": [
+      "episode_length",
+      "terminated",
+      "truncated",
+      "initial_distance_to_pad",
+      "final_distance_to_pad",
+      "distance_improvement",
+      "final_vertical_velocity",
+      "final_horizontal_velocity",
+      "final_angle_abs",
+      "final_angular_velocity_abs",
+      "final_left_leg_contact",
+      "final_right_leg_contact",
+      "both_legs_contact_final",
+      "final_y_position"
+    ],
+    "coarse_outcome_labels": [
+      "early_failure",
+      "low_progress_survival",
+      "partial_progress",
+      "success_like",
+      "ambiguous"
+    ],
+    "labeling_cautions": [
+      "Do not use or infer the official environment reward.",
+      "Do not treat long episode length alone as success_like.",
+      "Do not treat stable hover at low altitude without both legs contacting ground as success_like.",
+      "Do not treat low velocity with high angle or off-pad location as success_like.",
+      "Success_like requires strong evidence: both legs in contact, lander near upright (angle close to 0), near zero velocity, and position near landing pad (x near 0, y near ground within viewport).",
+      "If termination occurred by landing on pad but with significant velocity or angle, classify as partial_progress or ambiguous."
+    ],
+    "unknowns": [
+      "Exact termination condition logic from the gym runtime (whether code uses game_over flag; we rely on docstring conditions and observable final state).",
+      "Exact truncation wrapper configuration; assume time limit at 1000 steps."
+    ],
+    "llm_used": true
+  },
+  "parent_reward_code_optional": "import math\n\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except (TypeError, ValueError):\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    # Extract next_obs components\n    x_pos = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0\n    y_pos = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0\n    x_vel = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0\n    y_vel = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0\n    angle = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0\n    ang_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0\n    left_leg = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0\n    right_leg = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0\n\n    # Also extract current obs for progress if needed\n    x_curr = _safe_float(obs[0]) if len(obs) > 0 else 0.0\n    y_curr = _safe_float(obs[1]) if len(obs) > 1 else 0.0\n\n    # Distance from landing pad (pad is at x=0, y=0)\n    curr_distance = math.sqrt(x_curr * x_curr + y_curr * y_curr)\n    next_distance = math.sqrt(x_pos * x_pos + y_pos * y_pos)\n\n    # Stage determination: near the pad (within 0.15 of ground, small horizontal offset)\n    near_pad = 1.0 if (y_pos < 0.15 and abs(x_pos) < 0.2) else 0.0\n    # Also consider altitude high vs low\n    high_alt = 1.0 if y_pos > 0.5 else 0.0\n    low_alt = 1.0 - high_alt\n\n    # Progress components\n    progress = curr_distance - next_distance  # positive for moving toward pad\n\n    # Early stage (high altitude): reward approach and gentle descent\n    # Use max(0, progress) to avoid penalizing overshoot slightly\n    early_approach = high_alt * max(progress, 0.0) * 5.0\n    # Penalize high vertical speed when high (to encourage controlled descent)\n    early_speed_penalty = high_alt * (-abs(y_vel) * 0.5)\n\n    # Late stage (low altitude): reward stability and leg contact\n    # Reward low speed and upright orientation\n    late_stability = low_alt * (\n        -abs(x_vel) * 2.0  # horizontal velocity penalty\n        -abs(angle) * 5.0  # angle penalty (radians)\n        -abs(ang_vel) * 2.0  # angular velocity penalty\n    )\n    # Leg contact bonus: only if both legs contact near pad\n    both_legs = 1.0 if (left_leg > 0.5 and right_leg > 0.5) else 0.0\n    leg_bonus = near_pad * both_legs * 10.0\n\n    # Terminal evaluation based on termination/truncation\n    terminal_penalty = 0.0\n    terminal_bonus = 0.0\n    if terminated:\n        # Check for crash: high velocity or large angle at ground contact\n        # If legs are not both contacting, likely a crash\n        crashed = 1.0 if (left_leg < 0.5 or right_leg < 0.5) else 0.0\n        # Also possible side crash or high impact\n        if crashed or abs(y_vel) > 0.8 or abs(angle) > 0.4:\n            terminal_penalty = -15.0\n        else:\n            # Successful landing (both legs, near upright, low velocity)\n            terminal_bonus = 20.0 * near_pad * both_legs * (1.0 - abs(angle) * 2.0) * (1.0 - abs(y_vel) * 2.0)\n            # Also if not near pad but still landed? unlikely to be good\n    elif truncated:\n        # Timeout: penalize if not near pad\n        if next_distance > 0.3:\n            terminal_penalty = -5.0\n\n    # Stability during flight: penalize excessive angular velocity and angle\n    flight_stability = -abs(angle) * 2.0 - abs(ang_vel) * 1.0\n\n    # Component dictionary\n    components = {\n        \"early_approach\": early_approach,\n        \"early_speed_penalty\": early_speed_penalty,\n        \"late_stability\": late_stability,\n        \"leg_bonus\": leg_bonus,\n        \"terminal_penalty\": terminal_penalty,\n        \"terminal_bonus\": terminal_bonus,\n        \"flight_stability\": flight_stability,\n    }\n\n    total_reward = early_approach + early_speed_penalty + late_stability + leg_bonus + terminal_penalty + terminal_bonus + flight_stability\n    return float(total_reward), components",
+  "analyzer_self_evaluation": {
+    "round": 2,
+    "parent_reward_id": "round1_candidate0_progress_conditioned",
+    "overall_judgment": "parent_reward_produces_usable_memory_and_partial_progress_but_penalty_overload_blocks_success",
+    "failure_summary": "The parent reward's excessive speed, stability, and terminal penalties (early_speed_penalty, late_stability, flight_stability, terminal_penalty) heavily penalize partial_progress trajectories, preventing the policy from achieving success_like behavior. The progress signal (early_approach) is positive but overwhelmed by net negative reward from penalties.",
+    "memory_interpretation": {
+      "coverage_type": "failure_plus_partial_progress",
+      "decision_level": "weak_pairwise_selection",
+      "usable_preference_level": "weak_pairwise",
+      "main_known_failures": [
+        "early_failure caused by crash or high velocity",
+        "partial_progress trajectories cannot transition to success due to severe penalties on descent and low-altitude stability"
+      ],
+      "main_useful_patterns": [
+        "partial_progress trajectories achieve distance improvement toward the pad (mean progress 1.08) but are heavily penalized for vertical speed and angle during both high and low altitude",
+        "early_approach component positively correlates with partial_progress"
+      ],
+      "uncertainties": [
+        "No success_like trajectories exist, so success-level preferences cannot be formed",
+        "The influence of terminal_penalty on partial_progress is unclear: mean -11.25 vs -5.0 for failures, possibly due to crash conditions being met more often for partial_progress (e.g., higher impact velocity)",
+        "The exact coefficients needed to rebalance are not known; need structural change rather than fine-tuning"
+      ]
+    },
+    "component_diagnosis": [
+      {
+        "component": "early_approach",
+        "verdict": "keep",
+        "evidence": "It positively rewards progress toward the pad and correlates with partial_progress (mean 4.24 for positive group). This is a useful signal."
+      },
+      {
+        "component": "early_speed_penalty",
+        "verdict": "restructure",
+        "evidence": "Positive_mean is -20.64, indicating it heavily penalizes partial_progress trajectories during high altitude. This could be gated by excessive speed threshold or reduced magnitude to avoid overwhelming the approach signal."
+      },
+      {
+        "component": "late_stability",
+        "verdict": "restructure",
+        "evidence": "Positive_mean is -24.00, a severe penalty on low-altitude behavior. It punishes any minor velocity or angle deviation, making it impossible for the policy to maintain good stability and get net positive reward. Should be redesigned to include a positive component for good stability."
+      },
+      {
+        "component": "leg_bonus",
+        "verdict": "keep",
+        "evidence": "Has zero mean for failures and small positive mean (0.71) for positive group. It rewards leg contact near pad, which is a desired behavior. Can be strengthened or combined with other conditions."
+      },
+      {
+        "component": "terminal_penalty",
+        "verdict": "restructure",
+        "evidence": "Both groups receive negative mean, but partial_progress receives more negative (-11.25 vs -5.0). This suggests that partial_progress trajectories are more likely to meet crash/truncation conditions. Might need to reduce the magnitude or exclude certain cases."
+      },
+      {
+        "component": "terminal_bonus",
+        "verdict": "keep",
+        "evidence": "Mean is 0.0 for both groups, indicating no successful landings. The bonus formula seems reasonable but unreachable because penalties prevent the policy from reaching a state with both legs contacting. Keep as potential reward for actual success."
+      },
+      {
+        "component": "flight_stability",
+        "verdict": "restructure",
+        "evidence": "Positive_mean is -7.38, adding extra penalty on angle and angular velocity during entire flight. It overlaps with late_stability and may be redundant. Consider removing or gating it."
+      }
+    ],
+    "mutation_intent": {
+      "primary_family": "component_recomposition",
+      "secondary_family": "progress_conditioned",
+      "forbidden_changes": [
+        "do not use official reward",
+        "do not add global survival bonus without progress gating",
+        "do not scale all coefficients uniformly without structural change",
+        "do not treat partial_progress as success_like"
+      ],
+      "required_changes": [
+        "restructure early_speed_penalty to be mild or conditional on excessive vertical speed (e.g., threshold of 0.8) to avoid strong penalty on normal descent",
+        "redesign late_stability to include a positive reward for good stability (low velocity, upright angle) rather than only negative penalty; reduce penalty coefficients significantly",
+        "remove or gate flight_stability to avoid double penalty on angle/angular velocity",
+        "reduce terminal_penalty magnitude or make it more discriminative (e.g., only severe crash conditions yield large penalty)",
+        "strengthen leg_bonus by adding a velocity condition (e.g., bonus when both legs contact and vertical speed < 0.5 and angle < 0.2) to encourage stable landing",
+        "ensure that the total net reward for good partial_progress trajectories becomes non-negative to allow policy to explore more successful behavior"
+      ],
+      "preserve_components": [
+        "early_approach",
+        "progress conditioning (high_alt/low_alt gating)",
+        "leg_bonus (but with addition of low-velocity condition)",
+        "terminal_bonus"
+      ],
+      "remove_or_gate_components": [
+        "flight_stability (remove or gate with debug flag)",
+        "early_speed_penalty (gate by high vertical speed threshold)",
+        "late_stability (replace with balanced positive/negative component)"
+      ]
+    },
+    "rollback_decision": {
+      "recommend_rollback": false,
+      "rollback_target": null,
+      "reason": "Hard rollback is not required because the current memory contains weak but usable partial-progress evidence. The parent reward enabled partial progress, which is an improvement from the previous round's all-early-failure. Structural changes as recommended should build on this progress."
+    },
+    "self_evaluation_lesson": "The parent reward's penalty overload prevented policy from achieving success despite good progress. Partial progress is a weak signal but valuable; next mutation must rebalance penalties and introduce positive incentives for stable low-altitude behavior to enable successful landings. Avoid simply scaling coefficients; structural changes to penalty components are necessary.",
+    "agent_mode": "llm_analyzer"
+  },
+  "memory_coverage_report": {
+    "num_trajectories": 78,
+    "num_labeled_non_ambiguous": 78,
+    "num_use_for_tage_pair": 78,
+    "label_counts": {
+      "partial_progress": 28,
+      "early_failure": 50
+    },
+    "labeled_label_counts": {
+      "partial_progress": 28,
+      "early_failure": 50
+    },
+    "preference_role_counts": {
+      "mid_reference": 28,
+      "negative_reference": 50
+    },
+    "dynamic_min_count_per_label": 12,
+    "nontrivial_labels": [
+      "early_failure",
+      "partial_progress"
+    ],
+    "label_margin": {
+      "is_margin_sufficient": true,
+      "positive_label_group": "partial_progress",
+      "num_failure_cards": 50,
+      "num_positive_cards": 28,
+      "failure_progress_mean": -0.3984422849264984,
+      "positive_progress_mean": 1.0784262942466578,
+      "progress_gap": 1.4768685791731562,
+      "failure_stability_proxy_mean": -2.7886373549328223,
+      "positive_stability_proxy_mean": -0.9199608638531916,
+      "stability_gap": 1.8686764910796305,
+      "thresholds": {
+        "progress_gap_min": 0.05,
+        "stability_gap_min": -0.05
+      }
+    },
+    "coverage_type": "failure_plus_partial_progress",
+    "decision_level": "weak_pairwise_selection",
+    "can_build_preference_pairs": true,
+    "allowed_preference_relations": [
+      [
+        "partial_progress",
+        "early_failure"
+      ]
+    ],
+    "allowed_decision": "Use weak preference pairs to select a candidate for long training with low-confidence warning.",
+    "forbidden_assumptions": [
+      "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists.",
+      "Do not treat partial_progress as success_like; only weak preference pairs are allowed."
+    ],
+    "suggested_search_mode": "escape_known_failures_and_improve_partial_progress",
+    "phase": "error_aware_memory_coverage"
+  },
+  "mutation_family": "component_recomposition",
+  "reflection_guidance": [
+    "consider rollback to elite parent if next round shows regression",
+    "ensure mutation does not eliminate the penalty structure that discourages early crashes",
+    "test candidate on fresh trajectories before full training",
+    "preserve early_approach but ensure speed_penalty remains as a deterrent for crashing"
+  ]
+}
+```
+
+Return only Python code.

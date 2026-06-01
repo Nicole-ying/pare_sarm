@@ -1,0 +1,636 @@
+# Trajectory Judge Agent Prompt
+
+## Role
+
+You are the **Trajectory Judge Agent** in ASE-MTAGE.
+
+Your job is to classify multiple trajectory evidence cards into coarse outcome labels.
+You must use only the provided evidence cards, task manifest, and environment manifest.
+You must not use the official environment reward.
+
+## Goal
+
+Given a batch of trajectory evidence cards, produce a JSON array of judgments.
+For each trajectory, output exactly:
+
+1. `trajectory_id` — the ID from the evidence card
+2. `coarse_label` — one of the allowed labels below
+3. `use_for_tage_pair` — true or false
+
+## Allowed Coarse Labels
+
+- `early_failure`: episode ends early with little useful progress.
+- `low_progress_survival`: episode lasts but shows little task progress.
+- `partial_progress`: trajectory shows real progress but does not reach stable success.
+- `success_like`: trajectory strongly matches the task goal according to observable evidence.
+- `ambiguous`: evidence is insufficient or conflicting.
+
+## Hard Rules
+
+1. If evidence conflicts, set `coarse_label="ambiguous"` and `use_for_tage_pair=false`.
+2. Do not treat long episode length alone as `success_like`.
+3. Do not treat high progress with unstable terminal state as `success_like`.
+4. Do not mark a trajectory as `success_like` if final stability evidence is missing.
+5. `use_for_tage_pair=false` only when the label is truly ambiguous — clear classifications should have `true`.
+6. Output only valid JSON.
+
+## Reward-Leakage Policy
+
+You must not use, infer, or mention the official environment reward.
+You may use observation summaries, final state evidence, state trends,
+terminated/truncated flags, and component totals from the generated candidate reward.
+If evidence is insufficient, output `ambiguous`.
+
+## Output Schema
+
+Return only a valid JSON array:
+
+```json
+[
+  {
+    "trajectory_id": "final_ep000",
+    "coarse_label": "partial_progress",
+    "use_for_tage_pair": true
+  },
+  ...
+]
+```
+
+## Example
+
+Input: 3 trajectory evidence cards (summarized)
+
+Expected output:
+
+```json
+[
+  {
+    "trajectory_id": "final_ep000",
+    "coarse_label": "partial_progress",
+    "use_for_tage_pair": true
+  },
+  {
+    "trajectory_id": "final_ep001",
+    "coarse_label": "early_failure",
+    "use_for_tage_pair": true
+  },
+  {
+    "trajectory_id": "final_ep002",
+    "coarse_label": "ambiguous",
+    "use_for_tage_pair": false
+  }
+]
+```
+
+## Now Perform The Task
+
+Input:
+
+```text
+{
+  "task_manifest": "# Task Manifest\n\n## Environment\n\n`LunarLander-v2`\n\n## Task Goal\n\nland safely on the landing pad using observable state evidence, without using the official reward\n\n## Reward Leakage Policy\n\nOfficial environment reward is not visible and must not be used.\n\n## Coarse Outcome Labels\n\n- `early_failure`\n- `low_progress_survival`\n- `partial_progress`\n- `success_like`\n- `ambiguous`\n\n## Trajectory Features To Extract\n\n- `episode_length`\n- `terminated_flag`\n- `truncated_flag`\n- `initial_x_position`\n- `initial_y_position`\n- `final_x_position`\n- `final_y_position`\n- `final_x_velocity`\n- `final_y_velocity`\n- `final_angle_abs`\n- `final_angular_velocity_abs`\n- `final_left_leg_contact`\n- `final_right_leg_contact`\n- `distance_to_landing_pad_initial`\n- `distance_to_landing_pad_final`\n- `distance_improvement`\n- `final_speed`\n- `minimum_distance_to_landing_pad`\n- `proportion_of_steps_with_both_legs_contact`\n- `smoothness_of_approach`\n\n## Labeling Cautions\n\n- Do not use or infer the official environment reward.\n- Do not treat episode length alone as success_like.\n- Do not treat high approach progress with unstable final speed, large tilt, or lack of leg contact as success_like.\n- Verify that termination is due to explicit task completion (landing safely) rather than crash or out-of-bounds.\n- Use the two leg contact booleans as primary indicators of safe landing (both legs in contact).\n- Consider final angle and angular velocity to ensure stability at landing.\n- Do not treat a landing with high horizontal velocity or significant tilt as success.\n- Label as ambiguous if termination reason is unclear (e.g., time limit reached with partial progress).\n",
+  "env_manifest": {
+    "env_name": "LunarLander-v2",
+    "task_goal": "land safely on the landing pad using observable state evidence, without using the official reward",
+    "official_reward_visible": false,
+    "observation_schema": [
+      {
+        "index": 0,
+        "name": "x_position",
+        "meaning": "horizontal position relative to the landing pad center",
+        "used_for_labeling": true
+      },
+      {
+        "index": 1,
+        "name": "y_position",
+        "meaning": "vertical position (height) relative to the landing pad",
+        "used_for_labeling": true
+      },
+      {
+        "index": 2,
+        "name": "x_velocity",
+        "meaning": "linear velocity along x-axis",
+        "used_for_labeling": true
+      },
+      {
+        "index": 3,
+        "name": "y_velocity",
+        "meaning": "linear velocity along y-axis",
+        "used_for_labeling": true
+      },
+      {
+        "index": 4,
+        "name": "angle",
+        "meaning": "angle of the lander from vertical (radians)",
+        "used_for_labeling": true
+      },
+      {
+        "index": 5,
+        "name": "angular_velocity",
+        "meaning": "angular velocity (radians/second)",
+        "used_for_labeling": true
+      },
+      {
+        "index": 6,
+        "name": "left_leg_contact",
+        "meaning": "boolean: whether the left leg is in contact with the ground",
+        "used_for_labeling": true
+      },
+      {
+        "index": 7,
+        "name": "right_leg_contact",
+        "meaning": "boolean: whether the right leg is in contact with the ground",
+        "used_for_labeling": true
+      }
+    ],
+    "action_schema": [
+      {
+        "id": 0,
+        "meaning": "do nothing"
+      },
+      {
+        "id": 1,
+        "meaning": "fire left orientation engine"
+      },
+      {
+        "id": 2,
+        "meaning": "fire main engine"
+      },
+      {
+        "id": 3,
+        "meaning": "fire right orientation engine"
+      }
+    ],
+    "termination_signals": [
+      "terminated: indicates an environment terminal event: either the lander crashed (body contact with moon), the lander exited the viewport (x coordinate > 1), or the lander entered a sleep state (no movement, no collision)",
+      "truncated: indicates a time-limit cutoff (max_episode_steps=1000) or wrapper-dependent truncation"
+    ],
+    "available_info_keys": [],
+    "trajectory_features_to_extract": [
+      "episode_length",
+      "terminated_flag",
+      "truncated_flag",
+      "initial_x_position",
+      "initial_y_position",
+      "final_x_position",
+      "final_y_position",
+      "final_x_velocity",
+      "final_y_velocity",
+      "final_angle_abs",
+      "final_angular_velocity_abs",
+      "final_left_leg_contact",
+      "final_right_leg_contact",
+      "distance_to_landing_pad_initial",
+      "distance_to_landing_pad_final",
+      "distance_improvement",
+      "final_speed",
+      "minimum_distance_to_landing_pad",
+      "proportion_of_steps_with_both_legs_contact",
+      "smoothness_of_approach"
+    ],
+    "coarse_outcome_labels": [
+      "early_failure",
+      "low_progress_survival",
+      "partial_progress",
+      "success_like",
+      "ambiguous"
+    ],
+    "labeling_cautions": [
+      "Do not use or infer the official environment reward.",
+      "Do not treat episode length alone as success_like.",
+      "Do not treat high approach progress with unstable final speed, large tilt, or lack of leg contact as success_like.",
+      "Verify that termination is due to explicit task completion (landing safely) rather than crash or out-of-bounds.",
+      "Use the two leg contact booleans as primary indicators of safe landing (both legs in contact).",
+      "Consider final angle and angular velocity to ensure stability at landing.",
+      "Do not treat a landing with high horizontal velocity or significant tilt as success.",
+      "Label as ambiguous if termination reason is unclear (e.g., time limit reached with partial progress)."
+    ],
+    "unknowns": [],
+    "llm_used": true
+  },
+  "cards": [
+    {
+      "trajectory_id": "final_ep030",
+      "source_round": 7,
+      "source_reward_id": "round7_candidate2_progress_conditioned",
+      "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep030.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep030_components.json",
+      "episode": {
+        "length": 54,
+        "max_episode_steps": 1000,
+        "terminated": true,
+        "truncated": false
+      },
+      "features": {
+        "initial_distance_to_target": 1.4004529069290625,
+        "min_distance_to_target": 0.2644908585302426,
+        "final_distance_to_target": 0.27371426163137014,
+        "distance_improvement": 1.1267386452976924,
+        "final_speed": 0.01302444185294458,
+        "final_vertical_speed_abs": 0.000494860578328371,
+        "final_horizontal_speed_abs": 0.013015037402510643,
+        "final_angle_abs": 0.056750956922769547,
+        "contact_ratio_last20": 0.1,
+        "progress_improvement": 1.1267386452976924
+      },
+      "reward_component_totals": {
+        "far_approach": 2.6938327064097347,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -66.11101658921689,
+        "near_stability": 1.8594782901927829,
+        "proximity_bonus": 8.540741868573175,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": 0.0
+      },
+      "candidate_return": -32.01696372404122,
+      "env_return_recorded_for_debug_only": -93.13051926079721,
+      "coarse_label": null,
+      "use_for_tage_pair": null,
+      "allowed_preference_role": null
+    },
+    {
+      "trajectory_id": "final_ep031",
+      "source_round": 7,
+      "source_reward_id": "round7_candidate2_progress_conditioned",
+      "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep031.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep031_components.json",
+      "episode": {
+        "length": 89,
+        "max_episode_steps": 1000,
+        "terminated": true,
+        "truncated": false
+      },
+      "features": {
+        "initial_distance_to_target": 1.4208447816566636,
+        "min_distance_to_target": 0.35106574102981714,
+        "final_distance_to_target": 0.3731910493818952,
+        "distance_improvement": 1.0476537322747683,
+        "final_speed": 1.373730768286215,
+        "final_vertical_speed_abs": 0.9100075960159302,
+        "final_horizontal_speed_abs": 1.0290881395339966,
+        "final_angle_abs": 0.004290908575057983,
+        "contact_ratio_last20": 0.1,
+        "progress_improvement": 1.0476537322747683
+      },
+      "reward_component_totals": {
+        "far_approach": 2.930104675807927,
+        "far_regress_penalty": 0.3961477955054349,
+        "far_quality_penalty": -85.82355076866224,
+        "near_stability": 0.0,
+        "proximity_bonus": 5.367354318160093,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -17.0
+      },
+      "candidate_return": -99.12994397918877,
+      "env_return_recorded_for_debug_only": -132.32240328336135,
+      "coarse_label": null,
+      "use_for_tage_pair": null,
+      "allowed_preference_role": null
+    },
+    {
+      "trajectory_id": "final_ep032",
+      "source_round": 7,
+      "source_reward_id": "round7_candidate2_progress_conditioned",
+      "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep032.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep032_components.json",
+      "episode": {
+        "length": 86,
+        "max_episode_steps": 1000,
+        "terminated": true,
+        "truncated": false
+      },
+      "features": {
+        "initial_distance_to_target": 1.4193628014907576,
+        "min_distance_to_target": 0.5956311373954172,
+        "final_distance_to_target": 0.6283632163051119,
+        "distance_improvement": 0.7909995851856456,
+        "final_speed": 0.8044389892461905,
+        "final_vertical_speed_abs": 0.03648550435900688,
+        "final_horizontal_speed_abs": 0.803611159324646,
+        "final_angle_abs": 0.11077898740768433,
+        "contact_ratio_last20": 0.2,
+        "progress_improvement": 0.7909995851856456
+      },
+      "reward_component_totals": {
+        "far_approach": 2.6490863537558322,
+        "far_regress_penalty": 0.46014599699815917,
+        "far_quality_penalty": -139.61858844169183,
+        "near_stability": 0.0,
+        "proximity_bonus": 0.0,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -21.0
+      },
+      "candidate_return": -157.5093560909378,
+      "env_return_recorded_for_debug_only": -128.81623435164548,
+      "coarse_label": null,
+      "use_for_tage_pair": null,
+      "allowed_preference_role": null
+    },
+    {
+      "trajectory_id": "final_ep033",
+      "source_round": 7,
+      "source_reward_id": "round7_candidate2_progress_conditioned",
+      "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep033.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep033_components.json",
+      "episode": {
+        "length": 69,
+        "max_episode_steps": 1000,
+        "terminated": true,
+        "truncated": false
+      },
+      "features": {
+        "initial_distance_to_target": 1.4106884401449942,
+        "min_distance_to_target": 0.23707465277909368,
+        "final_distance_to_target": 0.24477500757354947,
+        "distance_improvement": 1.1659134325714446,
+        "final_speed": 1.002440167323649,
+        "final_vertical_speed_abs": 0.862790048122406,
+        "final_horizontal_speed_abs": 0.5103720426559448,
+        "final_angle_abs": 0.020882613956928253,
+        "contact_ratio_last20": 0.1,
+        "progress_improvement": 1.1659134325714446
+      },
+      "reward_component_totals": {
+        "far_approach": 2.6892163344775852,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -62.469651767780306,
+        "near_stability": 0.0,
+        "proximity_bonus": 9.743017998949158,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -8.0
+      },
+      "candidate_return": -63.037417434353536,
+      "env_return_recorded_for_debug_only": -132.24135253127073,
+      "coarse_label": null,
+      "use_for_tage_pair": null,
+      "allowed_preference_role": null
+    },
+    {
+      "trajectory_id": "final_ep034",
+      "source_round": 7,
+      "source_reward_id": "round7_candidate2_progress_conditioned",
+      "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep034.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep034_components.json",
+      "episode": {
+        "length": 74,
+        "max_episode_steps": 1000,
+        "terminated": true,
+        "truncated": false
+      },
+      "features": {
+        "initial_distance_to_target": 1.4131854257032015,
+        "min_distance_to_target": 0.08850695385092244,
+        "final_distance_to_target": 0.09965007831128767,
+        "distance_improvement": 1.3135353473919138,
+        "final_speed": 6.56248592756952e-08,
+        "final_vertical_speed_abs": 4.311884893581919e-08,
+        "final_horizontal_speed_abs": 4.947107257180505e-08,
+        "final_angle_abs": 0.0003064248594455421,
+        "contact_ratio_last20": 0.1,
+        "progress_improvement": 1.3135353473919138
+      },
+      "reward_component_totals": {
+        "far_approach": 2.6780827428784946,
+        "far_regress_penalty": 0.01634679258261107,
+        "far_quality_penalty": -49.5073806848377,
+        "near_stability": 1.999386965101266,
+        "proximity_bonus": 15.908268908606098,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -10.0
+      },
+      "candidate_return": -40.90529527566922,
+      "env_return_recorded_for_debug_only": -116.7960112914291,
+      "coarse_label": null,
+      "use_for_tage_pair": null,
+      "allowed_preference_role": null
+    },
+    {
+      "trajectory_id": "final_ep035",
+      "source_round": 7,
+      "source_reward_id": "round7_candidate2_progress_conditioned",
+      "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep035.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep035_components.json",
+      "episode": {
+        "length": 70,
+        "max_episode_steps": 1000,
+        "terminated": true,
+        "truncated": false
+      },
+      "features": {
+        "initial_distance_to_target": 1.4112453091642596,
+        "min_distance_to_target": 0.11880870354165178,
+        "final_distance_to_target": 0.12610505773814232,
+        "distance_improvement": 1.2851402514261172,
+        "final_speed": 0.046220574527979154,
+        "final_vertical_speed_abs": 4.839860956451503e-09,
+        "final_horizontal_speed_abs": 0.0462205745279789,
+        "final_angle_abs": 0.0002783188538160175,
+        "contact_ratio_last20": 0.1,
+        "progress_improvement": 1.2851402514261172
+      },
+      "reward_component_totals": {
+        "far_approach": 2.6885154325933907,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -51.2251507450128,
+        "near_stability": 1.9070022035566883,
+        "proximity_bonus": 14.0687739999368,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -8.5
+      },
+      "candidate_return": -20.06085910892594,
+      "env_return_recorded_for_debug_only": -122.88682103780329,
+      "coarse_label": null,
+      "use_for_tage_pair": null,
+      "allowed_preference_role": null
+    },
+    {
+      "trajectory_id": "final_ep036",
+      "source_round": 7,
+      "source_reward_id": "round7_candidate2_progress_conditioned",
+      "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep036.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep036_components.json",
+      "episode": {
+        "length": 52,
+        "max_episode_steps": 1000,
+        "terminated": true,
+        "truncated": false
+      },
+      "features": {
+        "initial_distance_to_target": 1.4004472709334936,
+        "min_distance_to_target": 0.3522691305971706,
+        "final_distance_to_target": 0.3522691305971706,
+        "distance_improvement": 1.048178140336323,
+        "final_speed": 0.8654262426845447,
+        "final_vertical_speed_abs": 0.8249955773353577,
+        "final_horizontal_speed_abs": 0.2614285349845886,
+        "final_angle_abs": 0.03846257925033569,
+        "contact_ratio_last20": 0.1,
+        "progress_improvement": 1.048178140336323
+      },
+      "reward_component_totals": {
+        "far_approach": 2.6702859928795712,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -76.1487004570663,
+        "near_stability": 0.0,
+        "proximity_bonus": 3.974625269165894,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": 0.0
+      },
+      "candidate_return": -74.50378919502084,
+      "env_return_recorded_for_debug_only": -97.71008179565389,
+      "coarse_label": null,
+      "use_for_tage_pair": null,
+      "allowed_preference_role": null
+    },
+    {
+      "trajectory_id": "final_ep037",
+      "source_round": 7,
+      "source_reward_id": "round7_candidate2_progress_conditioned",
+      "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep037.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep037_components.json",
+      "episode": {
+        "length": 65,
+        "max_episode_steps": 1000,
+        "terminated": true,
+        "truncated": false
+      },
+      "features": {
+        "initial_distance_to_target": 1.4079473849460273,
+        "min_distance_to_target": 0.04932910296562567,
+        "final_distance_to_target": 0.06512737742515544,
+        "distance_improvement": 1.3428200075208718,
+        "final_speed": 9.879745831501305e-06,
+        "final_vertical_speed_abs": 2.7610804309574632e-08,
+        "final_horizontal_speed_abs": 9.879707249638159e-06,
+        "final_angle_abs": 0.00027069414500147104,
+        "contact_ratio_last20": 0.1,
+        "progress_improvement": 1.3428200075208718
+      },
+      "reward_component_totals": {
+        "far_approach": 2.636301881636294,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -43.85490119957831,
+        "near_stability": 1.9994387970738892,
+        "proximity_bonus": 16.471360191617066,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -5.5
+      },
+      "candidate_return": -7.24780032925106,
+      "env_return_recorded_for_debug_only": -118.31158920688821,
+      "coarse_label": null,
+      "use_for_tage_pair": null,
+      "allowed_preference_role": null
+    },
+    {
+      "trajectory_id": "final_ep038",
+      "source_round": 7,
+      "source_reward_id": "round7_candidate2_progress_conditioned",
+      "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep038.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep038_components.json",
+      "episode": {
+        "length": 87,
+        "max_episode_steps": 1000,
+        "terminated": true,
+        "truncated": false
+      },
+      "features": {
+        "initial_distance_to_target": 1.4204683169951389,
+        "min_distance_to_target": 0.0647733077439094,
+        "final_distance_to_target": 0.07789667233776287,
+        "distance_improvement": 1.3425716446573759,
+        "final_speed": 1.2182441383684088,
+        "final_vertical_speed_abs": 1.2041282653808594,
+        "final_horizontal_speed_abs": 0.1849159300327301,
+        "final_angle_abs": 0.002390550449490547,
+        "contact_ratio_last20": 0.1,
+        "progress_improvement": 1.3425716446573759
+      },
+      "reward_component_totals": {
+        "far_approach": 2.974118109542538,
+        "far_regress_penalty": 0.358039912137893,
+        "far_quality_penalty": -54.79476561082993,
+        "near_stability": 0.0,
+        "proximity_bonus": 14.582867786213104,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -16.0
+      },
+      "candidate_return": -54.87973980293635,
+      "env_return_recorded_for_debug_only": -103.12032968120523,
+      "coarse_label": null,
+      "use_for_tage_pair": null,
+      "allowed_preference_role": null
+    },
+    {
+      "trajectory_id": "final_ep039",
+      "source_round": 7,
+      "source_reward_id": "round7_candidate2_progress_conditioned",
+      "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep039.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep039_components.json",
+      "episode": {
+        "length": 79,
+        "max_episode_steps": 1000,
+        "terminated": true,
+        "truncated": false
+      },
+      "features": {
+        "initial_distance_to_target": 1.4161726166206643,
+        "min_distance_to_target": 0.04750541400654707,
+        "final_distance_to_target": 0.061706725572769856,
+        "distance_improvement": 1.3544658910478944,
+        "final_speed": 1.2691370034560736e-06,
+        "final_vertical_speed_abs": 1.3137722021383524e-08,
+        "final_horizontal_speed_abs": 1.2690690027739038e-06,
+        "final_angle_abs": 0.00010223238496109843,
+        "contact_ratio_last20": 0.1,
+        "progress_improvement": 1.3544658910478944
+      },
+      "reward_component_totals": {
+        "far_approach": 2.792030443422291,
+        "far_regress_penalty": 0.10302797355023263,
+        "far_quality_penalty": -47.259886559448205,
+        "near_stability": 1.9997929708166282,
+        "proximity_bonus": 16.14386180228735,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -12.5
+      },
+      "candidate_return": -17.7211733693717,
+      "env_return_recorded_for_debug_only": -108.01012848105489,
+      "coarse_label": null,
+      "use_for_tage_pair": null,
+      "allowed_preference_role": null
+    }
+  ]
+}
+```
+
+Return only valid JSON array.

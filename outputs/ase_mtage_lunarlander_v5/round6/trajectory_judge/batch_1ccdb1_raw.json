@@ -1,0 +1,32 @@
+{
+  "id": "9f36e07a-6f05-493a-8a73-42ec406ea71e",
+  "object": "chat.completion",
+  "created": 1780294464,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep000\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep001\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep002\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep003\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep004\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep005\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep006\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep007\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep008\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep009\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards, all from the same candidate reward. The task is to classify each trajectory into a coarse label from the allowed set: early_failure, low_progress_survival, partial_progress, success_like, ambiguous.\n\nWe must use only the provided evidence, not the official reward. The task manifest gives criteria for success_like: both legs contact, near-zero velocities, small angle, within landing pad area. Also, cautions: long episode length alone not success, high progress with unstable final speed not success, final leg contact not sufficient without low speed, etc.\n\nLet's examine each trajectory's features. All trajectories have episode length 1000, truncated (timeout), terminated false. So they all ended by timeout, not by landing or crashing.\n\nFeatures include: final distance to target (~0.6), final speed (vertical and horizontal), angle, angular velocity, leg contact ratio last 20% is 0.0 for all. So no leg contact at all in the final segment. This is critical: success_like requires both legs contact. None have leg contact. So none can be success_like. Also, they are all truncated (timeout), so they didn't achieve landing.\n\nNow, progress improvement: around 0.8, meaning they approached the pad to about 0.6 distance from initial ~1.4. That is significant progress. So they are not early failure (episode didn't end early). They are not low_progress_survival because they show significant distance improvement. So they are partial_progress: they made real progress but did not achieve stable success.\n\nBut we need to check if any are ambiguous. No evidence conflicts. All features are consistent: they all have progress, no leg contact, timeout. So they are all partial_progress.\n\nThe use_for_tage_pair should be true because they are clearly partial_progress, not ambiguous.\n\nThus, for each trajectory: coarse_label = \"partial_progress\", use_for_tage_pair = true.\n\nNow output as JSON array.\n\nAlso, note: final_ep000 has distance improvement 0.798, final distance 0.608, no leg contact. So partial_progress.\n\nProceed to output."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7735,
+    "completion_tokens": 843,
+    "total_tokens": 8578,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 460
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5687
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

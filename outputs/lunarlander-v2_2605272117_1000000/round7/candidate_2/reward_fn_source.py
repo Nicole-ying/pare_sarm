@@ -1,0 +1,64 @@
+"""Proxy reward candidate."""
+
+import math
+import numpy as np
+
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Unpack observation
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = state[4]
+    angular_vel = state[5]
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # Normalization constants (max squared values)
+    MAX_DIST_SQ = 4.5          # (1.5^2 + 1.5^2)
+    MAX_ANGLE_SQ = math.pi ** 2
+    MAX_VEL_SQ = 50.0          # (5^2 + 5^2)
+    MAX_ANGVEL_SQ = 25.0       # 5^2
+
+    # Compute normalized error terms (each in [0,1])
+    dist_err = (x*x + y*y) / MAX_DIST_SQ
+    angle_err = (angle*angle) / MAX_ANGLE_SQ
+    vel_err = (vx*vx + vy*vy) / MAX_VEL_SQ
+    angvel_err = (angular_vel*angular_vel) / MAX_ANGVEL_SQ
+
+    # Overall normalised error [0,1] (average of four terms)
+    error = (dist_err + angle_err + vel_err + angvel_err) / 4.0
+
+    # Per-step reward
+    alive_offset = 0.1
+    error_penalty = -0.5 * error
+    leg_bonus = 0.05 * (left_leg + right_leg)
+    per_step = alive_offset + error_penalty + leg_bonus
+
+    # Terminal bonus
+    if terminated:
+        success = (
+            left_leg == 1.0 and right_leg == 1.0 and
+            abs(x) < 0.3 and abs(angle) < 0.2 and
+            abs(vx) < 0.5 and abs(vy) < 0.5
+        )
+        terminal_bonus = 100.0 if success else -100.0
+        outcome_val = 1.0 if success else -1.0
+    else:
+        terminal_bonus = 0.0
+        outcome_val = 0.0
+
+    # Total reward
+    total = per_step + terminal_bonus
+
+    # Component dictionary
+    components = {
+        "error_penalty": error_penalty,
+        "leg_bonus": leg_bonus,
+        "constant_offset": alive_offset,
+        "terminal_bonus": terminal_bonus,
+        "_outcome": outcome_val,
+    }
+
+    return float(total), components

@@ -1,0 +1,32 @@
+{
+  "id": "50cb7c06-931f-40c6-a369-4de4112bc78b",
+  "object": "chat.completion",
+  "created": 1780237658,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "```python\nimport math\n\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except Exception:\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    # Extract current and next state features from the observation array.\n    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0\n    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0\n    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0\n    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0\n    vx1 = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0\n    vy1 = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0\n    angle1 = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0\n    angvel1 = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0\n    left_leg1 = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0\n    right_leg1 = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0\n\n    # Distance to the landing pad (origin).\n    prev_dist = math.sqrt(x0 * x0 + y0 * y0)\n    next_dist = math.sqrt(x1 * x1 + y1 * y1)\n    progress_delta = prev_dist - next_dist  # positive = moving closer\n\n    # Stage definition: near when distance < 0.35.\n    near_threshold = 0.35\n    far_stage = 1.0 if next_dist >= near_threshold else 0.0\n    near_stage = 1.0 - far_stage\n\n    # ---- Early stage: reward approach/progress ----\n    approach_progress = far_stage * progress_delta\n\n    # ---- Late stage: reward stability and precision (relaxed penalties) ----\n    # Reduced coefficients from parent: speed 2.0 -> 1.0, angle 5.0 -> 2.0, angvel 1.0 -> 0.5\n    speed_penalty = -(abs(vx1) + abs(vy1)) * 1.0\n    angle_penalty = -abs(angle1) * 2.0\n    angvel_penalty = -abs(angvel1) * 0.5\n    leg_bonus = 5.0 if (left_leg1 > 0.5 and right_leg1 > 0.5) else 0.0\n    stability_near = near_stage * (speed_penalty + angle_penalty + angvel_penalty + leg_bonus)\n\n    # ---- Terminal event handling (restructured) ----\n    terminal_penalty = 0.0\n    terminal_bonus = 0.0\n    if terminated:\n        # Only clear crashes: high vertical speed (>1.0), large tilt (>0.5 rad), or no leg contact.\n        crash = (\n            abs(vy1) > 1.0 or\n            abs(angle1) > 0.5 or\n            not (left_leg1 > 0.5 and right_leg1 > 0.5)\n        )\n        if crash:\n            terminal_penalty = -10.0\n        else:\n            # Safe landing: moderate speeds, moderate angle, both legs in contact.\n            # Relaxed conditions from parent: vy < 0.3, vx < 0.3, angle < 0.3.\n            safe = (\n                left_leg1 > 0.5 and right_leg1 > 0.5 and\n                abs(vy1) < 0.3 and abs(vx1) < 0.3 and\n                abs(angle1) < 0.3\n            )\n            if safe:\n                terminal_bonus = 10.0  # reduced from 15 to avoid over-reward\n            # else ambiguous termination – no bonus/penalty.\n\n    # ---- Low-progress timeout ----\n    low_progress_timeout = -0.5 if truncated and next_dist >= near_threshold else 0.0\n\n    components = {\n        \"approach_progress\": approach_progress,\n        \"stability_near\": stability_near,\n        \"terminal_penalty\": terminal_penalty,\n        \"terminal_bonus\": terminal_bonus,\n        \"low_progress_timeout\": low_progress_timeout,\n    }\n    total_reward = (\n        4.0 * approach_progress\n        + 1.0 * stability_near\n        + terminal_penalty\n        + terminal_bonus\n        + low_progress_timeout\n    )\n    return float(total_reward), components\n```",
+        "reasoning_content": "We need to generate a progress-conditioned reward function for LunarLander-v2, based on the given inputs. The parent code is provided, and the Analyzer suggests restructuring terminal_bonus and terminal_penalty, reducing stability penalties, and preserving approach_progress and low_progress_timeout. The mutation family is progress_conditioned, meaning we need stage gates and different reward logic for early vs late stages.\n\nWe'll keep the stage gating (far vs near) but adjust coefficients and conditions according to the suggestions. Specifically:\n- Terminal bonus: make it achievable with moderate speeds and both legs contact. The parent required very low speeds (<0.1) and small angle (<0.1). We'll relax to maybe abs(vy) < 0.3, abs(vx) < 0.3, angle < 0.3, and both legs contact.\n- Terminal penalty: only penalize clear crashes: high vertical speed > 1.0, large tilt > 0.5, or both legs not in contact? Actually need to be careful: crash heuristic should be high vertical speed or large tilt or no leg contact. But parent also penalized if high horizontal speed. We'll follow suggestion: only if vy > 1.0 or angle > 0.5 or no leg contact.\n- Stability near: reduce speed penalty coefficient from 2.0 to maybe 1.0, angle penalty from 5.0 to 2.0, angvel penalty from 1.0 to 0.5. Keep leg bonus at 5.0.\n- Approach progress: keep as is (4.0 coefficient).\n- Low progress timeout: keep as is.\n\nAlso, we need to ensure that early-stage and late-stage rewards are different. Already done via far_stage and near_stage.\n\nWe'll include safe_float helper.\n\nOutput only Python code."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 5818,
+    "completion_tokens": 1550,
+    "total_tokens": 7368,
+    "prompt_tokens_details": {
+      "cached_tokens": 5760
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 388
+    },
+    "prompt_cache_hit_tokens": 5760,
+    "prompt_cache_miss_tokens": 58
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

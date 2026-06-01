@@ -1,0 +1,34 @@
+{
+  "round": 2,
+  "parent_reward_id": "round1_candidate1_component_recomposition",
+  "selected_candidate_id": "round2_candidate0_component_recomposition",
+  "mutation_family": "component_recomposition",
+  "observed_outcome": {
+    "coarse_result": "all_partial_progress",
+    "main_failure_remaining": "no_success_like_trajectories",
+    "main_success_signal": "all 50 training trajectories became partial_progress; training return improved from -3.58 to -0.31"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "Previous component_recomposition reduced partial_progress from 23 to 1, possibly due to over-restrictive near_stage_stability component.",
+    "repair_attempt": "Further component_recomposition aiming to strengthen near_stage_stability while preserving partial_progress and avoiding survival hacking.",
+    "outcome_after": "Partial_progress count recovered to 50; no success-like trajectories yet."
+  },
+  "lesson": "Strengthening near_terminal stability through component_recomposition can fully recover partial_progress, but converting partial_progress into success requires additional mechanisms beyond current formulation.",
+  "future_guidance": [
+    "preserve current ability to generate partial_progress trajectories",
+    "target success-like behavior by introducing explicit success conditions or terminal rewards",
+    "avoid over-restrictive stability that reduces partial_progress",
+    "do not construct success preference pairs yet; margin still insufficient"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round2_candidate0_component_recomposition",
+    "reason": "Selected candidate achieved all partial_progress trajectories and best training return so far; used as next parent."
+  },
+  "uncertainties": [
+    "No success-like trajectories exist, so success-level preferences cannot be constructed.",
+    "The jump from 1 to 50 partial_progress may be influenced by training seed or environment variability.",
+    "Label-margin between partial_progress and low_progress_survival is still weak; progress preference construction remains invalid."
+  ]
+}

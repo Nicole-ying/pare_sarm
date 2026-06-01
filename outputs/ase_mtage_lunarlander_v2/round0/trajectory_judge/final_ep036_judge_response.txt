@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep036",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.1829 (significant approach progress)",
+    "final_speed=1.0259 (too high for stable landing)",
+    "contact_ratio_last20=0.1 (low leg contact in final steps)",
+    "no landing_bonus or crash_penalty in reward components",
+    "final_distance_to_target=0.219 (near pad but not landed stably)"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

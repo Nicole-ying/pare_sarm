@@ -1,0 +1,37 @@
+{
+  "candidate_id": "round1_candidate2_local_repair",
+  "round": 1,
+  "mutation_family": "local_repair",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like"
+    ],
+    "required_changes": [
+      "restructure stability_penalty into a positive stability reward that increases when near pad and velocities/angles are low",
+      "gate stability reward to gradually apply as progress increases",
+      "preserve approach_progress as the core progress signal",
+      "add a gentle terminal stability bonus that is easier to achieve than the strict safe_landing_bonus"
+    ],
+    "preserve_components": [
+      "approach_progress"
+    ],
+    "remove_or_gate_components": [
+      "stability_penalty"
+    ]
+  },
+  "coverage_type_used": "failure_plus_partial_progress",
+  "intended_fix": [
+    "make a conservative reward with clear components",
+    "use analyzer context to gate known failure patterns"
+  ],
+  "expected_effect": "Provide a simple, interpretable baseline candidate that reacts to known failures.",
+  "risk": "May be too weak for difficult tasks.",
+  "official_reward_used": false
+}

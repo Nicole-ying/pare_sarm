@@ -1,0 +1,36 @@
+{
+  "round": 1,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "selected_candidate_id": "round1_candidate1_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "early_failure",
+    "main_success_signal": "no_success_like_trajectories"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "parent reward had components misaligned: approach_progress slightly favored early_failure, stability_near heavily penalized partial_progress trajectories near pad, terminal_penalty penalized non-crash partial_progress, terminal_bonus rarely achievable",
+    "repair_attempt": "restructured terminal and near components: replaced stability_near with near_stability and far_quality, adjusted terminal_penalty and terminal_bonus",
+    "outcome_after": "partial_progress still dominates but early_failure remains; no success-like trajectories generated; terminal handling still not clearly separating crash from safe landing"
+  },
+  "lesson": "Terminal and near-stage components must be restructured to clearly separate crash (high penalty) from safe landing (achievable bonus) and to avoid penalizing partial_progress trajectories that approach the pad. Progress conditioning remains valuable but must be recalibrated to ensure it favors higher-quality trajectories over failures.",
+  "future_guidance": [
+    "restructure terminal handling to have a clear crash penalty and an achievable success bonus with moderate speed and both legs contact",
+    "replace or soften near-stage penalties to avoid discouraging near-pad behavior",
+    "ensure approach_progress (or reworked progress component) correctly favors higher-quality trajectories over early_failure",
+    "do not add global survival bonus without progress gating",
+    "construct preference pairs only when label margins are sufficient"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round1_candidate1_progress_conditioned",
+    "reason": "Selected candidate improved training return and is added to elite archive; no rollback triggered as conditions not met."
+  },
+  "uncertainties": [
+    "Label margin insufficient (progress_gap negative, stability_gap negative) so partial_progress cannot be considered reliably better than early_failure",
+    "Only 5 early_failure trajectories, making statistics unreliable",
+    "No success-like trajectories exist, so success-level preferences cannot be constructed",
+    "Memory too small for strong preference pair construction"
+  ]
+}

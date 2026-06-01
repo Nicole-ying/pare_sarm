@@ -1,0 +1,32 @@
+{
+  "id": "ceeaef26-6a52-43b4-8b74-877e3fb47ca1",
+  "object": "chat.completion",
+  "created": 1780296313,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep030\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep031\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep032\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep033\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep034\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep035\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep036\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep037\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep038\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep039\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards for the LunarLander-v2 task. Each card has features and episode info. The task goal is to land safely on the landing pad. The observations include x, y position, velocities, angle, angular velocity, and leg contacts. The labeling cautions emphasize that success_like requires both legs in contact, near-zero velocities, small angle, and within landing pad area. Also, long episode length alone is not success_like, and high approach progress with unstable final speed is not success_like.\n\nAll trajectories have length 1000, truncated (not terminated). They all have high distance improvement (0.89-0.91) and low final speeds (0.01-0.07), but crucially, all have contact_ratio_last20 = 0.0, meaning no leg contact in the last 20% of steps. Also, the component totals show no leg_contact_bonus, no safe_landing_bonus, and no intermediate_safe_bonus. The final distances are around 0.5, which is not extremely close to the pad (the pad is at center, distance to pad is Euclidean distance from lander to (0,0)? Typically in LunarLander, the landing pad is at the center, and the goal is to land with legs on the pad. A distance of 0.5 means the lander is still somewhat away. Also, final_speed is low (0.01-0.07), but without leg contact, it's not a landing. The lander is hovering or floating near the pad but not touching.\n\nGiven these observations:\n- The trajectories are not early failures because they survive the full episode.\n- They show substantial progress (distance improvement ~0.9) but do not achieve a safe landing.\n- They are not success_like because there is no leg contact, and the final state does not indicate a stable landing (no leg contact, and lander is still in the air? The final distance is about 0.5, so the lander is above the pad but not on it. The low speeds suggest it might be hovering, but without leg contact, it's not landed).\n- They are not low_progress_survival because they made significant progress. So partial_progress seems appropriate.\n\nCheck specific trajectories: ep030 has contact_ratio_last20=0, final_distance=0.5017, final_speed=0.037. No leg contact. So partial_progress.\nep031 similar.\nAll have contact_ratio_last20=0. So none have leg contact. Thus none can be success_like. They all show significant progress towards the pad but failed to land (no leg contact, and episode truncated). So I'll label all as partial_progress, use_for_tage_pair=true, except maybe if there is some ambiguity? The evidence is clear: no leg contact means not landed. So all are partial_progress.\n\nAlso check for conflicting evidence: none.\n\nThus output array of 10 objects.\n\nOne more thought: The episode length is max (1000), and they are truncated. That suggests they didn't crash (terminated false) but time ran out. That is consistent with hover near pad without landing. So partial_progress.\n\nThus final."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7705,
+    "completion_tokens": 1062,
+    "total_tokens": 8767,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 679
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5657
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

@@ -1,0 +1,32 @@
+{
+  "id": "edad9132-5ea5-4991-a91e-189f558f06d9",
+  "object": "chat.completion",
+  "created": 1780247348,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "import math\n\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except Exception:\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    # Extract observations\n    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0\n    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0\n    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0\n    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0\n    vx1 = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0\n    vy1 = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0\n    angle1 = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0\n    angvel1 = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0\n    left_leg1 = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0\n    right_leg1 = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0\n\n    # Distances\n    prev_dist = math.sqrt(x0 * x0 + y0 * y0)\n    next_dist = math.sqrt(x1 * x1 + y1 * y1)\n    progress_delta = prev_dist - next_dist  # positive = moving closer\n\n    # Stage thresholds\n    near_threshold = 0.4\n    far_stage = 1.0 if next_dist >= near_threshold else 0.0\n    near_stage = 1.0 - far_stage\n\n    # ---------- Progress terms ----------\n    # Restructured approach_progress: penalize early failure by subtracting a\n    # term that grows with speed/angle when progress is small.\n    # Base progress reward, scaled.\n    raw_progress = far_stage * progress_delta\n    # Penalty if progress is low AND craft is unstable: high speed or tilt.\n    instability_penalty = 0.0\n    if far_stage > 0.5:\n        # Instability measure: sum of absolute velocities and angle.\n        instability = abs(vx1) + abs(vy1) + abs(angle1)\n        # If progress is below threshold, apply a negative penalty proportional to instability.\n        if progress_delta < 0.0:\n            # Going away – penalize harder.\n            instability_penalty = -0.5 * instability\n        elif progress_delta < 0.01:\n            # Very little progress – still penalize instability.\n            instability_penalty = -0.3 * instability\n    # Combine: progress bonus minus instability penalty.\n    approach_progress = 3.0 * raw_progress + instability_penalty\n\n    # ---------- Proximity / safety terms (near stage) ----------\n    # Proximity bonus: fraction of how close to pad (max 1).\n    proximity_bonus = near_stage * max(0.0, 1.0 - next_dist / near_threshold) * 2.0\n\n    # Stability: low speed and small angle.\n    speed_mag = abs(vx1) + abs(vy1)\n    angle_mag = abs(angle1)\n    stability_score = max(0.0, 1.0 - speed_mag - angle_mag)\n    near_stability = near_stage * stability_score * 1.5\n\n    # Leg contact bonus only when very close and stable.\n    both_legs = (left_leg1 > 0.5 and right_leg1 > 0.5)\n    leg_bonus = 0.0\n    if near_stage > 0.5 and both_legs:\n        leg_bonus = 3.0\n\n    # ---------- Terminal bonuses / penalties ----------\n    crash_penalty = 0.0\n    safe_landing_bonus = 0.0\n    if terminated:\n        # Determine if it's a safe landing.\n        # Stringent conditions: both legs, very low speeds, small angle.\n        safe = (\n            both_legs and\n            abs(vy1) < 0.4 and\n            abs(vx1) < 0.4 and\n            abs(angle1) < 0.2\n        )\n        if safe:\n            safe_landing_bonus = 20.0\n        else:\n            # Anything else is a crash or dangerous landing.\n            crash_penalty = -15.0\n\n    # ---------- Penalty for low-progress timeout ----------\n    low_progress_timeout = -0.5 if truncated and next_dist > 0.5 else 0.0\n\n    # ---------- Assemble components and total reward ----------\n    components = {\n        \"approach_progress\": approach_progress,\n        \"proximity_bonus\": proximity_bonus,\n        \"near_stability\": near_stability,\n        \"leg_bonus\": leg_bonus,\n        \"crash_penalty\": crash_penalty,\n        \"safe_landing_bonus\": safe_landing_bonus,\n        \"low_progress_timeout\": low_progress_timeout,\n    }\n    total_reward = (\n        approach_progress\n        + proximity_bonus\n        + near_stability\n        + leg_bonus\n        + crash_penalty\n        + safe_landing_bonus\n        + low_progress_timeout\n    )\n    return float(total_reward), components",
+        "reasoning_content": "We need to generate a component recomposition mutation for the LunarLander task. The parent reward code is provided. We need to restructure approach_progress to penalize early failures more, replace terminal_reward with separate crash_penalty and safe_landing_bonus, and preserve other components. Use clear categories: progress, stability/safety, terminal bonuses/penalties, and penalties.\n\nWe'll follow the reflection guidance and analyzer's required changes. Approach_progress should be restructured to have a negative bias when progress is small or when speed/angle are large. For terminal events, we'll have: crash_penalty (strong negative) for unsafe terminations, and safe_landing_bonus (high positive) for safe landings with stringent conditions.\n\nWe'll also ensure we don't use the official reward, don't add global survival bonus, and don't only scale coefficients.\n\nWe'll implement a helper for safe float, and compute components as described. Use math.\n\nLet's write the code."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 6361,
+    "completion_tokens": 1525,
+    "total_tokens": 7886,
+    "prompt_tokens_details": {
+      "cached_tokens": 4352
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 209
+    },
+    "prompt_cache_hit_tokens": 4352,
+    "prompt_cache_miss_tokens": 2009
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

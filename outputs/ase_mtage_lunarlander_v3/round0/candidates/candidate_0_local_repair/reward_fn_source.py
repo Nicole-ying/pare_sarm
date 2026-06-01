@@ -1,0 +1,80 @@
+import math
+
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except (ValueError, TypeError, IndexError):
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    # Extract current and next state components
+    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0
+    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0
+    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0
+    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0
+    vx1 = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0
+    vy1 = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0
+    angle1 = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0
+    angular_vel1 = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0
+    left_leg = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0
+    right_leg = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0
+
+    # Distance to landing pad (pad at (0, ground), ground is approx y=0 in viewport, but y increases upward; pad is near y=0)
+    prev_distance = math.sqrt(x0 * x0 + y0 * y0)
+    next_distance = math.sqrt(x1 * x1 + y1 * y1)
+
+    # Progress reward: reward for reducing distance (capped to prevent infinite bonuses)
+    progress_delta = prev_distance - next_distance
+    # Scale progress to keep magnitude reasonable (multiply by a moderate factor)
+    approach_reward = 0.5 * progress_delta
+
+    # Velocity penalty: penalize high absolute velocities, especially vertical
+    speed = math.sqrt(vx1 * vx1 + vy1 * vy1)
+    velocity_penalty = -0.1 * speed
+
+    # Angle penalty: penalize large deviation from upright
+    angle_penalty = -0.2 * abs(angle1) - 0.05 * abs(angular_vel1)
+
+    # Landing conditions
+    both_legs_contact = (left_leg > 0.5) and (right_leg > 0.5)
+    near_pad = next_distance < 0.25
+    near_zero_velocity = speed < 0.05
+    near_upright = abs(angle1) < 0.1
+
+    # Component for successful landing
+    landing_bonus = 0.0
+    if terminated and both_legs_contact and near_pad and near_zero_velocity and near_upright:
+        landing_bonus = 10.0  # positive reinforcement for perfect landing
+
+    # Crash penalty: if terminated but not a good landing, likely crash or out-of-bounds
+    crash_penalty = 0.0
+    if terminated and landing_bonus == 0.0:
+        # Check for obvious crash indicators: low y, high velocity, or large angle
+        if (y1 < 0.1 and speed > 0.3) or (abs(angle1) > 0.5) or (abs(x1) > 1.0):
+            crash_penalty = -5.0
+
+    # Timeout penalty: if truncated and still far from landing or unstable
+    timeout_penalty = 0.0
+    if truncated:
+        if next_distance > 0.5 or speed > 0.3 or abs(angle1) > 0.3:
+            timeout_penalty = -2.0
+
+    # Assemble components
+    components = {
+        "approach_reward": approach_reward,
+        "velocity_penalty": velocity_penalty,
+        "angle_penalty": angle_penalty,
+        "landing_bonus": landing_bonus,
+        "crash_penalty": crash_penalty,
+        "timeout_penalty": timeout_penalty
+    }
+
+    # Sum with appropriate scaling (keep total reward within reasonable range)
+    total_reward = (approach_reward + velocity_penalty + angle_penalty +
+                    landing_bonus + crash_penalty + timeout_penalty)
+    return float(total_reward), components

@@ -1,0 +1,24 @@
+{
+  "trajectory_id": "final_ep049",
+  "final_label": {
+    "coarse_label": "success_like",
+    "detail_label": "stable_landing",
+    "confidence": 0.85
+  },
+  "agree_with_rule": false,
+  "evidence_used": [
+    "final_distance_to_target=0.0536 indicates very close to pad",
+    "final_angle_abs=0.0018 rad indicates near-zero tilt",
+    "final_vertical_speed_abs=1.24e-08 indicates negligible vertical speed",
+    "final_speed=0.1343 indicates low overall speed",
+    "landing_bonus=10.0 suggests both legs made contact and condition met",
+    "distance_improvement=1.3537 shows significant approach progress"
+  ],
+  "conflict_warnings": [
+    "contact_ratio_last20=0.1 is low, but consistent with landing occurring only at the final time step"
+  ],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "positive_reference",
+  "do_not_use_reason": ""
+}

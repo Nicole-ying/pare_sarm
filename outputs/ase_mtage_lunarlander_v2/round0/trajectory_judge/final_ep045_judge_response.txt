@@ -1,0 +1,20 @@
+{
+  "trajectory_id": "final_ep045",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.75
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.0476 indicates significant approach progress",
+    "final_horizontal_speed_abs=0.5793 is high, suggesting lateral instability",
+    "contact_ratio_last20=0.15 indicates poor ground contact near termination",
+    "no crash penalty or landing bonus observed"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

@@ -1,0 +1,86 @@
+{
+  "candidate_id": "round1_candidate1_local_repair",
+  "reward_path": "outputs/ase_mtage_lunarlander_v3/round1/candidates/candidate_1_local_repair/reward_fn_source.py",
+  "memory_coverage_type": "ambiguous",
+  "decision_level": "no_decision",
+  "score_mode": "no_decision_safety_prior",
+  "preference_consistency": {
+    "num_pairs": 0,
+    "num_satisfied": 0,
+    "score": 0.0,
+    "relations": []
+  },
+  "failure_avoidance": {
+    "known_failure_labels": [
+      "early_failure",
+      "low_progress_survival"
+    ],
+    "mean_reward_on_failure": 0.0,
+    "normalized_score": 0.5
+  },
+  "component_alignment": {
+    "mean_component_consistency": 0.0,
+    "components": {
+      "early_approach": {
+        "pair_consistency": 0.0,
+        "num_pairs": 0,
+        "num_satisfied": 0,
+        "diagnosis": "component may over-reward known low-quality trajectories"
+      },
+      "early_speed_penalty": {
+        "pair_consistency": 0.0,
+        "num_pairs": 0,
+        "num_satisfied": 0,
+        "diagnosis": "component may over-reward known low-quality trajectories"
+      },
+      "flight_stability": {
+        "pair_consistency": 0.0,
+        "num_pairs": 0,
+        "num_satisfied": 0,
+        "diagnosis": "component may over-reward known low-quality trajectories"
+      },
+      "late_stability": {
+        "pair_consistency": 0.0,
+        "num_pairs": 0,
+        "num_satisfied": 0,
+        "diagnosis": "component may over-reward known low-quality trajectories"
+      },
+      "leg_bonus": {
+        "pair_consistency": 0.0,
+        "num_pairs": 0,
+        "num_satisfied": 0,
+        "diagnosis": "component may over-reward known low-quality trajectories"
+      },
+      "terminal_bonus": {
+        "pair_consistency": 0.0,
+        "num_pairs": 0,
+        "num_satisfied": 0,
+        "diagnosis": "component may over-reward known low-quality trajectories"
+      },
+      "terminal_penalty": {
+        "pair_consistency": 0.0,
+        "num_pairs": 0,
+        "num_satisfied": 0,
+        "diagnosis": "component may over-reward known low-quality trajectories"
+      }
+    }
+  },
+  "candidate_redundancy": {
+    "max_reward_vector_corr_with_other_candidates": 0.0,
+    "novelty_score": 0.5
+  },
+  "tage_score": 0.5,
+  "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+  "forbidden_assumptions": [
+    "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists.",
+    "Do not treat positive/partial labels as reliable progress evidence because label-margin check is insufficient.",
+    "Memory labels are not reliable enough for strong Memory-TAGE selection."
+  ],
+  "num_scored_trajectories": 28,
+  "warnings": [
+    "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists.",
+    "Do not treat positive/partial labels as reliable progress evidence because label-margin check is insufficient.",
+    "Memory labels are not reliable enough for strong Memory-TAGE selection."
+  ],
+  "phase": "error_aware_memory_tage"
+}

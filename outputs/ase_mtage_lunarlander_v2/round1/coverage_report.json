@@ -1,0 +1,48 @@
+{
+  "num_trajectories": 50,
+  "num_labeled_non_ambiguous": 45,
+  "num_use_for_tage_pair": 45,
+  "label_counts": {
+    "partial_progress": 42,
+    "ambiguous": 5,
+    "early_failure": 3
+  },
+  "labeled_label_counts": {
+    "partial_progress": 42,
+    "early_failure": 3
+  },
+  "preference_role_counts": {
+    "mid_reference": 42,
+    "negative_reference": 3
+  },
+  "dynamic_min_count_per_label": 7,
+  "nontrivial_labels": [
+    "partial_progress"
+  ],
+  "label_margin": {
+    "is_margin_sufficient": true,
+    "positive_label_group": "partial_progress",
+    "num_failure_cards": 3,
+    "num_positive_cards": 42,
+    "failure_progress_mean": 1.0693792735433594,
+    "positive_progress_mean": 1.1266078522913796,
+    "progress_gap": 0.05722857874802023,
+    "failure_stability_proxy_mean": -1.2568034435764046,
+    "positive_stability_proxy_mean": -0.6854624791463347,
+    "stability_gap": 0.5713409644300699,
+    "thresholds": {
+      "progress_gap_min": 0.05,
+      "stability_gap_min": -0.05
+    }
+  },
+  "coverage_type": "partial_or_success_only",
+  "decision_level": "no_decision",
+  "can_build_preference_pairs": false,
+  "allowed_preference_relations": [],
+  "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+  "forbidden_assumptions": [
+    "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+  ],
+  "suggested_search_mode": "preserve_progress_and_explore_failures",
+  "phase": "error_aware_memory_coverage"
+}

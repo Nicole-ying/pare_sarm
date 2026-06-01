@@ -1,0 +1,25 @@
+{
+  "trajectory_id": "final_ep011",
+  "final_label": {
+    "coarse_label": "ambiguous",
+    "detail_label": "missing_position_and_contact_evidence",
+    "confidence": 0.65
+  },
+  "agree_with_rule": false,
+  "evidence_used": [
+    "distance_improvement=1.276 indicates strong approach",
+    "final_speed=0.0415 and final_angle_abs=0.000317 suggest a stable final state",
+    "contact_ratio_last20=0.1 is low, implying limited final ground contact",
+    "final vertical speed near zero",
+    "landing_bonus component total 10.0 suggests a landing event in the candidate reward",
+    "missing final_x_position and final_legs_contact_both prevents confirmation of safe landing criteria"
+  ],
+  "conflict_warnings": [
+    "Stable final state (low speed, low angle) conflicts with low contact ratio and missing position evidence",
+    "Rule label partial_progress based solely on approach ignores final stability evidence"
+  ],
+  "use_for_memory": false,
+  "use_for_tage_pair": false,
+  "allowed_preference_role": "none",
+  "do_not_use_reason": "Insufficient evidence to confirm safe landing: final position and legs contact information are missing; contact ratio last20 is low; cannot rule out crash outside pad or unstable landing."
+}

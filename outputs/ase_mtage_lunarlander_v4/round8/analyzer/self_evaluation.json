@@ -1,0 +1,93 @@
+{
+  "round": 8,
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "overall_judgment": "parent_reward_provides_partial_progress_guidance_but_requires_structural_mutation",
+  "failure_summary": "The parent reward continues to over-reward early_failure trajectories via approach_progress and can assign positive terminal rewards to unsafe landings; repeated progress-conditioned mutations have preserved partial_progress but failed to generate high-confidence success_like behavior or prevent reward leakage to failures.",
+  "memory_interpretation": {
+    "coverage_type": "partial_or_success_only",
+    "decision_level": "no_decision",
+    "usable_preference_level": "none",
+    "main_known_failures": [
+      "early_failure",
+      "low_progress_survival",
+      "approach_progress over-rewards early_failure",
+      "terminal_reward misassignment"
+    ],
+    "main_useful_patterns": [
+      "progress-conditioned gating preserves partial_progress trajectories",
+      "proximity_bonus, near_stability, leg_bonus favor higher-quality trajectories"
+    ],
+    "uncertainties": [
+      "No high-confidence success_like trajectories exist; preference construction forbidden",
+      "Label inconsistency: coverage report shows 33 success_like but trajectory judgment summary shows 0",
+      "Component_summary includes components not in parent code, making diagnosis noisy",
+      "Training return spike in round 6 (760) is likely an artifact, not genuine success"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "approach_progress",
+      "verdict": "restructure",
+      "evidence": "Multiple archival lessons (rounds 6, 7) indicate this component over-rewards early_failure trajectories despite prior modifications; lacks sufficient margin between partial_progress and early_failure."
+    },
+    {
+      "component": "proximity_bonus",
+      "verdict": "keep",
+      "evidence": "Archival lessons and component_summary indicate it favors higher-quality trajectories; contributes to partial_progress reward."
+    },
+    {
+      "component": "near_stability",
+      "verdict": "keep",
+      "evidence": "Archival lessons and component_summary show it supports stable approach behavior; positive mean higher than failure mean."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "keep",
+      "evidence": "Strongly favors positive trajectories in component_summary; encourages landing leg contact."
+    },
+    {
+      "component": "terminal_reward",
+      "verdict": "remove_or_gate",
+      "evidence": "Repeatedly identified as misassigning rewards to unsafe landings; archival lessons recommend replacement with separate crash_penalty and safe_landing_bonus under stringent conditions."
+    },
+    {
+      "component": "low_progress_timeout",
+      "verdict": "keep",
+      "evidence": "Provides small penalty for timeouts without progress; no evidence of harm."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not add global survival bonus without progress gating",
+      "do not treat partial_progress as success_like",
+      "do not only scale all coefficients",
+      "do not reintroduce terminal_reward without separation into crash and landing bonuses",
+      "do not construct success_like preference pairs"
+    ],
+    "required_changes": [
+      "replace terminal_reward with separate crash_penalty (sufficiently negative, e.g., -10 or more) and safe_landing_bonus (stringent conditions: both legs, low speed, small angle, sustained contact)",
+      "restructure approach_progress to strongly penalize early_failure trajectories (e.g., negative bias when progress is small or speed/angle are high, or quality-based scaling to widen margin)",
+      "preserve progress-conditioned gating and components that favor partial_progress",
+      "maintain conservative mutation strategy until coverage improves"
+    ],
+    "preserve_components": [
+      "proximity_bonus",
+      "near_stability",
+      "leg_bonus",
+      "low_progress_timeout",
+      "progress-conditioned gating logic"
+    ],
+    "remove_or_gate_components": [
+      "terminal_reward"
+    ]
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "No rollback conditions triggered in recent memory; parent reward provides usable progress guidance, but structural mutation is needed to address persistent failure modes."
+  },
+  "self_evaluation_lesson": "Multiple rounds of progress-conditioned mutation preserved partial_progress but failed to structurally fix approach_progress over-rewarding early_failure and terminal_reward misassignment. This round requires component_recomposition to replace terminal_reward and restructure approach_progress, while preserving gating and effective components. Avoid scaling-only changes and do not treat partial_progress as success_like.",
+  "agent_mode": "llm_analyzer"
+}

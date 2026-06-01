@@ -1,0 +1,32 @@
+{
+  "id": "fff6d9e1-fb02-40e7-97e5-536e7fb39395",
+  "object": "chat.completion",
+  "created": 1780296307,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep020\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep021\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep022\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep023\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep024\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep025\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep026\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep027\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep028\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep029\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards. All have similar patterns: they all have episode length 1000, truncated=true, terminated=false. They all have final distance around 0.5 (half a unit from pad), zero leg contact (contact_ratio_last20=0.0, leg_contact_bonus=0.0), and low final speeds (vertical and horizontal under 0.1, angle under 0.07 rad). However, they never achieve leg contact, so the lander never actually lands on the pad. The task goal is \"land safely on the landing pad\". The evidence shows the lander approaches the pad but does not make contact (no leg contact at all). According to the labeling cautions, safe landing requires both legs in contact, low speed, small angle, within pad area. Since no leg contact, they cannot be success_like. They show significant distance improvement (about 0.9), but final distance is still 0.5. Could be partial_progress because they get close but don't land. There is no evidence of early failure (episodes last 1000 steps). They are not low_progress_survival because progress is high. They are not ambiguous because the evidence is consistent: approach progress but no landing. So all should be \"partial_progress\". Check: for success_like, need both legs contact, which is missing. So coarse_label = \"partial_progress\". Since not ambiguous, use_for_tage_pair = true.\n\nThus output for all 10 trajectories.\n\nNote: There is no conflicting evidence, so not ambiguous."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7707,
+    "completion_tokens": 713,
+    "total_tokens": 8420,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 330
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5659
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

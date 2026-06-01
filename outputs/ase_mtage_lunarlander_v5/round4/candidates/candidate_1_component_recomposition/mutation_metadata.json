@@ -1,0 +1,47 @@
+{
+  "candidate_id": "round4_candidate1_component_recomposition",
+  "round": 4,
+  "mutation_family": "component_recomposition",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round2_candidate0_component_recomposition",
+  "mutation_intent_used": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not only scale all coefficients",
+      "do not add global survival bonus without progress gating",
+      "do not treat noisy partial_progress as success_like"
+    ],
+    "required_changes": [
+      "explicitly avoid known failures: early_failure, low_progress_survival",
+      "preserve useful patterns: partial_progress trajectories exist and should be preserved or improved",
+      "gate or remove components: crash_penalty, low_progress_survival_gate, stability_penalty, timeout_penalty, ungated_contact_bonus, ungated_survival_bonus",
+      "preserve or strengthen components: approach_progress, leg_bonus, near_stage_stability, progress_delta, terminal_failure_penalty"
+    ],
+    "preserve_components": [
+      "approach_progress",
+      "leg_bonus",
+      "near_stage_stability",
+      "progress_delta",
+      "terminal_failure_penalty"
+    ],
+    "remove_or_gate_components": [
+      "crash_penalty",
+      "low_progress_survival_gate",
+      "stability_penalty",
+      "timeout_penalty",
+      "ungated_contact_bonus",
+      "ungated_survival_bonus"
+    ]
+  },
+  "coverage_type_used": "failure_plus_partial_progress",
+  "intended_fix": [
+    "use delta/progress-style components",
+    "avoid pure survival reward",
+    "recompose components flagged by analyzer"
+  ],
+  "expected_effect": "Separate progress, stability, and terminal terms based on analyzer intent.",
+  "risk": "Delta terms may be noisy if the progress proxy is imperfect.",
+  "official_reward_used": false
+}

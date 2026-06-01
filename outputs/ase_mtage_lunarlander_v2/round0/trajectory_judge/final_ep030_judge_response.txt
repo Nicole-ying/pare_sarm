@@ -1,0 +1,22 @@
+{
+  "trajectory_id": "final_ep030",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=0.985 indicates significant approach progress",
+    "final_distance_to_target=0.433 shows the lander is still a moderate distance from pad",
+    "final_horizontal_speed_abs=0.1945 indicates ongoing horizontal motion, not stable",
+    "contact_ratio_last20=0.1 shows both legs not consistently in contact",
+    "final_angle_abs=0.0099 is very small, good angle stability",
+    "final_vertical_speed_abs=0.0013 is very low, good vertical control"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

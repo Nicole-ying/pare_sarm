@@ -1,0 +1,37 @@
+{
+  "candidate_id": "round1_candidate0_progress_conditioned",
+  "round": 1,
+  "mutation_family": "progress_conditioned",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global alive bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like",
+      "do not remove progress-conditioned structure"
+    ],
+    "required_changes": [
+      "make terminal_bonus achievable with moderate speeds and both legs contact",
+      "reduce stability near penalties (e.g., lower coefficients on speed and angle penalties)",
+      "restructure terminal_penalty to only penalize clear crashes (high vertical speed > 1.0, large tilt > 0.5 rad, no leg contact)",
+      "preserve approach_progress component and progress-conditioned gating"
+    ],
+    "preserve_components": [
+      "approach_progress",
+      "low_progress_timeout"
+    ],
+    "remove_or_gate_components": []
+  },
+  "coverage_type_used": "ambiguous",
+  "intended_fix": [
+    "condition reward by progress or stability stage",
+    "reduce low-progress reward hacking"
+  ],
+  "expected_effect": "Handle stage-dependent task conflicts and discourage low-progress survival.",
+  "risk": "Stage gates may be imperfect before trajectory memory is available.",
+  "official_reward_used": false
+}

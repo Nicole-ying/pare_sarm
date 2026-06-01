@@ -1,0 +1,35 @@
+{
+  "round": 7,
+  "parent_reward_id": "round6_candidate1_progress_conditioned",
+  "selected_candidate_id": "round7_candidate2_local_repair",
+  "mutation_family": "local_repair",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_degraded",
+    "main_failure_remaining": "no_success_like_generated, partial_progress generation dropped from 50 to 14 in training trajectories, gated_timeout_penalty still penalizes some partial_progress",
+    "main_success_signal": "failure_avoidance remains high (mean reward on failures ~2.2), approach_progress and near_stage_stability still strongly discriminate partial_progress from failures"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "parent reward generated 50 partial_progress trajectories but no success_like; terminal bonuses too strict, gated_timeout_penalty penalized partial_progress",
+    "repair_attempt": "local_repair mutation: adjusted thresholds of gated_timeout_penalty and possibly other components, but did not restructure safe_landing_bonus or intermediate_safe_bonus to progressive shaping as required",
+    "outcome_after": "partial_progress generation dropped to 14 out of 50 training trajectories; still no success_like; gated_timeout_penalty consistency improved from 0.225 to 0.312 but still penalizes some partial_progress; failure avoidance maintained"
+  },
+  "lesson": "Local threshold tuning of gated penalties can reduce partial_progress generation if not accompanied by structural changes to terminal bonuses; progressive shaping of safe landing bonuses is necessary to bridge to success_like without sacrificing partial_progress.",
+  "future_guidance": [
+    "restructure safe_landing_bonus and intermediate_safe_bonus using progressive thresholds that become more stringent over time or state",
+    "ensure gated_timeout_penalty only applies to trajectories with negligible progress (delta_dist < 0 and curr_dist > 0.5) to avoid penalizing partial_progress",
+    "preserve approach_progress and near_stage_stability components as-is",
+    "avoid removing or over-aggressively tuning components that drive partial_progress generation",
+    "consider adding a continuous terminal bonus that activates when lander is close and stable"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round7_candidate2_local_repair",
+    "reason": "Candidate selected and added to elite archive; will serve as parent for round 8 despite regression in partial_progress count; requires further structural changes."
+  },
+  "uncertainties": [
+    "Drop in partial_progress generation from 50 to 14 may be due to stochasticity in training; long training might recover",
+    "No high-confidence success_like trajectories exist, so success-level preferences cannot be constructed",
+    "Component alignment for intermediate_safe_bonus and gated_timeout_penalty thresholds is uncertain due to small effective firing counts"
+  ]
+}

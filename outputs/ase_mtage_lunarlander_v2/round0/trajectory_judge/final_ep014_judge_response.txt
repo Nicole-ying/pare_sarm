@@ -1,0 +1,20 @@
+{
+  "trajectory_id": "final_ep014",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.75
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.132 indicates substantial approach progress",
+    "final_speed=0.484 with high horizontal component (0.483) indicates unstable final state",
+    "final_angle_abs=0.044 rad is small, but contact_ratio_last20=0.1 suggests insufficient stable contact",
+    "episode length=59, terminated early without full episode"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

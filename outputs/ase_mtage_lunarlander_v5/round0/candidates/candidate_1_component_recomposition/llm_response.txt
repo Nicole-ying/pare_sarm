@@ -1,0 +1,119 @@
+```python
+import math
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    # Extract current and next observation components
+    # obs is assumed to be a list/array of 8 values
+    x_cur = _safe_float(obs[0])
+    y_cur = _safe_float(obs[1])
+    vx_cur = _safe_float(obs[2])
+    vy_cur = _safe_float(obs[3])
+    angle_cur = _safe_float(obs[4])
+    angvel_cur = _safe_float(obs[5])
+    leg_left_cur = _safe_float(obs[6])
+    leg_right_cur = _safe_float(obs[7])
+
+    x_next = _safe_float(next_obs[0])
+    y_next = _safe_float(next_obs[1])
+    vx_next = _safe_float(next_obs[2])
+    vy_next = _safe_float(next_obs[3])
+    angle_next = _safe_float(next_obs[4])
+    angvel_next = _safe_float(next_obs[5])
+    leg_left_next = _safe_float(next_obs[6])
+    leg_right_next = _safe_float(next_obs[7])
+
+    # Compute distances from landing pad center (0,0)
+    dist_cur = math.sqrt(x_cur*x_cur + y_cur*y_cur)
+    dist_next = math.sqrt(x_next*x_next + y_next*y_next)
+
+    # --- Progress term ---
+    # Positive delta if distance decreases
+    progress_delta = dist_cur - dist_next
+
+    # Discourage moving away (negative progress)
+    progress_reward = progress_delta  # direct delta, no scaling yet
+
+    # --- Stability/safety term ---
+    # Penalise high absolute velocities, angle, angular velocity
+    # Use a smooth exponential penalty to avoid hard thresholds
+    stability_penalty = 0.0
+    stability_penalty += 0.5 * (abs(vx_next) + abs(vy_next))
+    stability_penalty += 0.3 * abs(angle_next)
+    stability_penalty += 0.2 * abs(angvel_next)
+    # Negate to turn into reward (lower penalty = better)
+    stability_reward = -stability_penalty
+
+    # --- Terminal bonuses / penalties ---
+    terminal_reward = 0.0
+
+    if terminated:
+        # Check for successful landing
+        # Both legs contact, low velocities, small angle, near pad
+        both_legs = (leg_left_next > 0.5) and (leg_right_next > 0.5)
+        low_vertical_speed = abs(vy_next) < 0.5
+        low_horizontal_speed = abs(vx_next) < 0.5
+        small_angle = abs(angle_next) < 0.2  # ~11 degrees
+        small_angvel = abs(angvel_next) < 0.2
+        near_pad = dist_next < 0.3
+
+        successful_landing = (both_legs and low_vertical_speed and low_horizontal_speed
+                              and small_angle and small_angvel and near_pad)
+
+        if successful_landing:
+            terminal_reward += 5.0  # large bonus
+        else:
+            # Crash or bad ending
+            terminal_reward -= 5.0  # penalty
+    else:
+        # Not terminated, no terminal bonus/penalty here
+        pass
+
+    # --- Timeout penalty (truncated) ---
+    timeout_penalty = 0.0
+    if truncated:
+        # If truncated and still far from pad, penalise strongly
+        if dist_next > 1.0:
+            timeout_penalty -= 3.0
+        else:
+            timeout_penalty -= 0.5  # mild penalty even if close
+
+    # --- Leg contact safety bonus (episodic, not terminal) ---
+    # Encourage landing with both legs down
+    leg_contact_bonus = 0.0
+    if leg_left_next > 0.5 and leg_right_next > 0.5:
+        # Both legs contact: small continuous encouragement
+        leg_contact_bonus = 0.1 * (1.0 - dist_next)  # stronger when near pad
+    elif leg_left_next > 0.5 or leg_right_next > 0.5:
+        leg_contact_bonus = 0.05 * (1.0 - dist_next)  # half if one leg
+
+    # --- Assemble components ---
+    components = {
+        "progress_delta": progress_reward,
+        "stability_penalty": stability_reward,
+        "terminal_bonus_or_penalty": terminal_reward,
+        "timeout_penalty": timeout_penalty,
+        "leg_contact_bonus": leg_contact_bonus
+    }
+
+    # Weighted sum
+    total_reward = (2.0 * progress_reward +
+                    1.0 * stability_reward +
+                    1.0 * terminal_reward +
+                    1.0 * timeout_penalty +
+                    1.0 * leg_contact_bonus)
+
+    # Safety clamp
+    if not math.isfinite(total_reward):
+        total_reward = 0.0
+
+    return float(total_reward), components
+```

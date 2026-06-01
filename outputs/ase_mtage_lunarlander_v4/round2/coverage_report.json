@@ -1,0 +1,49 @@
+{
+  "num_trajectories": 112,
+  "num_labeled_non_ambiguous": 112,
+  "num_use_for_tage_pair": 112,
+  "label_counts": {
+    "partial_progress": 107,
+    "early_failure": 5
+  },
+  "labeled_label_counts": {
+    "partial_progress": 107,
+    "early_failure": 5
+  },
+  "preference_role_counts": {
+    "mid_reference": 107,
+    "negative_reference": 5
+  },
+  "dynamic_min_count_per_label": 17,
+  "nontrivial_labels": [
+    "partial_progress"
+  ],
+  "label_margin": {
+    "is_margin_sufficient": false,
+    "positive_label_group": "partial_progress",
+    "num_failure_cards": 5,
+    "num_positive_cards": 107,
+    "failure_progress_mean": 1.099075127109324,
+    "positive_progress_mean": 1.0846184086279302,
+    "progress_gap": -0.014456718481393738,
+    "failure_stability_proxy_mean": -1.1253258021688377,
+    "positive_stability_proxy_mean": -1.9588407994550663,
+    "stability_gap": -0.8335149972862286,
+    "thresholds": {
+      "progress_gap_min": 0.05,
+      "stability_gap_min": -0.05
+    }
+  },
+  "coverage_type": "ambiguous",
+  "decision_level": "no_decision",
+  "can_build_preference_pairs": false,
+  "allowed_preference_relations": [],
+  "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+  "forbidden_assumptions": [
+    "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists.",
+    "Do not treat positive/partial labels as reliable progress evidence because label-margin check is insufficient.",
+    "Memory labels are not reliable enough for strong Memory-TAGE selection."
+  ],
+  "suggested_search_mode": "conservative_selection_due_to_uncertain_memory",
+  "phase": "error_aware_memory_coverage"
+}

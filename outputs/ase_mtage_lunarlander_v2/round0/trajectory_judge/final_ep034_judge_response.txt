@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep034",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "stable_approach_no_landing",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.248 indicates significant approach progress",
+    "final_speed=1.39e-8 and final_vertical_speed_abs=6.35e-9 indicate near-zero velocity, suggesting stable hovering",
+    "final_angle_abs=0.00022 rad indicates very small tilt, good attitude",
+    "contact_ratio_last20=0.1 suggests both legs were rarely in contact during the final 20 steps, so no stable landing",
+    "landing_bonus=0 indicates the environment did not award a landing bonus, consistent with incomplete landing"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

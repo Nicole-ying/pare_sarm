@@ -1,0 +1,66 @@
+{
+  "round": 9,
+  "parent_reward_id": "round8_candidate2_local_repair",
+  "overall_judgment": "parent_reward_provides_usable_memory_but_needs_evolution",
+  "failure_summary": "The parent reward produces consistent partial_progress trajectories but no success_like outcomes; terminal bonuses (safe_landing_bonus, intermediate_safe_bonus) have near-zero alignment and do not fire effectively. Gated_timeout_penalty penalizes partial_progress more than failures, impeding conversion to success.",
+  "memory_interpretation": {
+    "coverage_type": "failure_plus_partial_progress",
+    "decision_level": "weak_pairwise_selection",
+    "usable_preference_level": "weak_pairwise",
+    "main_known_failures": ["early_failure", "low_progress_survival"],
+    "main_useful_patterns": ["partial_progress trajectories show strong approach_progress and near_stage_stability discrimination; these components reliably separate partial_progress from failures"],
+    "uncertainties": ["No high-confidence success_like trajectories exist, so success-level preferences cannot be constructed", "Partial progress should not be treated as task success", "Terminal bonus components have near-zero firing rates, making alignment uncertain"]
+  },
+  "component_diagnosis": [
+    {
+      "component": "approach_progress",
+      "verdict": "keep",
+      "evidence": "Component summary shows strong discrimination: failure_mean 1.80, positive_mean 4.61. Repeated archival lessons emphasize preserving this component."
+    },
+    {
+      "component": "near_stage_stability",
+      "verdict": "keep",
+      "evidence": "Component summary shows very strong discrimination: failure_mean 0.007, positive_mean 36.1, indicating it is key to partial_progress generation."
+    },
+    {
+      "component": "leg_contact_bonus",
+      "verdict": "keep",
+      "evidence": "Fires occasionally but near-zero mean; minor incentive for leg contact when near pad. Not harmful, preserve."
+    },
+    {
+      "component": "intermediate_safe_bonus",
+      "verdict": "restructure",
+      "evidence": "Component summary shows all zeros; code conditions are too strict. Needs progressive thresholds to actually fire for promising states."
+    },
+    {
+      "component": "safe_landing_bonus",
+      "verdict": "restructure",
+      "evidence": "Component summary shows positive_mean 0.052, effectively not firing. Current discrete thresholds (relaxed/strict) are not reached. Must be redesigned with progressive, continuous shaping."
+    },
+    {
+      "component": "gated_failure_penalty",
+      "verdict": "unknown",
+      "evidence": "Component summary all zeros. Code conditions likely never triggered; may be removed or restructured but not detrimental."
+    },
+    {
+      "component": "gated_timeout_penalty",
+      "verdict": "remove_or_gate",
+      "evidence": "Component summary shows positive_mean -0.532 (penalty) applied more strongly to partial_progress than failures (failure_mean -0.175). This penalizes desired behavior. Must be gated to only apply to trajectories with negligible progress (delta_dist <= 0 and curr_dist > 0.5) as per archival lessons."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": ["do not use official reward", "do not treat partial_progress as success_like", "do not add global survival bonus without progress gating", "do not only scale all coefficients", "do not remove approach_progress or near_stage_stability"],
+    "required_changes": ["restructure terminal bonuses (safe_landing_bonus, intermediate_safe_bonus) with progressive, continuous thresholds that become more stringent as the lander approaches the pad", "restructure gated_timeout_penalty to only penalize trajectories with negligible progress (delta_dist <= 0 and curr_dist > 0.5)", "ensure new terminal bonus components have nonzero firing rates and positive alignment with partial_progress > failure preferences"],
+    "preserve_components": ["approach_progress", "near_stage_stability", "leg_contact_bonus"],
+    "remove_or_gate_components": ["gated_timeout_penalty", "gated_failure_penalty"],
+    "remove_or_gate_components_notes": "gated_timeout_penalty should be gated to negligible progress only; gated_failure_penalty can be removed if ineffective"
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Hard rollback is handled by RollbackManager; current memory contains weak but usable partial-progress evidence and the parent reward preserved partial_progress count at 50. Previous round6 candidate1_progress_conditioned has similar partial_progress preservation, but no substantial regression warrants rolling back."
+  },
+  "self_evaluation_lesson": "After 9 rounds, the cumulative lesson is clear: approach_progress and near_stage_stability are essential for partial_progress generation, but terminal bonuses need structural—not just coefficient—evolution to bridge to success_like. Progressive shaping of safe landing conditions is necessary, and any penalty that applies to partial_progress trajectories must be carefully gated. TAGE scores on memory do not predict training return or success_like conversion, so we must prioritize structural changes over parameter tuning."
+}

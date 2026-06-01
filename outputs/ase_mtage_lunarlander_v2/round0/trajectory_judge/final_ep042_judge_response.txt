@@ -1,0 +1,24 @@
+{
+  "trajectory_id": "final_ep042",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "near_pad_low_contact",
+    "confidence": 0.72
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.3098223960650177 indicates strong approach progress",
+    "final_distance_to_target=0.09108321657568218 indicates lander is very close to the pad",
+    "final_speed_magnitude=0.0692845955491465 is low, suggesting soft approach",
+    "final_angle_abs=0.0003239624493289739 is near zero, indicating good orientation",
+    "contact_ratio_last20=0.1 suggests leg contact was not sustained or reliable in the final segment"
+  ],
+  "conflict_warnings": [
+    "low leg contact ratio (0.1 over last 20 steps) conflicts with otherwise excellent approach and final state stability",
+    "short episode length (55) and terminated=true without crash penalty leave ambiguity about the terminal event"
+  ],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

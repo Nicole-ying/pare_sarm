@@ -1,0 +1,36 @@
+{
+  "round": 4,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "selected_candidate_id": "round4_candidate2_local_repair",
+  "mutation_family": "local_repair",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_dominant_but_no_success",
+    "main_failure_remaining": "No success-like trajectories; early_failure remains (50 out of 125 trajectories) and some components still penalize partial_progress individually",
+    "main_success_signal": "Partial progress trajectories are correctly ranked above early_failure overall (preference consistency 1.0) and training return improved to near zero (-0.148)"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "Partial progress trajectories were over-penalized by early_speed_penalty, late_stability, flight_stability, and terminal_penalty, causing them to be ranked lower than early_failure in some components",
+    "repair_attempt": "Local_repair candidate softened or removed these penalties and may have added positive signals for near-landing states",
+    "outcome_after": "Overall preference consistency is perfect (1.0) and training return improved, but early_speed_penalty and late_stability components still have zero component consistency, indicating they may still penalize partial_progress relative to early_failure"
+  },
+  "lesson": "Softening over-penalizing components can achieve correct overall ordering of partial_progress over early_failure, but individual component misalignment may persist and prevent conversion into success-like behavior; near-landing positive reward is still missing.",
+  "future_guidance": [
+    "Continue to repair early_speed_penalty and late_stability components to have positive component alignment with partial_progress",
+    "Add a terminal bonus that is attainable for near-landing states with both legs contact and low velocity",
+    "Preserve early_approach and leg_bonus components as they correctly favor higher-quality trajectories",
+    "Avoid over-penalizing partial_progress with gated penalties that still disagree",
+    "Consider restructuring terminal_penalty to be less severe for partial-progress terminations"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round4_candidate2_local_repair",
+    "reason": "Candidate shows strong preference consistency and improved training return; added to memory for future mutation"
+  },
+  "uncertainties": [
+    "No success-like trajectories exist, so success-level preferences cannot be formed",
+    "The exact effect of terminal_penalty on partial_progress trajectories is unclear",
+    "Ambiguous trajectories (26/50 in judgment) suggest the reward may not produce clear separation in all cases",
+    "Early_speed_penalty and late_stability components have zero component consistency, indicating uncertain impact on final reward ordering"
+  ]
+}

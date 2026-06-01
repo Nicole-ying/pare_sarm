@@ -1,0 +1,35 @@
+{
+  "round": 3,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "selected_candidate_id": "round3_candidate2_local_repair",
+  "mutation_family": "local_repair",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "ambiguous trajectories dominate (28/50) and low_progress_survival present, no success-like behavior",
+    "main_success_signal": "training return improved to -5.57 (best so far), perfect preference consistency (1.0) on memory, no early_failure in training set"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "Over-penalization of partial progress trajectories in round2 caused regression and rollback; policy collapsed to early failure in training",
+    "repair_attempt": "Local repair mutation re-introduced penalty components (early_speed_penalty, late_stability, flight_stability) with adjusted scaling, preserved early_approach and leg_bonus, removed progress_reward_high, kept terminal_penalty and terminal_bonus",
+    "outcome_after": "Training return improved to -5.57 (best so far), no early_failure in training set, perfect preference consistency on memory, but ambiguous trajectories still majority (28/50) and no success-like behavior"
+  },
+  "lesson": "Local repair that restores basic penalty components with careful scaling can yield significant improvement and perfect memory preference, but ambiguous trajectories remain the bottleneck; future mutations must target ambiguity reduction to convert partial progress into success-like behavior.",
+  "future_guidance": [
+    "Preserve current component structure and scaling that achieved high preference consistency and training return",
+    "Investigate ambiguous trajectories to understand distinguishing features from partial progress",
+    "Consider adding positive rewards for near-landing states to encourage completion without over-penalization",
+    "Avoid reintroducing global alive bonuses or excessive penalties that caused regression in earlier rounds",
+    "Monitor training return and preference consistency closely to detect overfitting or divergence"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round3_candidate2_local_repair",
+    "reason": "Training return -5.57 is best so far, candidate shows significant improvement over previous elites; no rollback triggered."
+  },
+  "uncertainties": [
+    "No success-like trajectories exist, so success-level preference cannot be constructed",
+    "Ambiguous trajectories remain poorly understood; their characteristics and how to improve them are uncertain",
+    "Exact component contributions to the improvement are not isolated; may be due to combination of scaling and component presence"
+  ]
+}

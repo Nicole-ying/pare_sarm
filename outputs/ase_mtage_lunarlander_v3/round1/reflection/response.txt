@@ -1,0 +1,34 @@
+{
+  "round": 1,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "selected_candidate_id": "round1_candidate0_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "all_early_failure",
+    "main_failure_remaining": "policy collapses to early failure on all trajectories",
+    "main_success_signal": "no partial_progress or success_like observed"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "only partial_progress and ambiguous trajectories, no success-like; penalties heavily discouraged landing",
+    "repair_attempt": "made terminal bonus more attainable, reduced terminal_penalty and stability penalties",
+    "outcome_after": "all trajectories became early_failure; no progress made toward pad"
+  },
+  "lesson": "Reducing penalties and making terminal bonus more attainable can inadvertently cause early failure on all trajectories if the reward signal becomes too lenient or misaligned; preserving approach components alone is insufficient if the policy never learns to avoid early crashes.",
+  "future_guidance": [
+    "consider rollback to elite parent if next round shows regression",
+    "ensure mutation does not eliminate the penalty structure that discourages early crashes",
+    "test candidate on fresh trajectories before full training",
+    "preserve early_approach but ensure speed_penalty remains as a deterrent for crashing"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": false,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round1_candidate0_progress_conditioned",
+    "reason": "Selected candidate produced all early_failure trajectories; not added to elite but used as parent for next round due to no rollback triggered."
+  },
+  "uncertainties": [
+    "No success_like trajectories exist, so success-level preference cannot be constructed",
+    "Label margin insufficient; partial progress labels not reliable for preference",
+    "Training return improved but behavior degraded; cannot attribute causality confidently"
+  ]
+}

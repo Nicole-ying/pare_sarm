@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep019",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "stable_approach_no_contact",
+    "confidence": 0.75
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.374, min_distance=0.0178, final_distance=0.0459 indicate strong approach progress",
+    "final_speed~3.7e-12, final_angle_abs=0.000326 indicate very stable final state",
+    "contact_ratio_last20=0.1 shows legs are not consistently contacting ground, so landing is incomplete"
+  ],
+  "conflict_warnings": [
+    "high approach progress and stable final state conflict with low leg contact ratio"
+  ],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep043",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "initial_distance_to_target=1.408, final_distance_to_target=0.244, distance_improvement=1.164 indicates significant approach progress",
+    "final_speed=1.009 is high, indicating unstable landing",
+    "contact_ratio_last20=0.1 indicates low ground contact stability",
+    "final_angle_abs=0.063 is small but does not compensate for high speed",
+    "episode length 64 is not early failure but not full duration (1000 max)"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

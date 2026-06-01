@@ -1,0 +1,82 @@
+{
+  "round": 5,
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "overall_judgment": "parent_reward_provides_usable_memory_but_needs_structural_refinement",
+  "failure_summary": "Terminal_reward component over-rewards low-quality terminations (failure_mean exceeds positive_mean), and approach_progress does not clearly differentiate early_failure from partial_progress, allowing early failures to persist.",
+  "memory_interpretation": {
+    "coverage_type": "partial_or_success_only",
+    "decision_level": "no_decision",
+    "usable_preference_level": "none",
+    "main_known_failures": ["early_failure trajectories exist but low count", "terminal_reward misassignment to non-crash terminations"],
+    "main_useful_patterns": ["progress-conditioned gating preserves partial_progress", "leg_bonus and proximity_bonus strongly favor positive trajectories"],
+    "uncertainties": [
+      "Discrepancy between coverage report (31 success_like) and trajectory judgment summary (0 success_like) raises ambiguity about current parent's success generation",
+      "No preference pairs constructed - component alignment is indirect",
+      "Success_like count (31) still insufficient for high-confidence preference construction"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "approach_progress",
+      "verdict": "restructure",
+      "evidence": "Archival lessons repeatedly note approach_progress fails to reliably favor partial_progress over early_failure; failure_mean (0.887) positive_mean (1.607) gap is small given scale of other components."
+    },
+    {
+      "component": "terminal_reward",
+      "verdict": "remove_or_gate",
+      "evidence": "Component summary shows failure_mean (4.375) higher than positive_mean (2.994), indicating terminal_reward rewards low-quality terminations more than successful landings. Previous failures and repairs confirm this misalignment."
+    },
+    {
+      "component": "near_stability",
+      "verdict": "keep",
+      "evidence": "Positive_mean (37.49) far exceeds failure_mean (5.47), indicating it correctly favors stable trajectories."
+    },
+    {
+      "component": "proximity_bonus",
+      "verdict": "keep",
+      "evidence": "Positive_mean (29.80) far exceeds failure_mean (2.94), indicating it rewards closeness to pad."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "keep",
+      "evidence": "Zero failure_mean, high positive_mean (37.75) - correctly rewards both legs contact."
+    },
+    {
+      "component": "low_progress_timeout",
+      "verdict": "keep",
+      "evidence": "Neutral component; contributes mild penalty for timeout without progress, no negative signal detected."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "local_repair",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like"
+    ],
+    "required_changes": [
+      "Remove or gate terminal_reward to prevent rewarding low-quality terminations",
+      "Restructure approach_progress to more clearly penalize early_failure trajectories and reward partial_progress",
+      "Preserve progress-conditioned gating, low_progress_timeout, leg_bonus, proximity_bonus, near_stability",
+      "Ensure any new terminal bonus is stringent (both legs contact, low speed, small angle) to convert partial_progress to success_like"
+    ],
+    "preserve_components": [
+      "low_progress_timeout",
+      "leg_bonus",
+      "proximity_bonus",
+      "near_stability",
+      "far_stage and near_stage gating logic"
+    ],
+    "remove_or_gate_components": [
+      "terminal_reward"
+    ]
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Parent reward is from elite archive with 10 success_like trajectories; hard rollback is handled by RollbackManager. Current memory contains usable partial-progress and success-like evidence, but structural issues remain."
+  },
+  "self_evaluation_lesson": "Terminal_reward must be restructured to avoid rewarding failures; approach_progress needs recalibration to favor partial_progress over early_failure. Progress-conditioned gating and high-quality components (leg_bonus, proximity_bonus, near_stability) should be preserved. Without success_like high-confidence trajectories, further structural mutation is required rather than coefficient tuning."
+}

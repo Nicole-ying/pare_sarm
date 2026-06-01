@@ -1,0 +1,43 @@
+{
+  "candidate_id": "round4_candidate1_component_recomposition",
+  "round": 4,
+  "mutation_family": "component_recomposition",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like",
+      "do not remove all penalizing components (they are needed to avoid early failure)"
+    ],
+    "required_changes": [
+      "gate dense positive rewards by progress stage and avoid over-penalizing partial_progress",
+      "reduce penalties on partial_progress trajectories by softening early_speed_penalty, late_stability, and flight_stability",
+      "add a new positive reward component for near-landing states (both legs contact, low velocity, near-upright angle) to encourage completion",
+      "restructure terminal_penalty to be less severe for partial-progress terminations (e.g., soft penalty for timeout)",
+      "make terminal_bonus more attainable by reducing required angle/velocity thresholds and rewarding proximity to pad with legs contact"
+    ],
+    "preserve_components": [
+      "early_approach",
+      "leg_bonus"
+    ],
+    "remove_or_gate_components": [
+      "early_speed_penalty",
+      "late_stability",
+      "flight_stability"
+    ]
+  },
+  "coverage_type_used": "failure_plus_partial_progress",
+  "intended_fix": [
+    "use delta/progress-style components",
+    "avoid pure survival reward",
+    "recompose components flagged by analyzer"
+  ],
+  "expected_effect": "Separate progress, stability, and terminal terms based on analyzer intent.",
+  "risk": "Delta terms may be noisy if the progress proxy is imperfect.",
+  "official_reward_used": false
+}

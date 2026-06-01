@@ -1,0 +1,41 @@
+{
+  "candidate_id": "round7_candidate1_component_recomposition",
+  "round": 7,
+  "mutation_family": "component_recomposition",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round6_candidate1_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not treat partial_progress as success_like",
+      "do not remove approach_progress or near_stage_stability",
+      "do not only scale coefficients without structural changes"
+    ],
+    "required_changes": [
+      "restructure safe_landing_bonus and intermediate_safe_bonus to use progressive thresholds that become more stringent over time or state conditions to gradually shape toward success",
+      "ensure gated_timeout_penalty only applies to trajectories with negligible progress (delta_dist < 0 and curr_dist > 0.5) rather than all truncations",
+      "consider adding a small continuous terminal bonus that activates when the lander is close and stable, not just at termination",
+      "preserve approach_progress and near_stage_stability as-is"
+    ],
+    "preserve_components": [
+      "approach_progress",
+      "near_stage_stability",
+      "leg_contact_bonus"
+    ],
+    "remove_or_gate_components": [
+      "gated_failure_penalty",
+      "gated_timeout_penalty"
+    ]
+  },
+  "coverage_type_used": "failure_plus_partial_progress",
+  "intended_fix": [
+    "use delta/progress-style components",
+    "avoid pure survival reward",
+    "recompose components flagged by analyzer"
+  ],
+  "expected_effect": "Separate progress, stability, and terminal terms based on analyzer intent.",
+  "risk": "Delta terms may be noisy if the progress proxy is imperfect.",
+  "official_reward_used": false
+}

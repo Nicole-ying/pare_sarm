@@ -1,0 +1,32 @@
+{
+  "round": 0,
+  "parent_reward_id": null,
+  "selected_candidate_id": "round0_candidate2_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "no_success_trajectories",
+    "main_success_signal": "partial_progress_trajectories_23"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "bootstrap_no_reward_function",
+    "repair_attempt": "initial_reward_function_creation_via_progress_conditioned_mutation",
+    "outcome_after": "trajectory_memory_created_with_labels_partial_progress_present"
+  },
+  "lesson": "Bootstrap round establishes baseline trajectory coverage; progress-conditioned mutation yields partial progress but no success. Further mutation should aim to increase success-like behavior.",
+  "future_guidance": [
+    "preserve progress_delta if it favors partial_progress over early_failure",
+    "target terminal stability to convert partial_progress into success",
+    "avoid heavy early_failure penalty that may suppress exploration"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": false,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round0_candidate2_progress_conditioned",
+    "reason": "bootstrap round - selected candidate is first usable reward function"
+  },
+  "uncertainties": [
+    "No success-like trajectories exist, so success-level preference cannot be constructed",
+    "Low number of low_progress_survival trajectories may indicate reward function already discourages survival hacking"
+  ]
+}

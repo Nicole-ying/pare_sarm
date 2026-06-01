@@ -1,0 +1,20 @@
+{
+  "trajectory_id": "final_ep012",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=0.880 indicates significant approach progress",
+    "final_speed=1.612 is high, indicating unstable final state",
+    "crash_penalty component suggests a crash occurred",
+    "contact_ratio_last20=0.1 indicates low leg contact stability near end"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

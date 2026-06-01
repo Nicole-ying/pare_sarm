@@ -1,0 +1,32 @@
+{
+  "id": "cc81586a-24ff-40eb-9c07-d9857e2842fe",
+  "object": "chat.completion",
+  "created": 1780041559,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\n  \"trajectory_id\": \"final_ep007\",\n  \"final_label\": {\n    \"coarse_label\": \"partial_progress\",\n    \"detail_label\": \"approach_unstable\",\n    \"confidence\": 0.85\n  },\n  \"agree_with_rule\": true,\n  \"evidence_used\": [\n    \"distance_improvement=1.105 indicates significant approach progress\",\n    \"final_speed=1.003 is high, indicating unstable approach\",\n    \"final_angle_abs=0.058 is moderate and stable\",\n    \"contact_ratio_last20=0.1 indicates little ground contact before termination\",\n    \"crash_penalty=-8 indicates the trajectory ended in a crash\"\n  ],\n  \"conflict_warnings\": [],\n  \"use_for_memory\": true,\n  \"use_for_tage_pair\": true,\n  \"allowed_preference_role\": \"mid_reference\",\n  \"do_not_use_reason\": \"\"\n}",
+        "reasoning_content": "We are given a trajectory evidence card for LunarLander-v2. The trajectory has length 59, terminated=true, truncated=false. Features: initial_distance_to_target ~1.405, min_distance ~0.3005, final_distance ~0.3005, distance_improvement ~1.105, final_speed ~1.003, final_vertical_speed_abs ~1.003, final_horizontal_speed_abs ~0.0167, final_angle_abs ~0.0584, contact_ratio_last20=0.1 (so only 2 out of last 20 steps had leg contact? Actually 0.1 means 2 maybe). Reward component totals: approach_progress positive, velocity_control 0, angle_stability negative, landing_bonus 0, crash_penalty -8, survival_bonus positive. So the trajectory ended with a crash penalty of -8, indicating a crash. The final distance is about 0.3, which is not extremely close to pad (pad at 0,0). The final speed is high (~1.0). The contact ratio is low. The lander crashed (crash_penalty) so it's not a successful landing.\n\nRule label says partial_progress with detail approach_unstable. We need to decide final label.\n\nGiven the hard rules: do not treat high progress with unstable final speed as success_like. Also, both legs must contact and near pad. Here final legs contact? The card doesn't directly give final_legs_contact_both, but we have contact_ratio_last20=0.1, so most likely not both legs contacting at end. The crash penalty suggests the lander crashed, so terminal event is likely a crash (body contacts moon surface). So it's an early failure? But length is 59, which is not extremely early but still terminated early due to crash. However, distance_improvement is good (1.1), so there was progress. But the crash makes it not partial_progress? Partial_progress is defined as \"trajectory shows real progress but does not reach stable success\". A crash could still be partial_progress if it made progress before crashing. The crash penalty is -8, which is the standard crash penalty. The trajectory ended with a crash, but it did approach the pad (final distance 0.3). So it's not early_failure because early_failure suggests little useful progress. Here the progress is substantial. So partial_progress seems appropriate.\n\nBut let's check the coarse labels: early_failure: episode ends early with little useful progress. Here length 59 is not extremely early (max 1000), but progress is useful. So not early_failure. low_progress_survival: episode lasts but shows little task progress. Here progress is good, and it didn't survive (crashed). So not that. partial_progress: real progress but not stable success. Yes, it made progress but crashed. success_like: strongly matches task goal. No, because it crashed and final speed high, legs not both contacting, not near pad. ambiguous: not necessary.\n\nThus, final coarse label should be partial_progress. Detail label could be \"approach_unstable\" or \"crash_after_approach\". The rule suggests approach_unstable, which matches. Confidence: given evidence, fairly confident. Agree with rule: yes.\n\nEvidence used: the crash penalty indicates crash; final distance improved; high final speed; low contact ratio; angle abs is small (0.058 rad ~ 3.3 degrees) so angle is good; but speed is high. So cite these.\n\nConflict warnings: none.\n\nUse for memory: yes. Use for tage pair: yes. Allowed preference role: partial_progress -> mid_reference.\n\nDo not use reason: empty.\n\nNow output JSON.\n\nNote: The trajectory_evidence_card has fields like final_vertical_speed_abs, final_horizontal_speed_abs, but not final_speed_magnitude explicitly? It has final_speed: 1.0028674923918108. That is likely the combined magnitude. Also it has final_angle_abs.\n\nWe'll output the JSON as required."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3482,
+    "completion_tokens": 1081,
+    "total_tokens": 4563,
+    "prompt_tokens_details": {
+      "cached_tokens": 3456
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 878
+    },
+    "prompt_cache_hit_tokens": 3456,
+    "prompt_cache_miss_tokens": 26
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

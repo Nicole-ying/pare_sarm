@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep038",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.05 from initial 1.40 to final 0.35 shows significant approach progress",
+    "final_speed=1.65 (high) and crash_penalty=-10 indicate unstable high-speed crash near pad",
+    "contact_ratio_last20=0.1 shows legs not consistently in contact, no stable landing",
+    "episode_length=53 (short) with terminated=true suggests early crash",
+    "reward component crash_penalty -10 confirms crash event"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

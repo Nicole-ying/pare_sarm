@@ -1,0 +1,42 @@
+{
+  "round": 0,
+  "selection_mode": "round0_static_selection",
+  "memory_tage_used": false,
+  "selected_candidate": "round0_candidate2_progress_conditioned",
+  "candidate_scores": [
+    {
+      "index": 0,
+      "candidate_id": "round0_candidate0_local_repair",
+      "mutation_family": "local_repair",
+      "candidate_dir": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_0_local_repair",
+      "reward_path": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_0_local_repair/reward_fn_source.py",
+      "metadata_path": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_0_local_repair/mutation_metadata.json",
+      "validator_report_path": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_0_local_repair/validator_report.json",
+      "valid": true,
+      "selection_static_score": 0.7
+    },
+    {
+      "index": 1,
+      "candidate_id": "round0_candidate1_component_recomposition",
+      "mutation_family": "component_recomposition",
+      "candidate_dir": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_1_component_recomposition",
+      "reward_path": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_1_component_recomposition/reward_fn_source.py",
+      "metadata_path": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_1_component_recomposition/mutation_metadata.json",
+      "validator_report_path": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_1_component_recomposition/validator_report.json",
+      "valid": true,
+      "selection_static_score": 0.8
+    },
+    {
+      "index": 2,
+      "candidate_id": "round0_candidate2_progress_conditioned",
+      "mutation_family": "progress_conditioned",
+      "candidate_dir": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_2_progress_conditioned",
+      "reward_path": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+      "metadata_path": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_2_progress_conditioned/mutation_metadata.json",
+      "validator_report_path": "outputs/ase_mtage_lunarlander_v5/round0/candidates/candidate_2_progress_conditioned/validator_report.json",
+      "valid": true,
+      "selection_static_score": 0.9
+    }
+  ],
+  "reason": "Round 0 has no trajectory memory yet; use static selection."
+}

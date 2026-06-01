@@ -1,0 +1,32 @@
+{
+  "id": "22ab4163-cfa7-473e-bd1c-4f6cf5b62820",
+  "object": "chat.completion",
+  "created": 1780291580,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep010\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep011\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep012\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep013\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep014\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep015\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep016\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep017\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep018\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep019\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards (final_ep010 to final_ep019). Each card contains features that describe the trajectory outcome. We need to assign a coarse_label and use_for_tage_pair based on the task manifest which describes safe landing criteria.\n\nThe task goal is to land safely on the landing pad. The labeling cautions say: safe landing requires both legs in contact, low vertical speed (<0.5?), low horizontal speed, small angle and angular velocity, and not going out of viewport. Success_like should be based on observable final state that matches a safe landing: both legs contact, near-zero velocities, small angle, within landing pad area.\n\nHowever, looking at the features, we have:\n- final_distance_to_target (distance to landing pad at end)\n- final_speed, final_vertical_speed_abs, final_horizontal_speed_abs, final_angle_abs\n- contact_ratio_last20 (proportion of steps with leg contact in last 20% of episode) - note it's 0.0 for all trajectories\n- episode length: all 1000 steps, truncated (not terminated)\n- reward_component_totals: includes approach_progress, leg_contact_bonus (0.0), near_stage_stability (0.0), safe_landing_bonus (0.0), terminal_failure_penalty (0.0), timeout_penalty (-5.0)\n\nCritical observation: The contact_ratio_last20 is 0.0 for all trajectories. This means in the last 20% of the episode, the lander did not have any leg contact with the ground. Also, leg_contact_bonus is 0.0, meaning no leg contact during the episode (or not rewarded). Also, safe_landing_bonus is 0.0, meaning no safe landing achieved.\n\nThus, according to the safe landing criteria, none of these trajectories achieve a safe landing because there is no leg contact. The lander is hovering or in the air without contacting the ground. And they are truncated due to time limit, not terminated due to crash. So they survived the entire episode but did not land.\n\nNow, label options:\n- early_failure: episode ends early with little useful progress. Here, episodes are max length, so not early.\n- low_progress_survival: episode lasts but shows little task progress. But these trajectories show significant progress: they approached the landing pad (distance improved from ~1.4 to ~0.55-0.62, so they got close to the pad). However, they did not land. So progress is partial.\n- partial_progress: trajectory shows real progress but does not reach stable success. This seems appropriate: they made significant progress towards the pad but did not achieve a safe landing (no leg contact, no stability). \n- success_like: not applicable because no leg contact, no safe landing.\n- ambiguous: if evidence conflicts. But here evidence is consistent: no leg contact, truncated, but good approach progress.\n\nThus, all trajectories appear to be partial_progress. However, we must check if any could be considered low_progress_survival? The distance improvement is >0.8, which is substantial, so they have real progress. So partial_progress is better.\n\nAlso, use_for_tage_pair: should be true unless ambiguous. These are not ambiguous.\n\nAlso note: All trajectories have terminated=false and truncated=true, meaning they timed out. That indicates they didn't crash or succeed. So they are not early failures.\n\nTherefore, I will label all as partial_progress with use_for_tage_pair=true.\n\nLet's double-check each trajectory's features: all have similar distance improvement ~0.8-0.88, final distance ~0.55-0.62, speed low (0.02-0.09), but no leg contact. So indeed partial progress.\n\nOutput JSON array with all 10 trajectories."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7538,
+    "completion_tokens": 1205,
+    "total_tokens": 8743,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 822
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5490
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

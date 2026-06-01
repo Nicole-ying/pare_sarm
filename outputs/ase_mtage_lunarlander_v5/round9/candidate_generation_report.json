@@ -1,0 +1,49 @@
+{
+  "round": 9,
+  "analyzer_self_evaluation_path": "outputs/ase_mtage_lunarlander_v5/round9/analyzer/self_evaluation.json",
+  "candidates": [
+    {
+      "candidate_id": "round9_candidate0_component_recomposition",
+      "reward_path": "outputs/ase_mtage_lunarlander_v5/round9/candidates/candidate_0_component_recomposition/reward_fn_source.py",
+      "syntax_ok": true,
+      "signature_ok": true,
+      "forbidden_api_used": false,
+      "runtime_smoke_test_ok": true,
+      "component_dict_ok": true,
+      "finite_output_ok": true,
+      "valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "candidate_id": "round9_candidate1_progress_conditioned",
+      "reward_path": "outputs/ase_mtage_lunarlander_v5/round9/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+      "syntax_ok": true,
+      "signature_ok": true,
+      "forbidden_api_used": false,
+      "runtime_smoke_test_ok": true,
+      "component_dict_ok": true,
+      "finite_output_ok": true,
+      "valid": true,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "candidate_id": "round9_candidate2_local_repair",
+      "reward_path": "outputs/ase_mtage_lunarlander_v5/round9/candidates/candidate_2_local_repair/reward_fn_source.py",
+      "syntax_ok": true,
+      "signature_ok": true,
+      "forbidden_api_used": false,
+      "runtime_smoke_test_ok": false,
+      "component_dict_ok": false,
+      "finite_output_ok": false,
+      "valid": false,
+      "warnings": [],
+      "errors": [
+        "Runtime smoke test failed: cannot unpack non-iterable NoneType object"
+      ]
+    }
+  ],
+  "llm_called": true,
+  "llm_fallback_on_error": true
+}

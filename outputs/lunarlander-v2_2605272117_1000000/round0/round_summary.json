@@ -1,0 +1,72 @@
+{
+  "round": 0,
+  "success": true,
+  "winner_health": {
+    "overall_health": 66.4,
+    "components": [
+      {
+        "name": "proximity",
+        "mean": 1.113448,
+        "std": 0.738027,
+        "share": 0.275,
+        "active": true,
+        "progress_corr": 0.2177,
+        "failure_corr": 0.1918,
+        "health": 0.6777,
+        "verdict": "keep",
+        "reason": "proximity is healthy"
+      },
+      {
+        "name": "error_penalty",
+        "mean": -0.965812,
+        "std": 0.474669,
+        "share": 0.238,
+        "active": true,
+        "progress_corr": -0.112,
+        "failure_corr": -0.6401,
+        "health": 0.6567,
+        "verdict": "keep",
+        "reason": "error_penalty is healthy"
+      },
+      {
+        "name": "leg_contact",
+        "mean": 0.09051,
+        "std": 0.079931,
+        "share": 0.022,
+        "active": true,
+        "progress_corr": 0.497,
+        "failure_corr": 0.478,
+        "health": 0.6686,
+        "verdict": "reduce",
+        "reason": "strongly aligned with progress (P=+0.50); correlated with failure (F=+0.48)"
+      },
+      {
+        "name": "fuel_penalty",
+        "mean": -0.838466,
+        "std": 0.134106,
+        "share": 0.207,
+        "active": true,
+        "progress_corr": 0.0011,
+        "failure_corr": -0.0031,
+        "health": 0.6396,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=+0.00)"
+      },
+      {
+        "name": "landing_bonus",
+        "mean": -1.042849,
+        "std": 0.66371,
+        "share": 0.257,
+        "active": true,
+        "progress_corr": -0.0636,
+        "failure_corr": -0.8768,
+        "health": 0.6793,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=-0.06)"
+      }
+    ],
+    "summary": "5 components: 5 active, 2 aligned with progress, 0 misaligned, health=66/100",
+    "verdict": "good"
+  },
+  "stopped": false
+}

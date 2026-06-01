@@ -1,0 +1,111 @@
+import math
+
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    # Unpack observations (index 0-7)
+    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0
+    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0
+    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0
+    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0
+    vx = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0
+    vy = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0
+    ang = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0
+    ang_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0
+    leg_left = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0
+    leg_right = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0
+
+    # Distance from pad (0,0)
+    prev_dist = math.sqrt(x0 * x0 + y0 * y0)
+    curr_dist = math.sqrt(x1 * x1 + y1 * y1)
+    delta_dist = prev_dist - curr_dist   # positive if closer
+
+    # Stage thresholds
+    FAR_THRESHOLD = 0.35
+    NEAR_THRESHOLD = 0.2
+    far_stage = 1.0 if curr_dist > FAR_THRESHOLD else 0.0
+    near_stage = 1.0 - far_stage
+
+    # ---- Early stage: approach progress ----
+    # Only reward when actually moving closer
+    progress = max(delta_dist, 0.0) * far_stage * 5.0
+
+    # Penalty for hovering (low vertical speed and still far from pad)
+    # Discourages staying at altitude without descending
+    hovering_penalty = 0.0
+    if far_stage > 0.5 and curr_dist > 0.5 and abs(vy) < 0.2:
+        hovering_penalty = -0.2
+
+    # ---- Late stage: stability and leg contact (positive rewards) ----
+    # Positive stability reward: low velocities, small angle, small angular velocity
+    stability_score = 0.0
+    if near_stage > 0.5:
+        speed = abs(vx) + abs(vy)
+        angle_pen = abs(ang) + abs(ang_vel)
+        stability_score = max(0.0, 1.0 - (speed + angle_pen) / 2.0)
+    stability_reward = near_stage * stability_score * 2.0
+
+    # Leg contact bonus (only when near)
+    leg_bonus = near_stage * (leg_left + leg_right) * 0.5
+
+    # ---- Terminal events ----
+    # Safe landing detection (both legs, low speeds, small angles, close)
+    safe_landing = (
+        leg_left > 0.5 and leg_right > 0.5
+        and abs(vy) < 0.1
+        and abs(vx) < 0.1
+        and abs(ang) < 0.1
+        and abs(ang_vel) < 0.1
+        and curr_dist < NEAR_THRESHOLD
+    )
+    safe_landing_bonus = 10.0 if terminated and safe_landing else 0.0
+
+    # Crash penalty (terminated but not safe landing) – small to avoid overpenalizing partial_progress
+    crash_penalty = -2.0 if terminated and not safe_landing else 0.0
+
+    # Timeout penalty: stronger to discourage low_progress_survival
+    # If truncated and still far from pad, large negative
+    # If truncated but near, small negative (ran out of time close but not landed)
+    if truncated:
+        if curr_dist > FAR_THRESHOLD:
+            timeout_penalty = -12.0
+        elif curr_dist > NEAR_THRESHOLD:
+            timeout_penalty = -3.0
+        else:
+            timeout_penalty = -1.0
+    else:
+        timeout_penalty = 0.0
+
+    # ---- No survival bonus ----
+    # (intentionally omitted)
+
+    # Assemble components
+    components = {
+        "approach_progress": progress,
+        "hovering_penalty": hovering_penalty,
+        "stability_reward": stability_reward,
+        "leg_bonus": leg_bonus,
+        "safe_landing_bonus": safe_landing_bonus,
+        "crash_penalty": crash_penalty,
+        "timeout_penalty": timeout_penalty,
+    }
+
+    total_reward = (
+        progress
+        + hovering_penalty
+        + stability_reward
+        + leg_bonus
+        + safe_landing_bonus
+        + crash_penalty
+        + timeout_penalty
+    )
+    return float(total_reward), components

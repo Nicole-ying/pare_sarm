@@ -1,0 +1,53 @@
+{
+  "candidate_id": "round8_candidate2_local_repair",
+  "round": 8,
+  "mutation_family": "local_repair",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round5_candidate1_component_recomposition",
+  "mutation_intent_used": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not only scale all coefficients",
+      "do not add global survival bonus without progress gating",
+      "do not treat noisy partial_progress as success_like"
+    ],
+    "required_changes": [
+      "explicitly avoid known failures: early_failure, low_progress_survival",
+      "preserve useful patterns: partial_progress trajectories exist and should be preserved or improved",
+      "gate or remove components: early_speed_penalty, flight_stability, hovering_penalty, late_stability, low_progress_survival_gate, progress_reward_high, terminal_penalty, ungated_contact_bonus, ungated_survival_bonus",
+      "preserve or strengthen components: early_approach, failure_penalty, leg_bonus, low_alt_stability, pad_approach_stability, progress_delta, step_progress, terminal_bonus, terminal_failure_penalty"
+    ],
+    "preserve_components": [
+      "early_approach",
+      "failure_penalty",
+      "leg_bonus",
+      "low_alt_stability",
+      "pad_approach_stability",
+      "progress_delta",
+      "step_progress",
+      "terminal_bonus",
+      "terminal_failure_penalty"
+    ],
+    "remove_or_gate_components": [
+      "early_speed_penalty",
+      "flight_stability",
+      "hovering_penalty",
+      "late_stability",
+      "low_progress_survival_gate",
+      "progress_reward_high",
+      "terminal_penalty",
+      "ungated_contact_bonus",
+      "ungated_survival_bonus"
+    ]
+  },
+  "coverage_type_used": "failure_plus_partial_progress",
+  "intended_fix": [
+    "make a conservative reward with clear components",
+    "use analyzer context to gate known failure patterns"
+  ],
+  "expected_effect": "Provide a simple, interpretable baseline candidate that reacts to known failures.",
+  "risk": "May be too weak for difficult tasks.",
+  "official_reward_used": false
+}

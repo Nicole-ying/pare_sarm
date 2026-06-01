@@ -1,0 +1,32 @@
+{
+  "id": "57f9b9a0-28da-4fce-904f-fc65ad10cedb",
+  "object": "chat.completion",
+  "created": 1780296293,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "```json\n[\n  {\n    \"trajectory_id\": \"final_ep000\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep001\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep002\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep003\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep004\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep005\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep006\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep007\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep008\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep009\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]\n```",
+        "reasoning_content": "We are given 10 trajectory evidence cards. All trajectories have length 1000, truncated (not terminated). They all show high distance improvement (around 0.9) and final distance around 0.5. However, final leg contacts are zero for all (contact_ratio_last20 = 0.0). The lander never touches the ground with legs. The final states show relatively low speeds but no leg contact. The task goal is to land safely on the landing pad. Safe landing requires both legs in contact, low vertical/horizontal speed, small angle, etc. Since no leg contact, these cannot be success_like. They show significant progress (approaching pad) but never actually land. So they are partial_progress. However, there is no leg contact at all. Some trajectories have very low final speeds (e.g., final_ep005, final_ep009) but still no leg contact. The safe landing condition is not met. Thus, they are partial_progress. Not early_failure because they lasted full length and made progress. Not low_progress_survival because progress is substantial. Not ambiguous because evidence is clear: no leg contact, so not success_like. For all, use_for_tage_pair should be true since classification is clear.\n\nThus for all 10 trajectories: coarse_label = \"partial_progress\", use_for_tage_pair = true."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7708,
+    "completion_tokens": 672,
+    "total_tokens": 8380,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 285
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5660
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

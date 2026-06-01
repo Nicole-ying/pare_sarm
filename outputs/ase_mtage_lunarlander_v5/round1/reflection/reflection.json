@@ -1,0 +1,36 @@
+{
+  "round": 1,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "selected_candidate_id": "round1_candidate1_component_recomposition",
+  "mutation_family": "component_recomposition",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "no_success_like_trajectories",
+    "main_success_signal": "approach_progress remains consistent; leg_contact_bonus shows mixed evidence but near_stage_stability is weak"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "stability_penalty penalized partial_progress trajectories, blocking conversion to success",
+    "repair_attempt": "restructured stability_penalty into positive stability reward; added leg_contact_bonus, near_stage_stability, and soft_landing_bonus; gated by progress",
+    "outcome_after": "failure_avoidance improved (mean reward on failure trajectories became positive), but partial_progress trajectories dropped from 23 to 1 in candidate evaluation; no success_like trajectories emerged"
+  },
+  "lesson": "Replacing stability_penalty with positive stability reward improved failure_reward but may have been too restrictive; near_stage_stability component must be strengthened to favor partial_progress over failures and support progress toward success.",
+  "future_guidance": [
+    "preserve approach_progress and leg_contact_bonus as they show some preference consistency",
+    "strengthen near_stage_stability alignment to encourage conversion from partial_progress to success-like behavior",
+    "ensure positive stability reward does not overly reduce partial_progress counts",
+    "do not treat partial_progress as success_like",
+    "avoid adding global survival bonus without progress gating"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round1_candidate1_component_recomposition",
+    "reason": "Selected candidate improved training return (from -4.63 to -3.58) and is used as next parent; no rollback triggered"
+  },
+  "uncertainties": [
+    "The large decrease in partial_progress trajectories may indicate the new reward is too strict, but the training data may also differ from the memory used in coverage report",
+    "No success_like trajectories exist, so success-level preferences cannot be constructed",
+    "Weak evidence for near_stage_stability component consistency (0.13); conclusions about its effectiveness are preliminary"
+  ],
+  "agent_mode": "llm_reflector"
+}

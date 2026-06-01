@@ -1,0 +1,85 @@
+{
+  "round": 2,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "overall_judgment": "parent_reward_shows_improving_training_trend_but_structural_components_misaligned",
+  "failure_summary": "The parent reward's stability_near and terminal_penalty components penalize partial_progress trajectories that approach the pad, and approach_progress slightly favors early_failure trajectories. Terminal handling does not clearly separate crash from safe landing, and terminal_bonus is rarely achieved. Memory is ambiguous with insufficient label margin; no success-like trajectories exist.",
+  "memory_interpretation": {
+    "coverage_type": "ambiguous",
+    "decision_level": "no_decision",
+    "usable_preference_level": "none",
+    "main_known_failures": [
+      "early_failure (only 5 trajectories)",
+      "ambiguous memory (34/50 in judgment summary)"
+    ],
+    "main_useful_patterns": [
+      "Progress-conditioned gating preserves approach signal but components misalign quality"
+    ],
+    "uncertainties": [
+      "Label margin is insufficient (progress_gap negative, stability_gap negative)",
+      "No success-like trajectories available",
+      "Labeling inconsistency between coverage report (107 partial_progress) and judgment summary (16 partial_progress)",
+      "Only 5 early_failure trajectories, statistics unreliable",
+      "Memory too small for strong preference pair construction"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "approach_progress",
+      "verdict": "keep",
+      "evidence": "Central to progress-conditioned structure but failure_mean (1.0189) > positive_mean (0.9835), indicating it slightly favors early_failure. Needs recalibration to higher-quality trajectories."
+    },
+    {
+      "component": "stability_near",
+      "verdict": "remove_or_gate",
+      "evidence": "Component summary shows failure_mean -21.55 vs positive_mean -45.87, heavily penalizing partial_progress trajectories near the pad. This discourages near-pad stability and is misaligned with goal."
+    },
+    {
+      "component": "terminal_penalty",
+      "verdict": "remove_or_gate",
+      "evidence": "Positive_mean -7.009 indicates many non-crash partial_progress trajectories receive penalty. Should be restricted to clear crashes only, not applied to ambiguous terminations."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "strengthen",
+      "evidence": "Positive_mean 3.22 out of 107 suggests few trajectories receive bonus. Achievability conditions are too strict; should be attainable with moderate speed and both legs contact."
+    },
+    {
+      "component": "low_progress_timeout",
+      "verdict": "keep",
+      "evidence": "Mean zero for both groups; neutral but may be retained as mild timeout penalty."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like",
+      "do not construct preference pairs from weak memory"
+    ],
+    "required_changes": [
+      "restructure terminal handling: separate crash (high penalty), safe landing (achievable bonus with moderate speed and both legs contact), and ambiguous termination (neutral)",
+      "replace or soften near-stage penalties to avoid penalizing partial_progress trajectories near the pad",
+      "recalibrate approach_progress component to favor partial_progress over early_failure",
+      "preserve progress-conditioned gating (far vs near stage)",
+      "ensure terminal_bonus is achievable with moderate speeds and both legs contact, not requiring extreme stability"
+    ],
+    "preserve_components": [
+      "progress-conditioned structure",
+      "approach_progress (needs recalibration)"
+    ],
+    "remove_or_gate_components": [
+      "stability_near",
+      "terminal_penalty"
+    ]
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Training return is improving across rounds (from -69.87 to -62.95), and parent reward has usable progress-conditioned structure. No rollback needed; structural changes should address the misalignment."
+  },
+  "self_evaluation_lesson": "The parent reward's progress-conditioned design is promising but stability_near and terminal_penalty penalize near-pad partial_progress, while approach_progress does not discriminate quality. Memory is ambiguous with no success-like trajectories, so conservative component_recomposition is appropriate: restructure terminal handling and near-stage penalties, keep progress gating, and recalibrate approach_progress. Avoid strengthening components that reward survival without progress.",
+  "agent_mode": "llm_analyzer"
+}

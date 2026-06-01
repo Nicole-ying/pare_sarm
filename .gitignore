@@ -1,20 +1,17 @@
-# Python cache
 __pycache__/
 *.pyc
-*.pyo
-
-# Large model/checkpoint files (* matches any directory depth)
-*.zip
 *.pkl
-
-# Experiment logs
-experiment.log
-train_error.log
-*.log
-
-# Generated media
-gifs/
-
-# OS files
+*.zip
+*.gif
+*.mp4
 .DS_Store
-Thumbs.db
+prompt_backups/
+**/train_monitor/
+**/trajectory_logs/
+**/step_logs/
+**/checkpoints/
+**/gifs/
+**/*.monitor.csv
+**/*.jsonl
+**/run_info.json
+**/proxy_config.yaml

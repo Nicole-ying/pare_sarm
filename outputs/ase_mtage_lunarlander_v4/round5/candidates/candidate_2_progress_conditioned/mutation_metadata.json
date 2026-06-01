@@ -1,0 +1,41 @@
+{
+  "candidate_id": "round5_candidate2_progress_conditioned",
+  "round": 5,
+  "mutation_family": "progress_conditioned",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "local_repair",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like"
+    ],
+    "required_changes": [
+      "Remove or gate terminal_reward to prevent rewarding low-quality terminations",
+      "Restructure approach_progress to more clearly penalize early_failure trajectories and reward partial_progress",
+      "Preserve progress-conditioned gating, low_progress_timeout, leg_bonus, proximity_bonus, near_stability",
+      "Ensure any new terminal bonus is stringent (both legs contact, low speed, small angle) to convert partial_progress to success_like"
+    ],
+    "preserve_components": [
+      "low_progress_timeout",
+      "leg_bonus",
+      "proximity_bonus",
+      "near_stability",
+      "far_stage and near_stage gating logic"
+    ],
+    "remove_or_gate_components": [
+      "terminal_reward"
+    ]
+  },
+  "coverage_type_used": "partial_or_success_only",
+  "intended_fix": [
+    "condition reward by progress or stability stage",
+    "reduce low-progress reward hacking"
+  ],
+  "expected_effect": "Handle stage-dependent task conflicts and discourage low-progress survival.",
+  "risk": "Stage gates may be imperfect before trajectory memory is available.",
+  "official_reward_used": false
+}

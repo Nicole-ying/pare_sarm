@@ -1,0 +1,97 @@
+{
+  "round": 2,
+  "parent_reward_id": "round1_candidate0_progress_conditioned",
+  "overall_judgment": "parent_reward_produces_usable_memory_and_partial_progress_but_penalty_overload_blocks_success",
+  "failure_summary": "The parent reward's excessive speed, stability, and terminal penalties (early_speed_penalty, late_stability, flight_stability, terminal_penalty) heavily penalize partial_progress trajectories, preventing the policy from achieving success_like behavior. The progress signal (early_approach) is positive but overwhelmed by net negative reward from penalties.",
+  "memory_interpretation": {
+    "coverage_type": "failure_plus_partial_progress",
+    "decision_level": "weak_pairwise_selection",
+    "usable_preference_level": "weak_pairwise",
+    "main_known_failures": [
+      "early_failure caused by crash or high velocity",
+      "partial_progress trajectories cannot transition to success due to severe penalties on descent and low-altitude stability"
+    ],
+    "main_useful_patterns": [
+      "partial_progress trajectories achieve distance improvement toward the pad (mean progress 1.08) but are heavily penalized for vertical speed and angle during both high and low altitude",
+      "early_approach component positively correlates with partial_progress"
+    ],
+    "uncertainties": [
+      "No success_like trajectories exist, so success-level preferences cannot be formed",
+      "The influence of terminal_penalty on partial_progress is unclear: mean -11.25 vs -5.0 for failures, possibly due to crash conditions being met more often for partial_progress (e.g., higher impact velocity)",
+      "The exact coefficients needed to rebalance are not known; need structural change rather than fine-tuning"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "early_approach",
+      "verdict": "keep",
+      "evidence": "It positively rewards progress toward the pad and correlates with partial_progress (mean 4.24 for positive group). This is a useful signal."
+    },
+    {
+      "component": "early_speed_penalty",
+      "verdict": "restructure",
+      "evidence": "Positive_mean is -20.64, indicating it heavily penalizes partial_progress trajectories during high altitude. This could be gated by excessive speed threshold or reduced magnitude to avoid overwhelming the approach signal."
+    },
+    {
+      "component": "late_stability",
+      "verdict": "restructure",
+      "evidence": "Positive_mean is -24.00, a severe penalty on low-altitude behavior. It punishes any minor velocity or angle deviation, making it impossible for the policy to maintain good stability and get net positive reward. Should be redesigned to include a positive component for good stability."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "keep",
+      "evidence": "Has zero mean for failures and small positive mean (0.71) for positive group. It rewards leg contact near pad, which is a desired behavior. Can be strengthened or combined with other conditions."
+    },
+    {
+      "component": "terminal_penalty",
+      "verdict": "restructure",
+      "evidence": "Both groups receive negative mean, but partial_progress receives more negative (-11.25 vs -5.0). This suggests that partial_progress trajectories are more likely to meet crash/truncation conditions. Might need to reduce the magnitude or exclude certain cases."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "keep",
+      "evidence": "Mean is 0.0 for both groups, indicating no successful landings. The bonus formula seems reasonable but unreachable because penalties prevent the policy from reaching a state with both legs contacting. Keep as potential reward for actual success."
+    },
+    {
+      "component": "flight_stability",
+      "verdict": "restructure",
+      "evidence": "Positive_mean is -7.38, adding extra penalty on angle and angular velocity during entire flight. It overlaps with late_stability and may be redundant. Consider removing or gating it."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not scale all coefficients uniformly without structural change",
+      "do not treat partial_progress as success_like"
+    ],
+    "required_changes": [
+      "restructure early_speed_penalty to be mild or conditional on excessive vertical speed (e.g., threshold of 0.8) to avoid strong penalty on normal descent",
+      "redesign late_stability to include a positive reward for good stability (low velocity, upright angle) rather than only negative penalty; reduce penalty coefficients significantly",
+      "remove or gate flight_stability to avoid double penalty on angle/angular velocity",
+      "reduce terminal_penalty magnitude or make it more discriminative (e.g., only severe crash conditions yield large penalty)",
+      "strengthen leg_bonus by adding a velocity condition (e.g., bonus when both legs contact and vertical speed < 0.5 and angle < 0.2) to encourage stable landing",
+      "ensure that the total net reward for good partial_progress trajectories becomes non-negative to allow policy to explore more successful behavior"
+    ],
+    "preserve_components": [
+      "early_approach",
+      "progress conditioning (high_alt/low_alt gating)",
+      "leg_bonus (but with addition of low-velocity condition)",
+      "terminal_bonus"
+    ],
+    "remove_or_gate_components": [
+      "flight_stability (remove or gate with debug flag)",
+      "early_speed_penalty (gate by high vertical speed threshold)",
+      "late_stability (replace with balanced positive/negative component)"
+    ]
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Hard rollback is not required because the current memory contains weak but usable partial-progress evidence. The parent reward enabled partial progress, which is an improvement from the previous round's all-early-failure. Structural changes as recommended should build on this progress."
+  },
+  "self_evaluation_lesson": "The parent reward's penalty overload prevented policy from achieving success despite good progress. Partial progress is a weak signal but valuable; next mutation must rebalance penalties and introduce positive incentives for stable low-altitude behavior to enable successful landings. Avoid simply scaling coefficients; structural changes to penalty components are necessary.",
+  "agent_mode": "llm_analyzer"
+}

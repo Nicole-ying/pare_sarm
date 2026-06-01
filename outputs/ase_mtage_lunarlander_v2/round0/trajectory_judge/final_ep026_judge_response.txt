@@ -1,0 +1,23 @@
+{
+  "trajectory_id": "final_ep026",
+  "final_label": {
+    "coarse_label": "early_failure",
+    "detail_label": "early_crash",
+    "confidence": 0.9
+  },
+  "agree_with_rule": false,
+  "evidence_used": [
+    "crash_penalty=-8.0 indicates the lander crashed",
+    "episode_length=81 is short, suggesting early termination",
+    "final_speed=0.973 is high, consistent with a crash",
+    "contact_ratio_last20=0.15 indicates minimal ground contact, not a stable landing",
+    "final_distance_to_target=0.3388 is not close enough to the pad for a safe landing"
+  ],
+  "conflict_warnings": [
+    "rule label suggests partial_progress but crash_penalty and high final speed indicate a crash"
+  ],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "negative_reference",
+  "do_not_use_reason": ""
+}

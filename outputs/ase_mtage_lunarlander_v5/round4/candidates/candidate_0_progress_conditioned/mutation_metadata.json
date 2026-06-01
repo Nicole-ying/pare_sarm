@@ -1,0 +1,46 @@
+{
+  "candidate_id": "round4_candidate0_progress_conditioned",
+  "round": 4,
+  "mutation_family": "progress_conditioned",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round2_candidate0_component_recomposition",
+  "mutation_intent_used": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not only scale all coefficients",
+      "do not add global survival bonus without progress gating",
+      "do not treat noisy partial_progress as success_like"
+    ],
+    "required_changes": [
+      "explicitly avoid known failures: early_failure, low_progress_survival",
+      "preserve useful patterns: partial_progress trajectories exist and should be preserved or improved",
+      "gate or remove components: crash_penalty, low_progress_survival_gate, stability_penalty, timeout_penalty, ungated_contact_bonus, ungated_survival_bonus",
+      "preserve or strengthen components: approach_progress, leg_bonus, near_stage_stability, progress_delta, terminal_failure_penalty"
+    ],
+    "preserve_components": [
+      "approach_progress",
+      "leg_bonus",
+      "near_stage_stability",
+      "progress_delta",
+      "terminal_failure_penalty"
+    ],
+    "remove_or_gate_components": [
+      "crash_penalty",
+      "low_progress_survival_gate",
+      "stability_penalty",
+      "timeout_penalty",
+      "ungated_contact_bonus",
+      "ungated_survival_bonus"
+    ]
+  },
+  "coverage_type_used": "failure_plus_partial_progress",
+  "intended_fix": [
+    "condition reward by progress or stability stage",
+    "reduce low-progress reward hacking"
+  ],
+  "expected_effect": "Handle stage-dependent task conflicts and discourage low-progress survival.",
+  "risk": "Stage gates may be imperfect before trajectory memory is available.",
+  "official_reward_used": false
+}

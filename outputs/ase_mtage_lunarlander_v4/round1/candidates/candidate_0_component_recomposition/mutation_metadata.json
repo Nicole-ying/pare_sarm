@@ -1,0 +1,39 @@
+{
+  "candidate_id": "round1_candidate0_component_recomposition",
+  "round": 1,
+  "mutation_family": "component_recomposition",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like",
+      "do not construct preference pairs from weak memory"
+    ],
+    "required_changes": [
+      "preserve progress-conditioned structure but restructure approach_progress to ensure it correctly favors higher-quality trajectories",
+      "restructure terminal handling to clearly separate crash (high penalty), safe landing (achievable bonus), and ambiguous termination (neutral)",
+      "make terminal_bonus achievable with moderate speeds and both legs contact",
+      "reduce penalty on non-crash partial_progress trajectories, especially in near stage",
+      "replace or significantly soften stability_near penalties to avoid discouraging near-pad behavior",
+      "ensure terminal_penalty only applies to unmistakable crashes"
+    ],
+    "preserve_components": [
+      "approach_progress (or reworked progress component)"
+    ],
+    "remove_or_gate_components": []
+  },
+  "coverage_type_used": "ambiguous",
+  "intended_fix": [
+    "use delta/progress-style components",
+    "avoid pure survival reward",
+    "recompose components flagged by analyzer"
+  ],
+  "expected_effect": "Separate progress, stability, and terminal terms based on analyzer intent.",
+  "risk": "Delta terms may be noisy if the progress proxy is imperfect.",
+  "official_reward_used": false
+}

@@ -1,0 +1,117 @@
+{
+  "env_name": "LunarLander-v2",
+  "task_goal": "land safely on the landing pad using observable state evidence, without using the official reward",
+  "official_reward_visible": false,
+  "observation_schema": [
+    {
+      "index": 0,
+      "name": "x_position",
+      "meaning": "horizontal coordinate of the lander; landing pad at x=0",
+      "used_for_labeling": true
+    },
+    {
+      "index": 1,
+      "name": "y_position",
+      "meaning": "vertical coordinate of the lander; landing pad at y=0",
+      "used_for_labeling": true
+    },
+    {
+      "index": 2,
+      "name": "x_velocity",
+      "meaning": "horizontal linear velocity of the lander",
+      "used_for_labeling": true
+    },
+    {
+      "index": 3,
+      "name": "y_velocity",
+      "meaning": "vertical linear velocity of the lander",
+      "used_for_labeling": true
+    },
+    {
+      "index": 4,
+      "name": "angle",
+      "meaning": "rotation angle of the lander in radians",
+      "used_for_labeling": true
+    },
+    {
+      "index": 5,
+      "name": "angular_velocity",
+      "meaning": "angular velocity of the lander in radians per second (scaled by 0.4 internally, but observation is in 0.4 rad/s units per source note)",
+      "used_for_labeling": true
+    },
+    {
+      "index": 6,
+      "name": "leg1_contact",
+      "meaning": "boolean indicating whether the first leg is in contact with the ground",
+      "used_for_labeling": true
+    },
+    {
+      "index": 7,
+      "name": "leg2_contact",
+      "meaning": "boolean indicating whether the second leg is in contact with the ground",
+      "used_for_labeling": true
+    }
+  ],
+  "action_schema": [
+    {
+      "id": 0,
+      "meaning": "do nothing"
+    },
+    {
+      "id": 1,
+      "meaning": "fire left orientation engine"
+    },
+    {
+      "id": 2,
+      "meaning": "fire main engine"
+    },
+    {
+      "id": 3,
+      "meaning": "fire right orientation engine"
+    }
+  ],
+  "termination_signals": [
+    "lander crashes (body contacts the moon surface)",
+    "lander goes outside viewport (x coordinate > 1 or < -1? Actually |x| > 1 triggers termination but not specified precisely in the summary; the summary says 'x coordinate is greater than 1', so likely symmetric bounds)",
+    "lander is not awake (body comes to rest and does not move/collide, from Box2D sleep state)"
+  ],
+  "available_info_keys": [],
+  "trajectory_features_to_extract": [
+    "episode_length",
+    "terminated",
+    "truncated",
+    "initial_distance_to_landing_pad",
+    "final_distance_to_landing_pad",
+    "distance_improvement",
+    "final_speed_magnitude",
+    "final_angle_abs",
+    "final_legs_contact_both",
+    "final_x_position",
+    "final_y_position",
+    "max_x_position",
+    "min_x_position",
+    "max_y_position",
+    "min_y_position",
+    "landing_pad_proximity_flag"
+  ],
+  "coarse_outcome_labels": [
+    "early_failure",
+    "low_progress_survival",
+    "partial_progress",
+    "success_like",
+    "ambiguous"
+  ],
+  "labeling_cautions": [
+    "Do not use or infer the official environment reward.",
+    "Do not treat long episode length alone as success_like.",
+    "Do not treat high approach progress with unstable final speed or large angle as success_like.",
+    "Do not treat a crash outside the pad as success_like even if legs touch ground.",
+    "Both legs must be in contact with the ground and the lander must be near the pad (x near 0) for a safe landing; unstable final state (high speed, large angle) should not be classified as success_like.",
+    "The angular velocity observation is scaled by 0.4 internally; raw values should be interpreted with caution."
+  ],
+  "unknowns": [
+    "Exact boundary values for viewport termination (the summary says x > 1, but low bound for x is -1.5 in observation space, so likely symmetric, but not explicitly stated).",
+    "The precise condition for 'lander not awake' termination and how it manifests in observations."
+  ],
+  "llm_used": true
+}

@@ -1,0 +1,32 @@
+{
+  "diagnosis": "The per-step reward is always positive (desired_state_reward + alive_bonus + leg_bonus), so the agent should want to survive longer. However, the desired_state_reward is a composite exponential of position, velocity, and angle, which becomes extremely small when the lander is far from the pad or has high speed/angle. This provides almost no gradient to move toward the goal, and the tiny positive reward (~0.1 per step) is insufficient to motivate the agent to learn complex landing maneuvers. The agent learns that early termination (crash) yields a similar cumulative reward as struggling with unstable dynamics, and the difficulty of achieving the sparse terminal bonus (500) makes it prefer to end episodes quickly and reset.",
+  "escalation_level": "structural",
+  "component_verdicts": [
+    {
+      "component": "desired_state_reward",
+      "verdict": "reconsider",
+      "reason": "The composite exponential reward has no directional signal; it penalizes all deviations equally, conflating position error, speed, and angle. This produces weak progress alignment and no incentive to move toward the pad."
+    },
+    {
+      "component": "alive_bonus",
+      "verdict": "keep",
+      "reason": "Provides a small positive reward for surviving, but is too weak to counterbalance the lack of directed progress."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "reconsider",
+      "reason": "Conditional on both legs contacting the pad and low speed/height; occurs so rarely that it provides no consistent learning signal."
+    },
+    {
+      "component": "fuel_penalty",
+      "verdict": "keep",
+      "reason": "Very small magnitude, not causing the crash behavior. Could be increased slightly to discourage wasteful thrust, but not root cause."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "keep",
+      "reason": "Sparse large reward for safe landing, but too difficult to reach given the weak per-step shaping. Increase density with intermediate rewards."
+    }
+  ],
+  "pipeline_action": "continue"
+}

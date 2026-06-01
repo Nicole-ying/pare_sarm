@@ -1,0 +1,32 @@
+{
+  "id": "6d78687d-7a80-43d9-83da-056f98450b16",
+  "object": "chat.completion",
+  "created": 1780021263,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "import math\n\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except Exception:\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    # Extract observations\n    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0\n    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0\n    vx = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0\n    vy = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0\n    angle = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0\n    ang_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0\n    leg1 = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0\n    leg2 = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0\n\n    # Previous distance (from obs)\n    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0\n    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0\n    prev_dist = math.sqrt(x0 * x0 + y0 * y0)\n    curr_dist = math.sqrt(x1 * x1 + y1 * y1)\n\n    # Progress: negative delta means moving closer\n    progress_delta = prev_dist - curr_dist\n\n    # Speed and angle magnitude\n    speed = math.sqrt(vx * vx + vy * vy)\n    angle_abs = abs(angle)\n    ang_vel_abs = abs(ang_vel)\n\n    # Landing conditions\n    both_legs = 1.0 if (leg1 > 0.5 and leg2 > 0.5) else 0.0\n    near_pad = 1.0 if curr_dist < 0.35 else 0.0\n\n    # Approach progress (only meaningful when not near pad)\n    approach_progress = (1.0 - near_pad) * progress_delta\n\n    # Stability penalty (discourage high speed and angular velocity)\n    # Scale: penalize speed > 1, angle > 0.5 rad, angular velocity > 1 (raw)\n    stability_penalty = -0.1 * (speed + angle_abs * 2.0 + ang_vel_abs * 1.0)\n\n    # Landing reward: if near pad, both legs contact, low speed and angle\n    safe_landing = near_pad * both_legs * (\n        1.0 if (speed < 0.5 and angle_abs < 0.3) else 0.0\n    ) * 2.0\n\n    # Terminal penalty for crash (terminated but not safe landing)\n    crash_penalty = 0.0\n    if terminated:\n        # If not a safe landing, it's a crash\n        if not (near_pad and both_legs and speed < 0.5 and angle_abs < 0.3):\n            crash_penalty = -2.0\n\n    # Timeout penalty (truncated without progress)\n    timeout_penalty = 0.0\n    if truncated and curr_dist > 0.5:\n        timeout_penalty = -1.0\n\n    components = {\n        \"approach_progress\": approach_progress,\n        \"stability_penalty\": stability_penalty,\n        \"safe_landing\": safe_landing,\n        \"crash_penalty\": crash_penalty,\n        \"timeout_penalty\": timeout_penalty,\n    }\n\n    total_reward = (\n        4.0 * approach_progress\n        + stability_penalty\n        + safe_landing\n        + crash_penalty\n        + timeout_penalty\n    )\n\n    return float(total_reward), components",
+        "reasoning_content": "We need to generate a reward function for LunarLander-v2 using component_recomposition mutation. No parent reward is given, so we start from scratch. We must avoid using official reward, use only obs/action/next_obs/terminated/truncated/info. Observations: [x, y, vx, vy, angle, angular_velocity, leg1, leg2]. Goal: land safely on pad (x near 0, y near 0, low speed, small angle, both legs contact). We need progress, stability, terminal punishment.\n\nComponents: approach_progress (distance decrease), stability (low speed and angle), landing reward (when both legs contact near pad), crash penalty (if terminated with high speed or large angle), timeout penalty.\n\nWe'll define safe_float helper. Use math.sqrt.\n\nThe mutation family is component_recomposition: remove misleading, add missing, turn absolute into delta/progress, separate progress, stability, terminal, penalties. Avoid rewarding low-progress survival.\n\nWe'll design: \n- progress: change in distance to pad (negative for moving away)\n- stability: penalty for high speed/angular velocity, especially near pad\n- landing: bonus when both legs contact and near pad and low speed\n- crash: penalty when terminated with high speed or far from pad\n- timeout: penalty when truncated without landing\n\nWe need to ensure total reward finite.\n\nOutput only code."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3097,
+    "completion_tokens": 1245,
+    "total_tokens": 4342,
+    "prompt_tokens_details": {
+      "cached_tokens": 3072
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 291
+    },
+    "prompt_cache_hit_tokens": 3072,
+    "prompt_cache_miss_tokens": 25
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

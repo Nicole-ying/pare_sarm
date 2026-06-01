@@ -1,0 +1,22 @@
+{
+  "trajectory_id": "final_ep023",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.75
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.030 indicates significant approach toward the landing pad",
+    "final_distance_to_target=0.386 is relatively close but not extremely close to the pad",
+    "final_speed=0.052 and final_angle_abs=0.078 are low, suggesting stable state",
+    "contact_ratio_last20=0.15 is low, indicating insufficient leg contact for a safe landing",
+    "no crash penalty and no landing bonus in reward components",
+    "episode terminated at length 81, not due to timeout"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

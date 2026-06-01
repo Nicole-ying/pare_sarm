@@ -1,0 +1,23 @@
+{
+  "env_id": "LunarLander-v2",
+  "reward_path": "outputs/ase_mtage_lunarlander_v3/round9/candidates/candidate_2_local_repair/reward_fn_source.py",
+  "selected_candidate_id": "round9_candidate2_local_repair",
+  "seed": 942,
+  "full_timesteps": 500000,
+  "final_eval_episodes": 50,
+  "algorithm": "PPO",
+  "official_reward_used_for_training": false,
+  "n_envs": 16,
+  "ppo": {
+    "learning_rate": 0.0003,
+    "n_steps": 1024,
+    "batch_size": 64,
+    "n_epochs": 4,
+    "gamma": 0.999,
+    "gae_lambda": 0.98,
+    "clip_range": 0.2,
+    "ent_coef": 0.01,
+    "vf_coef": 0.5,
+    "max_grad_norm": 0.5
+  }
+}

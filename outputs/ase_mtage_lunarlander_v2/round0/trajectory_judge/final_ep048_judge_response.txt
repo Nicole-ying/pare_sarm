@@ -1,0 +1,25 @@
+{
+  "trajectory_id": "final_ep048",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.75
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "initial_distance_to_target=1.41, final_distance_to_target=0.044, distance_improvement=1.366 indicates strong approach progress",
+    "min_distance_to_target=0.0186 shows the lander came very close to pad",
+    "final_angle_abs=0.0099 is nearly zero, indicating good orientation",
+    "final_speed=0.247 is moderate but not extremely low; final_vertical_speed=0.107 is low, final_horizontal_speed=0.223 is moderate",
+    "contact_ratio_last20=0.1 means only 10% of last 20 steps had both legs in contact, lacking evidence of stable landing",
+    "landing_bonus component=10.0 is high but may reflect transient contact rather than sustained stable landing"
+  ],
+  "conflict_warnings": [
+    "contact_ratio_last20 (0.1) is low despite very close approach and near-zero angle, indicating legs may not have maintained contact",
+    "landing_bonus component value (10.0) conflicts with low contact ratio, possibly due to reward design or transient event"
+  ],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

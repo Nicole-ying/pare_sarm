@@ -1,0 +1,20 @@
+{
+  "trajectory_id": "final_ep015",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.82
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.09 indicates real approach progress",
+    "final_speed=1.379 is high, indicating unstable final state",
+    "contact_ratio_last20=0.1 shows insufficient stable ground contact",
+    "final_angle_abs=0.171 is moderate but not enough to compensate for high speed"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

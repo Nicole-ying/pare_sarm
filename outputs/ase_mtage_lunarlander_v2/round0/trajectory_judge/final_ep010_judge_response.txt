@@ -1,0 +1,22 @@
+{
+  "trajectory_id": "final_ep010",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.8
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.041 indicates significant approach progress",
+    "final_distance_to_target=0.379 is still moderate, not near-zero",
+    "contact_ratio_last20=0.1 shows very few steps with both legs contacting",
+    "final_horizontal_speed_abs=0.474 is high, indicating instability",
+    "landing_bonus=0.0 confirms no successful landing",
+    "final_vertical_speed_abs=0.006 is very low, suggesting near-ground but not landed"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

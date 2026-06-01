@@ -1,0 +1,23 @@
+```json
+{
+  "trajectory_id": "final_ep029",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.75
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=0.955 indicates significant approach progress",
+    "final_speed=0.794 is high, indicating unstable final state",
+    "final_angle_abs=0.294 rad is moderate, not near zero",
+    "contact_ratio_last20=0.15 shows very few leg contacts in final steps",
+    "episode terminated early at step 62, possibly due to crash or instability"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}
+```

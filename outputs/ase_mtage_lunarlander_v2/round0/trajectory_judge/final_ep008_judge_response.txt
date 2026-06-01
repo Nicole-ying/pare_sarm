@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep008",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "initial_distance=1.415, final_distance=0.194, improvement=1.222 shows significant progress towards pad",
+    "final_speed=1.152 is high, indicating instability",
+    "final_angle_abs=0.267 rad is moderate",
+    "contact_ratio_last20=0.15 indicates insufficient leg contact for stable landing",
+    "angle_stability component negative (-0.811) and landing_bonus=0 confirm unsuccessful landing"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

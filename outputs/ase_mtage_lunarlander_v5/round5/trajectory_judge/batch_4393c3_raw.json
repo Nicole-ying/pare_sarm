@@ -1,0 +1,32 @@
+{
+  "id": "6153bffd-a4d5-43a0-ae69-7018b0eabbd2",
+  "object": "chat.completion",
+  "created": 1780293912,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep010\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep011\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep012\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep013\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep014\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep015\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep016\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep017\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep018\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep019\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We need to analyze each trajectory card. All trajectories have episode length 1000, truncated (not terminated). No leg contact (contact_ratio_last20 = 0.0 for all). Final distances to target are around 1.0 (initial around 1.4). Final speeds are low (0.02-0.08), vertical speeds low (<0.06), but they are all in the air with no ground contact. They are not landing. They have some progress (distance improvement ~0.3-0.4) but not near the pad; final distance still ~1.0 (the pad is at 0,0). So they are hovering or moving around but not successfully landing. Since they are truncated at 1000 steps, and none have leg contact, they haven't achieved safe landing. The final speeds are low, but they are still far from pad. So these are partial progress? They show some approach progress but no safe landing. However, the caution says: Do not treat high approach progress with unstable final speed as success_like. These have low final speed but no landing. They are not early failure because they survived entire episode. Not low_progress_survival because they made some progress (distance improvement). Not success_like because no leg contact and not near pad. So partial_progress seems appropriate. But also check if any evidence is conflicting? No. All are similar. So all should be partial_progress. Use_for_tage_pair should be true since not ambiguous."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7792,
+    "completion_tokens": 694,
+    "total_tokens": 8486,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 311
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5744
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

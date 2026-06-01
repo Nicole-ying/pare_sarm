@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep031",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.75
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.046 shows significant approach progress",
+    "final_distance_to_target=0.357 indicates proximity to pad",
+    "final_speed=0.308 is moderate but not negligible",
+    "final_angle_abs=0.172 is small, indicating good orientation",
+    "contact_ratio_last20=0.15 is low, suggesting legs not both grounded stably"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

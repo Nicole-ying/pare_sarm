@@ -1,0 +1,32 @@
+{
+  "id": "40e53cf1-d19b-4c0d-9731-a8915d6678b5",
+  "object": "chat.completion",
+  "created": 1780021253,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "```python\nimport math\n\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except (TypeError, ValueError):\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    # Extract observations\n    x = _safe_float(obs[0]) if len(obs) > 0 else 0.0\n    y = _safe_float(obs[1]) if len(obs) > 1 else 0.0\n    vx = _safe_float(obs[2]) if len(obs) > 2 else 0.0\n    vy = _safe_float(obs[3]) if len(obs) > 3 else 0.0\n    angle = _safe_float(obs[4]) if len(obs) > 4 else 0.0\n    angular_vel = _safe_float(obs[5]) if len(obs) > 5 else 0.0\n    leg1 = _safe_float(obs[6]) if len(obs) > 6 else 0.0\n    leg2 = _safe_float(obs[7]) if len(obs) > 7 else 0.0\n\n    # Next state for progress\n    next_x = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0\n    next_y = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0\n    next_vx = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0\n    next_vy = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0\n    next_angle = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0\n    next_angular_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0\n    next_leg1 = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0\n    next_leg2 = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0\n\n    # Distance to pad (0,0)\n    prev_dist = math.sqrt(x * x + y * y)\n    curr_dist = math.sqrt(next_x * next_x + next_y * next_y)\n    progress = prev_dist - curr_dist  # positive if moving toward pad\n\n    # Speed magnitude and angle at current state\n    speed = math.sqrt(next_vx * next_vx + next_vy * next_vy)\n    abs_angle = abs(next_angle)\n\n    # Leg contact bonus: both legs on ground and near pad\n    both_legs_contact = (next_leg1 > 0.5 and next_leg2 > 0.5)\n    near_pad = curr_dist < 0.3\n\n    # Components\n    approach_reward = 5.0 * progress  # encourage moving toward pad\n    speed_penalty = -0.1 * speed  # mild speed penalty\n    angle_penalty = -0.5 * abs_angle  # penalty for tilting\n    leg_bonus = 2.0 if (both_legs_contact and near_pad) else 0.0  # bonus for safe landing posture\n    crash_penalty = -10.0 if terminated and (abs(next_vx) > 1.0 or abs(next_vy) > 1.0 or abs(next_x) > 1.0) else 0.0\n    out_of_bounds_penalty = -5.0 if abs(next_x) > 1.0 else 0.0\n\n    # Terminal success bonus\n    success_bonus = 0.0\n    if terminated and not truncated:\n        if both_legs_contact and near_pad and speed < 1.0 and abs_angle < 0.5:\n            success_bonus = 10.0\n        else:\n            success_bonus = -5.0  # bad termination\n\n    components = {\n        \"approach_reward\": approach_reward,\n        \"speed_penalty\": speed_penalty,\n        \"angle_penalty\": angle_penalty,\n        \"leg_bonus\": leg_bonus,\n        \"crash_penalty\": crash_penalty,\n        \"out_of_bounds_penalty\": out_of_bounds_penalty,\n        \"success_bonus\": success_bonus\n    }\n\n    total_reward = (approach_reward + speed_penalty + angle_penalty + leg_bonus\n                    + crash_penalty + out_of_bounds_penalty + success_bonus)\n    return float(total_reward), components\n```",
+        "reasoning_content": "We need to generate a reward function for LunarLander-v2 using the mutation family \"local_repair\". However, the parent_reward_code_optional is empty, so there's no parent to repair. We must create a new reward function from scratch. The task is to land safely on the landing pad. The observation includes x, y position, velocities, angle, angular velocity, leg contacts.\n\nWe need to output only Python code with compute_reward function. We must use safe float helper, avoid forbidden imports, and return components dictionary. Since it's local_repair and no parent, we can create a reasonable reward function from scratch.\n\nThe components should include progress toward pad, speed penalty, angle penalty, leg contact bonus, and terminal penalties for crashes or going out of bounds. Avoid pure survival bonus.\n\nWe'll design:\n- progress: reduction in distance to pad (0,0) from previous to current step.\n- speed penalty: penalize high speed especially when close to pad.\n- angle penalty: penalize large angle.\n- leg contact bonus: when both legs contact (near landing).\n- crash penalty if terminated due to crash (large negative).\n- out-of-bounds penalty if |x| > 1.\n\nThe reward should be sparse but we can make it dense.\n\nLet's write the code."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3098,
+    "completion_tokens": 1378,
+    "total_tokens": 4476,
+    "prompt_tokens_details": {
+      "cached_tokens": 1664
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 269
+    },
+    "prompt_cache_hit_tokens": 1664,
+    "prompt_cache_miss_tokens": 1434
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

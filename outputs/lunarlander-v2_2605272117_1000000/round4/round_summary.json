@@ -1,0 +1,72 @@
+{
+  "round": 4,
+  "success": true,
+  "winner_health": {
+    "overall_health": 58.2,
+    "components": [
+      {
+        "name": "proximity",
+        "mean": 0.866459,
+        "std": 0.061943,
+        "share": 0.502,
+        "active": true,
+        "progress_corr": -0.0329,
+        "failure_corr": -0.1014,
+        "health": 0.5854,
+        "verdict": "reduce",
+        "reason": "no progress signal (P=-0.03); dominates reward (50% share)"
+      },
+      {
+        "name": "speed_penalty",
+        "mean": -0.54799,
+        "std": 0.157579,
+        "share": 0.318,
+        "active": true,
+        "progress_corr": -0.1406,
+        "failure_corr": -0.0191,
+        "health": 0.6059,
+        "verdict": "keep",
+        "reason": "speed_penalty is healthy"
+      },
+      {
+        "name": "leg_bonus",
+        "mean": 0.069268,
+        "std": 0.078931,
+        "share": 0.04,
+        "active": true,
+        "progress_corr": 0.4274,
+        "failure_corr": 0.358,
+        "health": 0.6651,
+        "verdict": "reduce",
+        "reason": "strongly aligned with progress (P=+0.43); correlated with failure (F=+0.36)"
+      },
+      {
+        "name": "fuel_penalty",
+        "mean": -0.16123,
+        "std": 0.012579,
+        "share": 0.093,
+        "active": true,
+        "progress_corr": 0.0232,
+        "failure_corr": 0.0128,
+        "health": 0.4278,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=+0.02)"
+      },
+      {
+        "name": "terminal_bonus",
+        "mean": -0.079923,
+        "std": 0.048592,
+        "share": 0.046,
+        "active": true,
+        "progress_corr": -0.0639,
+        "failure_corr": -0.9232,
+        "health": 0.6254,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=-0.06)"
+      }
+    ],
+    "summary": "5 components: 5 active, 1 aligned with progress, 0 misaligned, health=58/100",
+    "verdict": "ok"
+  },
+  "stopped": false
+}

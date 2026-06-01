@@ -1,0 +1,32 @@
+{
+  "id": "db7013e3-c415-4739-85da-7c22245e2bfa",
+  "object": "chat.completion",
+  "created": 1780224732,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep030\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep031\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep032\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep033\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep034\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep035\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep036\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep037\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep038\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep039\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards for LunarLander-v2. All have terminated=true, truncated=false. The features show that final distance to target increased compared to initial (distance_improvement negative), indicating the lander moved away from pad. Final speeds are high (~2), vertical speed near zero, horizontal speed ~2, angle moderate (~0.4-0.7 rad ~23-40 degrees). Contact ratio last20 = 0.0 for all, so no leg contact. Terminal penalty -5 and no terminal bonus. These all seem like crashes: they most likely left viewport or crashed without landing (since no leg contact, distance increased). According to task: early_failure if episode ends early with little useful progress. These episodes are fairly short (84-173 steps, out of max 1000). They show little progress (distance increased, no leg contact, high speed). So they should be classified as early_failure. Also note: use_for_tage_pair should be true because they are clear.\n\nThus for all 10 trajectories: coarse_label = \"early_failure\", use_for_tage_pair = true."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7688,
+    "completion_tokens": 617,
+    "total_tokens": 8305,
+    "prompt_tokens_details": {
+      "cached_tokens": 1920
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 234
+    },
+    "prompt_cache_hit_tokens": 1920,
+    "prompt_cache_miss_tokens": 5768
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

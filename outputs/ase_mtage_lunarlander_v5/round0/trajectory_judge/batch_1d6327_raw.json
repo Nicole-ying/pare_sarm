@@ -1,0 +1,32 @@
+{
+  "id": "ed5eeda8-d101-4970-aecd-40e3d601d89a",
+  "object": "chat.completion",
+  "created": 1780289297,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep010\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep011\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep012\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep013\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep014\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep015\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep016\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep017\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep018\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep019\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards. Need to assign coarse_label and use_for_tage_pair based on the features and guidelines. Let's analyze each one.\n\nGeneral guidelines: \n- termination is true for all, truncated false. So all episodes ended by termination (likely crash or out-of-bounds? or safe landing?).\n- Need to consider final state: velocities, angle, leg contacts, distance to pad.\n- Success-like requires both legs contact, low vertical speed (<0.5?), low horizontal speed, small angle, small angular velocity, near landing pad.\n- None of these have leg contacts >0? Check: final_leg_contacts_sum not provided directly, but we have contact_ratio_last20. For all, contact_ratio_last20 is low: ep010: 0.15, ep011: 0.0, ep012:0.0, ep013:0.0, ep014:0.2, ep015:0.1, ep016:0.0, ep017:0.1, ep018:0.0, ep019:0.0. So none have high leg contact. Ep014 has 0.2 but that's only 20% of last 20% steps, not full contact. Also final_angle_abs: ep010: 2.087, ep011:0.174, ep012:0.507, ep013:0.212, ep014:1.822, ep015:2.049, ep016:0.584, ep017:2.102, ep018:0.228, ep019:0.594. Many have large angles ( >1 rad). \n- Final vertical speed: ep010:0.082 (low), ep011:3.089, ep012:0.809, ep013:3.107, ep014:0.298, ep015:0.068, ep016:0.806, ep017:0.120, ep018:1.841, ep019:3.079. So ep010, ep014, ep015, ep017 have low vertical speed (<0.5?). But horizontal speeds: ep010:0.581, ep014:1.103, ep015:0.730, ep017:0.937. None are very low. Also angles are large.\n- Distances: ep010: final dist 0.445, improvement positive; ep014: final 0.369, improvement positive; ep015: final 0.426, positive; ep017: final 0.453, positive. These trajectories show approach progress but final state unstable.\n- Others: ep011, ep012, ep013, ep016, ep018, ep019 have negative distance improvement (moved away) and high speeds, likely crashed or out of bounds.\n\nLet's classify:\n\nep010: terminated true, distance improvement positive but final horizontal speed 0.58, angle large 2.09, contact_ratio 0.15. Not success-like. Partial progress? It shows approach progress but ends with instability? It ended with crash penalty, so likely early_failure or low_progress? But progress improvement is high, so partial_progress? However, caution: Do not treat high approach progress with unstable final speed as success_like. This is exactly that: high approach progress, but unstable (high horizontal speed, large angle). So not success_like. Could be \"partial_progress\" because it made progress towards pad but crashed. But it terminated, so maybe \"early_failure\"? The episode length is 86, not extremely short. It shows real progress, so partial_progress seems appropriate.\n\nep011: negative distance improvement, high speed, terminated. Likely crash early? But length 154. It moved away. No progress. Could be \"early_failure\"? Or \"low_progress_survival\"? It didn't survive; it crashed. So \"early_failure\" because it failed early? Actually it lasted 154 steps, but moved away and crashed. I'd consider \"early_failure\" since no useful progress. But \"low_progress_survival\" is for episodes that last but show little progress; this episode terminated (crashed) not just ended by truncation. So \"early_failure\". use_for_tage_pair true.\n\nep012: terminated, negative improvement, final speed 2.31, vertical 0.81, horizontal 2.17, angle 0.51, contact 0. So no progress, crashed. \"early_failure\".\n\nep013: similar to ep011, negative improvement, high speed, crash. \"early_failure\".\n\nep014: terminated, positive improvement, final dist 0.369, vertical speed 0.298 (low), horizontal 1.103, angle 1.822, contact_ratio 0.2. Shows approach progress but unstable (high angle, horizontal speed). Not success-like. Partial_progress? It made progress but crashed. It has stability_penalty -5.73, so unstable. So \"partial_progress\".\n\nep015: similar to ep010: positive improvement, vertical low 0.068, horizontal 0.730, angle 2.049, contact 0.1. Partial_progress.\n\nep016: negative improvement, crashed. \"early_failure\".\n\nep017: similar to ep010: positive improvement, vertical low 0.120, horizontal 0.937, angle 2.102, contact 0.1. Partial_progress.\n\nep018: negative improvement, crashed. \"early_failure\".\n\nep019: negative improvement, long length 166, crashed. \"early_failure\".\n\nNow check if any should be ambiguous? All have clear evidence; no conflicts. So use_for_tage_pair true for all.\n\nThus output array.\n\nProceed to output JSON."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7457,
+    "completion_tokens": 1604,
+    "total_tokens": 9061,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 1221
+    },
+    "prompt_cache_hit_tokens": 768,
+    "prompt_cache_miss_tokens": 6689
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

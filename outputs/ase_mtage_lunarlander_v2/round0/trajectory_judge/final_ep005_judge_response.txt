@@ -1,0 +1,20 @@
+{
+  "trajectory_id": "final_ep005",
+  "final_label": {
+    "coarse_label": "early_failure",
+    "detail_label": "early_crash",
+    "confidence": 0.75
+  },
+  "agree_with_rule": false,
+  "evidence_used": [
+    "episode length = 52, terminated = true, truncated = false (early end)",
+    "final_speed = 0.940, final_vertical_speed_abs = 0.925 (high speed, likely crash)",
+    "contact_ratio_last20 = 0.15 (no stable both-leg contact)",
+    "final_distance_to_target = 0.312 (still some distance from pad)"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "negative_reference",
+  "do_not_use_reason": ""
+}

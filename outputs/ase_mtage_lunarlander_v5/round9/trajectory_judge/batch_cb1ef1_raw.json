@@ -1,0 +1,32 @@
+{
+  "id": "9e40cdf7-b04c-4445-946e-fb970fa077b1",
+  "object": "chat.completion",
+  "created": 1780296837,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep000\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep001\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep002\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep003\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep004\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep005\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep006\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep007\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep008\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep009\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory cards. All trajectories have length 1000, truncated (not terminated). No leg contact in any (contact_ratio_last20 = 0.0). None have final leg contacts. So none have both legs down. According to safe landing criteria, need both legs contact, low speeds, small angle. None have leg contacts, so cannot be success_like. Also, no evidence of early termination/crash (terminated false, truncated true). They all survived but ended due to time limit. So coarse label should consider progress.\n\nAll have some approach progress (positive distance improvement for some, negative for others). For those with positive approach progress, they got closer to pad but never landed. They have low final speeds (vertical speed abs <0.02 for some), but no leg contact. So partial progress. For those with negative distance improvement (worse than start), that could be low_progress_survival or ambiguous? Let's check each:\n\n- ep000: distance_improvement 0.217 (positive), final speed 0.0348, vertical speed 0.005, horizontal 0.034, angle 0.0147, contact_ratio 0.0. Progress positive but no landing. Partial progress.\n- ep001: distance_improvement -0.324 (negative), final vertical speed 0.0255, horizontal 0.0383, angle 0.0265, contact_ratio 0.0. Negative progress: got farther. Also low speeds but no contact. Could be low_progress_survival because not even progress toward pad? Actually distance increased. But still survived. Label: low_progress_survival.\n- ep002: distance_improvement -0.214, vertical speed 0.0633, horizontal 0.0881, angle 0.0094. Negative progress, somewhat higher speeds but still low? Speed 0.108 total. Survived. Low_progress_survival.\n- ep003: distance_improvement 0.304, vertical speed 0.0163, horizontal 0.1187, angle 0.054. Positive progress but horizontal speed 0.1187 not extremely low. No contact. Partial progress.\n- ep004: distance_improvement 0.265, vertical speed 0.0168, horizontal 0.0529, angle 0.007. Positive progress. Partial progress.\n- ep005: distance_improvement -0.379, vertical speed 0.0472, horizontal 0.0717, angle 0.0156. Negative progress, low speeds. Low_progress_survival.\n- ep006: distance_improvement 0.173, vertical speed 0.0033, horizontal 0.0432, angle 0.0134. Positive progress. Partial progress.\n- ep007: distance_improvement 0.332, vertical speed 0.0220, horizontal 0.0130, angle 0.0354. Positive progress, good horizontal speed 0.013. No contact. Partial progress.\n- ep008: distance_improvement -0.204, vertical speed 0.0605, horizontal 0.0536, angle 0.0309. Negative progress, low speeds. Low_progress_survival.\n- ep009: distance_improvement 0.113, vertical speed 0.0056, horizontal 0.0592, angle 0.0077. Positive progress. Partial progress.\n\nAll have no leg contact. So no success_like. None are early_failure because they survived full length. None are ambiguous because evidence is consistent: no contact, some progress or not. So we can classify.\n\nSet use_for_tage_pair to true for all except maybe ambiguous. But here none are ambiguous.\n\nThus:\n\n- final_ep000: partial_progress\n- final_ep001: low_progress_survival\n- final_ep002: low_progress_survival\n- final_ep003: partial_progress\n- final_ep004: partial_progress\n- final_ep005: low_progress_survival\n- final_ep006: partial_progress\n- final_ep007: partial_progress\n- final_ep008: low_progress_survival\n- final_ep009: partial_progress\n\nAll use_for_tage_pair: true\n\nReturn JSON array."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7557,
+    "completion_tokens": 1323,
+    "total_tokens": 8880,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 928
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5509
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

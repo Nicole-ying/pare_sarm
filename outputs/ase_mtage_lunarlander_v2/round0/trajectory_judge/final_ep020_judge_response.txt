@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep020",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.143 indicates significant approach progress",
+    "final_speed=0.958 (vertical 0.948) indicates unstable final state",
+    "contact_ratio_last20=0.1 shows minimal leg contact near end",
+    "final_distance_to_target=0.264 is close but not zero",
+    "episode length=63 is short but not early failure due to progress"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

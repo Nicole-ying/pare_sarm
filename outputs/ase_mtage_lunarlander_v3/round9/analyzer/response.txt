@@ -1,0 +1,72 @@
+{
+  "round": 9,
+  "parent_reward_id": "round5_candidate1_component_recomposition",
+  "overall_judgment": "parent_reward_requires_structural_repair_to_enable_success_conversion",
+  "failure_summary": "Parent reward produces partial_progress but terminal_penalty penalizes partial_progress more than failures, and low_alt_stability lacks proximity gating, causing low_progress_survival to be over-rewarded relative to partial_progress. After 9 rounds, no success-like trajectories exist.",
+  "memory_interpretation": {
+    "coverage_type": "failure_plus_partial_progress",
+    "decision_level": "weak_pairwise_selection",
+    "usable_preference_level": "weak_pairwise",
+    "main_known_failures": ["low_progress_survival", "early_failure"],
+    "main_useful_patterns": ["partial_progress shows distance improvement and some stability"],
+    "uncertainties": [
+      "No high-confidence success_like trajectories exist",
+      "Terminal penalty component consistently penalizes partial_progress more than failures, undermining weak preference",
+      "Component alignment of leg_bonus and terminal_bonus is very low (0.093 and 0.050)",
+      "Impact of low_alt_stability on low_progress_survival is uncertain"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "early_approach",
+      "verdict": "keep",
+      "evidence": "Positive mean (4.17) higher than failure mean (2.96), indicating it favors partial_progress. Alignment is strong."
+    },
+    {
+      "component": "low_alt_stability",
+      "verdict": "restructure",
+      "evidence": "Failure mean 34.89, positive mean 191.57; though positive mean is higher, the component gives significant reward to failures (low_progress_survival) due to lack of proximity gating."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "restructure",
+      "evidence": "Failure mean 0.0, positive mean 1.71, but component consistency is very low (0.093), indicating it often assigns zero to partial_progress and hence fails to discriminate."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "restructure",
+      "evidence": "Failure mean 0.0, positive mean 0.71, but consistency 0.050; bonus is rarely attained because success condition is too strict for partial_progress."
+    },
+    {
+      "component": "terminal_penalty",
+      "verdict": "restructure",
+      "evidence": "Failure mean -3.55, positive mean -5.04; penalizes partial_progress more than failures, directly undermining the preference for partial_progress over low_progress_survival."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like",
+      "do not add ungated near-ground reward that favors low_progress_survival"
+    ],
+    "required_changes": [
+      "restructure terminal_penalty to penalize low_progress_survival more than partial_progress or avoid penalizing partial_progress that shows progress",
+      "gate low_alt_stability by pad proximity and leg contact to reward only trajectories that are near the landing pad",
+      "make leg_bonus and terminal_bonus attainable for partial_progress with softer conditioning (e.g., lower thresholds on velocity and angle)",
+      "preserve early_approach component",
+      "ensure net reward on partial_progress is strictly higher than on low_progress_survival"
+    ],
+    "preserve_components": ["early_approach"],
+    "remove_or_gate_components": ["low_alt_stability", "terminal_penalty"]
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "No success-like trajectories after 9 rounds, but recent rounds show improvement. Rollback to previous elites (e.g., round5 with high return but low_progress_survival) is unlikely to yield success; structural mutation is required."
+  },
+  "self_evaluation_lesson": "After 9 rounds, persistent lack of success_like trajectories indicates that terminal_penalty and near-landing reward components are misaligned: terminal_penalty penalizes partial_progress more than low_progress_survival, and low_alt_stability lacks proximity gating, allowing low_progress_survival to be over-rewarded. Future mutations must structurally repair these components, not just scale coefficients, to convert partial_progress into success."
+}

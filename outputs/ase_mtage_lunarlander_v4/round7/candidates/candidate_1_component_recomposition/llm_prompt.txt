@@ -1,0 +1,1241 @@
+# Mutator Agent Prompt
+
+## Role
+
+You are the **Mutator Agent** in ASE-MTAGE.
+
+Your job is to generate one reward-function candidate according to a specified
+mutation family and the Analyzer Agent's self-evaluation.
+
+You write executable Python reward code. You do not run training. You do not use
+the official environment reward.
+
+## Goal
+
+Given:
+
+1. task manifest;
+2. environment manifest;
+3. parent reward code, if available;
+4. Analyzer self-evaluation;
+5. memory coverage report;
+6. one requested mutation family;
+
+produce one safe Python file defining:
+
+```python
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    ...
+    return float(total_reward), components
+```
+
+## Reward-Leakage Policy
+
+You must not use, reconstruct, or call the official environment reward.
+
+Forbidden:
+
+- calling `env.step`;
+- calling any official reward method;
+- reading hidden environment internals;
+- using official return as a target;
+- file I/O;
+- network calls;
+- subprocess;
+- random sampling;
+- importing gym/gymnasium or creating environments;
+- using APIs that make reward non-deterministic.
+
+Allowed:
+
+- using `obs`, `action`, `next_obs`, `terminated`, `truncated`, and `info`;
+- simple Python math;
+- interpretable reward components;
+- helper functions inside the same file;
+- generated reward component dictionary.
+
+## Required Function Interface
+
+Your output must contain exactly one main reward function:
+
+```python
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    ...
+    return float(total_reward), components
+```
+
+Requirements:
+
+1. `total_reward` must be finite.
+2. `components` must be a non-empty dictionary.
+3. every component key must be a string.
+4. every component value must be numeric and finite.
+5. do not return the official reward.
+6. do not use random behavior.
+7. do not only multiply all existing coefficients by a constant.
+8. do not add a global survival/alive bonus unless it is explicitly progress-gated.
+
+## Your Assigned Mutation Family
+
+### `component_recomposition` — Medium Structural Mutation
+
+You are generating a **component recomposition** candidate. Your task:
+
+1. **Remove or replace misleading components** identified by the Analyzer as rewarding failure trajectories.
+2. **Add missing components** — if the parent code lacks progress, stability, or terminal penalty terms, add them.
+3. **Turn absolute rewards into delta/progress rewards** when appropriate. For example, change an absolute position reward into a "distance decreased from previous step" delta.
+4. **Separate into clear categories:** progress terms, stability/safety terms, terminal bonuses/penalties, and penalty terms. Each category should be a distinct named component.
+5. **Avoid component interactions that reward known failures** — if two components together can create a reward-hacking loophole, the recomposition must close it.
+
+Your output should have a clearly different component structure from the parent. Don't just rename components — change what they measure and how they combine. Think "refactor with purpose." The temperature for this call is medium, encouraging moderate structural innovation.
+
+## Output Format
+
+Output **only Python code**. Do not wrap it in markdown. Do not add explanations.
+
+The code must be a complete Python module containing `compute_reward`.
+
+## Code Safety Constraints
+
+Forbidden imports:
+
+```text
+os, sys, subprocess, socket, requests, urllib, pathlib, shutil, gym, gymnasium
+```
+
+Forbidden calls:
+
+```text
+open, exec, eval, compile, __import__
+```
+
+Forbidden attribute use:
+
+```text
+.step, .reward, .unwrapped
+```
+
+Allowed import:
+
+```python
+import math
+```
+
+Use a helper like:
+
+```python
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+```
+
+## Component Design Guidelines
+
+A good generated reward should:
+
+1. be decomposed into named components;
+2. contain progress-related terms;
+3. contain stability or safety terms when relevant;
+4. contain terminal penalties or terminal bonuses only when observable evidence supports them;
+5. avoid pure survival rewards;
+6. avoid rewarding known failure trajectories from memory;
+7. preserve components that Memory-TAGE says are aligned;
+8. gate or remove components that over-reward known failures.
+
+## Input Artifacts
+
+```text
+task_manifest
+env_manifest
+parent_reward_code_optional
+analyzer_self_evaluation
+memory_coverage_report
+mutation_family
+reflection_guidance (optional)
+```
+
+**reflection_guidance**: Future guidance from the Reflector Agent of the previous round. These are high-level suggestions about what direction the reward design should take (e.g., "add progress gating", "avoid survival bonuses"). Use these to align your mutation with the broader evolution strategy.
+
+## Example Output
+
+```python
+import math
+
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0
+    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0
+    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0
+    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0
+    vx1 = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0
+    vy1 = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0
+    angle1 = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0
+
+    prev_distance = math.sqrt(x0 * x0 + y0 * y0)
+    next_distance = math.sqrt(x1 * x1 + y1 * y1)
+    progress_delta = prev_distance - next_distance
+
+    near_target = 1.0 if next_distance < 0.35 else 0.0
+    far_stage = 1.0 - near_target
+
+    approach_progress = far_stage * progress_delta
+    terminal_stability = near_target * (-(abs(vx1) + abs(vy1) + abs(angle1)))
+    unsafe_terminal = -1.0 if terminated and (abs(vy1) > 0.8 or abs(angle1) > 0.6) else 0.0
+    low_progress_timeout = -0.5 if truncated and next_distance > 0.5 else 0.0
+
+    components = {
+        "approach_progress": approach_progress,
+        "terminal_stability": terminal_stability,
+        "unsafe_terminal": unsafe_terminal,
+        "low_progress_timeout": low_progress_timeout
+    }
+    total_reward = 4.0 * approach_progress + 1.5 * terminal_stability + unsafe_terminal + low_progress_timeout
+    return float(total_reward), components
+```
+
+## Now Perform The Task
+
+Input:
+
+```text
+{
+  "task_manifest": "# Task Manifest\n\n## Environment\n\n`LunarLander-v2`\n\n## Task Goal\n\nland safely on the landing pad using observable state evidence, without using the official reward\n\n## Reward Leakage Policy\n\nOfficial environment reward is not visible and must not be used.\n\n## Coarse Outcome Labels\n\n- `early_failure`\n- `low_progress_survival`\n- `partial_progress`\n- `success_like`\n- `ambiguous`\n\n## Trajectory Features To Extract\n\n- `episode_length`\n- `terminated_flag`\n- `truncated_flag`\n- `initial_x_position`\n- `initial_y_position`\n- `final_x_position`\n- `final_y_position`\n- `final_x_velocity`\n- `final_y_velocity`\n- `final_angle_abs`\n- `final_angular_velocity_abs`\n- `final_left_leg_contact`\n- `final_right_leg_contact`\n- `distance_to_landing_pad_initial`\n- `distance_to_landing_pad_final`\n- `distance_improvement`\n- `final_speed`\n- `minimum_distance_to_landing_pad`\n- `proportion_of_steps_with_both_legs_contact`\n- `smoothness_of_approach`\n\n## Labeling Cautions\n\n- Do not use or infer the official environment reward.\n- Do not treat episode length alone as success_like.\n- Do not treat high approach progress with unstable final speed, large tilt, or lack of leg contact as success_like.\n- Verify that termination is due to explicit task completion (landing safely) rather than crash or out-of-bounds.\n- Use the two leg contact booleans as primary indicators of safe landing (both legs in contact).\n- Consider final angle and angular velocity to ensure stability at landing.\n- Do not treat a landing with high horizontal velocity or significant tilt as success.\n- Label as ambiguous if termination reason is unclear (e.g., time limit reached with partial progress).\n",
+  "env_manifest": {
+    "env_name": "LunarLander-v2",
+    "task_goal": "land safely on the landing pad using observable state evidence, without using the official reward",
+    "official_reward_visible": false,
+    "observation_schema": [
+      {
+        "index": 0,
+        "name": "x_position",
+        "meaning": "horizontal position relative to the landing pad center",
+        "used_for_labeling": true
+      },
+      {
+        "index": 1,
+        "name": "y_position",
+        "meaning": "vertical position (height) relative to the landing pad",
+        "used_for_labeling": true
+      },
+      {
+        "index": 2,
+        "name": "x_velocity",
+        "meaning": "linear velocity along x-axis",
+        "used_for_labeling": true
+      },
+      {
+        "index": 3,
+        "name": "y_velocity",
+        "meaning": "linear velocity along y-axis",
+        "used_for_labeling": true
+      },
+      {
+        "index": 4,
+        "name": "angle",
+        "meaning": "angle of the lander from vertical (radians)",
+        "used_for_labeling": true
+      },
+      {
+        "index": 5,
+        "name": "angular_velocity",
+        "meaning": "angular velocity (radians/second)",
+        "used_for_labeling": true
+      },
+      {
+        "index": 6,
+        "name": "left_leg_contact",
+        "meaning": "boolean: whether the left leg is in contact with the ground",
+        "used_for_labeling": true
+      },
+      {
+        "index": 7,
+        "name": "right_leg_contact",
+        "meaning": "boolean: whether the right leg is in contact with the ground",
+        "used_for_labeling": true
+      }
+    ],
+    "action_schema": [
+      {
+        "id": 0,
+        "meaning": "do nothing"
+      },
+      {
+        "id": 1,
+        "meaning": "fire left orientation engine"
+      },
+      {
+        "id": 2,
+        "meaning": "fire main engine"
+      },
+      {
+        "id": 3,
+        "meaning": "fire right orientation engine"
+      }
+    ],
+    "termination_signals": [
+      "terminated: indicates an environment terminal event: either the lander crashed (body contact with moon), the lander exited the viewport (x coordinate > 1), or the lander entered a sleep state (no movement, no collision)",
+      "truncated: indicates a time-limit cutoff (max_episode_steps=1000) or wrapper-dependent truncation"
+    ],
+    "available_info_keys": [],
+    "trajectory_features_to_extract": [
+      "episode_length",
+      "terminated_flag",
+      "truncated_flag",
+      "initial_x_position",
+      "initial_y_position",
+      "final_x_position",
+      "final_y_position",
+      "final_x_velocity",
+      "final_y_velocity",
+      "final_angle_abs",
+      "final_angular_velocity_abs",
+      "final_left_leg_contact",
+      "final_right_leg_contact",
+      "distance_to_landing_pad_initial",
+      "distance_to_landing_pad_final",
+      "distance_improvement",
+      "final_speed",
+      "minimum_distance_to_landing_pad",
+      "proportion_of_steps_with_both_legs_contact",
+      "smoothness_of_approach"
+    ],
+    "coarse_outcome_labels": [
+      "early_failure",
+      "low_progress_survival",
+      "partial_progress",
+      "success_like",
+      "ambiguous"
+    ],
+    "labeling_cautions": [
+      "Do not use or infer the official environment reward.",
+      "Do not treat episode length alone as success_like.",
+      "Do not treat high approach progress with unstable final speed, large tilt, or lack of leg contact as success_like.",
+      "Verify that termination is due to explicit task completion (landing safely) rather than crash or out-of-bounds.",
+      "Use the two leg contact booleans as primary indicators of safe landing (both legs in contact).",
+      "Consider final angle and angular velocity to ensure stability at landing.",
+      "Do not treat a landing with high horizontal velocity or significant tilt as success.",
+      "Label as ambiguous if termination reason is unclear (e.g., time limit reached with partial progress)."
+    ],
+    "unknowns": [],
+    "llm_used": true
+  },
+  "parent_reward_code_optional": "import math\n\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except Exception:\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    # Extract current and next state features from the observation array.\n    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0\n    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0\n    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0\n    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0\n    vx1 = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0\n    vy1 = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0\n    angle1 = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0\n    angvel1 = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0\n    left_leg1 = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0\n    right_leg1 = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0\n\n    # Distance to the landing pad (origin).\n    prev_dist = math.sqrt(x0 * x0 + y0 * y0)\n    next_dist = math.sqrt(x1 * x1 + y1 * y1)\n    progress_delta = prev_dist - next_dist  # positive = moving closer\n\n    # Stage definition: near when distance < 0.4 (as in parent).\n    near_threshold = 0.4\n    far_stage = 1.0 if next_dist >= near_threshold else 0.0\n    near_stage = 1.0 - far_stage\n\n    # ---- Early stage (far): reward approach/progress ----\n    # Recalibrate: reduce scaling to avoid over-rewarding early_failure.\n    approach_progress = 3.0 * far_stage * progress_delta\n\n    # ---- Late stage (near): reward proximity and gentle stability ----\n    # Proximity bonus: the closer, the better.\n    proximity_bonus = near_stage * max(0.0, 1.0 - next_dist / near_threshold) * 2.0\n\n    # Stability proxy: low speed and small angle are good, but not harsh penalties.\n    # Use a bounded reward for staying calm.\n    speed_mag = abs(vx1) + abs(vy1)\n    angle_mag = abs(angle1)\n    stability_score = max(0.0, 1.0 - speed_mag - angle_mag)\n    near_stability = near_stage * stability_score * 1.5\n\n    # Leg contact bonus only when very close and stable.\n    both_legs = (left_leg1 > 0.5 and right_leg1 > 0.5)\n    leg_bonus = 0.0\n    if near_stage > 0.5 and both_legs:\n        leg_bonus = 3.0\n\n    # ---- Terminal event handling ----\n    terminal_reward = 0.0\n    if terminated:\n        # Safe landing: both legs, moderate speeds, small angle.\n        # Make achievable: vy<0.5, vx<0.5, angle<0.3 (radians ≈ 17 degrees).\n        safe = (\n            both_legs and\n            abs(vy1) < 0.5 and\n            abs(vx1) < 0.5 and\n            abs(angle1) < 0.3\n        )\n        if safe:\n            terminal_reward = 15.0\n        else:\n            # Clear crash: high vertical speed, large tilt, or no leg contact.\n            crash = (\n                abs(vy1) > 1.0 or\n                abs(angle1) > 0.8 or\n                abs(vx1) > 1.0 or\n                not both_legs\n            )\n            if crash:\n                terminal_reward = -5.0\n            # else ambiguous – no reward or penalty.\n\n    # ---- Low-progress timeout penalty ----\n    low_progress_timeout = -0.5 if truncated and next_dist > 0.5 else 0.0\n\n    components = {\n        \"approach_progress\": approach_progress,\n        \"proximity_bonus\": proximity_bonus,\n        \"near_stability\": near_stability,\n        \"leg_bonus\": leg_bonus,\n        \"terminal_reward\": terminal_reward,\n        \"low_progress_timeout\": low_progress_timeout,\n    }\n    total_reward = (\n        approach_progress\n        + proximity_bonus\n        + near_stability\n        + leg_bonus\n        + terminal_reward\n        + low_progress_timeout\n    )\n    return float(total_reward), components",
+  "analyzer_self_evaluation": {
+    "round": 7,
+    "parent_reward_id": "round3_candidate1_progress_conditioned",
+    "overall_judgment": "parent_reward_provides_usable_memory_but_needs_evolution",
+    "failure_summary": "coverage_type=partial_or_success_only; label_counts={'partial_progress': 654, 'early_failure': 39, 'success_like': 33, 'low_progress_survival': 9}; decision_level=no_decision.",
+    "memory_interpretation": {
+      "coverage_type": "partial_or_success_only",
+      "decision_level": "no_decision",
+      "usable_preference_level": "none",
+      "main_known_failures": [
+        "early_failure",
+        "low_progress_survival"
+      ],
+      "main_useful_patterns": [
+        "partial_progress trajectories exist and should be preserved or improved",
+        "success_like trajectories exist and should be strongly preferred"
+      ],
+      "uncertainties": [
+        "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+      ],
+      "label_counts": {
+        "partial_progress": 654,
+        "early_failure": 39,
+        "success_like": 33,
+        "low_progress_survival": 9
+      },
+      "trajectory_judgment_summary": {
+        "num_trajectories": 50,
+        "num_use_for_tage_pair": 50,
+        "label_counts": {
+          "partial_progress": 50
+        }
+      }
+    },
+    "component_diagnosis": [
+      {
+        "component": "approach_progress",
+        "verdict": "remove_or_gate",
+        "evidence": "component_summary: failure_mean=1.033 > positive_mean=-12.236"
+      },
+      {
+        "component": "stability_near",
+        "verdict": "remove_or_gate",
+        "evidence": "component_summary: failure_mean=-10.147 > positive_mean=-25.615"
+      },
+      {
+        "component": "terminal_penalty",
+        "verdict": "keep",
+        "evidence": "component_summary: positive_mean=-7.724 > failure_mean=-10.000"
+      },
+      {
+        "component": "terminal_bonus",
+        "verdict": "keep",
+        "evidence": "component_summary: positive_mean=2.448 > failure_mean=0.000"
+      },
+      {
+        "component": "low_progress_timeout",
+        "verdict": "remove_or_gate",
+        "evidence": "component_summary: failure_mean=0.000 > positive_mean=-0.146"
+      },
+      {
+        "component": "near_stability",
+        "verdict": "keep",
+        "evidence": "component_summary: positive_mean=19.663 > failure_mean=4.231"
+      },
+      {
+        "component": "terminal_reward",
+        "verdict": "remove_or_gate",
+        "evidence": "component_summary: failure_mean=4.375 > positive_mean=2.994"
+      },
+      {
+        "component": "proximity_bonus",
+        "verdict": "keep",
+        "evidence": "component_summary: positive_mean=14.093 > failure_mean=2.273"
+      },
+      {
+        "component": "leg_bonus",
+        "verdict": "keep",
+        "evidence": "component_summary: positive_mean=17.851 > failure_mean=0.000"
+      },
+      {
+        "component": "far_approach",
+        "verdict": "keep",
+        "evidence": "component_summary: positive_mean=2.022 > failure_mean=1.915"
+      },
+      {
+        "component": "far_quality_penalty",
+        "verdict": "keep",
+        "evidence": "component_summary: positive_mean=-5.531 > failure_mean=-19.705"
+      },
+      {
+        "component": "low_progress_penalty",
+        "verdict": "keep",
+        "evidence": "component_summary: positive_mean=-1.885 > failure_mean=-10.880"
+      },
+      {
+        "component": "crash_penalty",
+        "verdict": "keep",
+        "evidence": "component_summary: positive_mean=-0.365 > failure_mean=-5.000"
+      },
+      {
+        "component": "safe_landing_bonus",
+        "verdict": "keep",
+        "evidence": "component_summary: positive_mean=0.386 > failure_mean=0.000"
+      }
+    ],
+    "mutation_intent": {
+      "primary_family": "local_repair",
+      "secondary_family": "component_recomposition",
+      "forbidden_changes": [
+        "do not use official reward",
+        "do not only scale all coefficients",
+        "do not add global survival bonus without progress gating",
+        "do not treat noisy partial_progress as success_like"
+      ],
+      "required_changes": [
+        "explicitly avoid known failures: early_failure, low_progress_survival",
+        "preserve useful patterns: partial_progress trajectories exist and should be preserved or improved; success_like trajectories exist and should be strongly preferred",
+        "gate or remove components: approach_progress, low_progress_survival_gate, low_progress_timeout, stability_near, terminal_reward, ungated_contact_bonus, ungated_survival_bonus",
+        "preserve or strengthen components: crash_penalty, far_approach, far_quality_penalty, leg_bonus, low_progress_penalty, near_stability, proximity_bonus, safe_landing_bonus, terminal_bonus, terminal_failure_penalty, terminal_penalty"
+      ],
+      "preserve_components": [
+        "crash_penalty",
+        "far_approach",
+        "far_quality_penalty",
+        "leg_bonus",
+        "low_progress_penalty",
+        "near_stability",
+        "proximity_bonus",
+        "safe_landing_bonus",
+        "terminal_bonus",
+        "terminal_failure_penalty",
+        "terminal_penalty"
+      ],
+      "remove_or_gate_components": [
+        "approach_progress",
+        "low_progress_survival_gate",
+        "low_progress_timeout",
+        "stability_near",
+        "terminal_reward",
+        "ungated_contact_bonus",
+        "ungated_survival_bonus"
+      ]
+    },
+    "rollback_decision": {
+      "recommend_rollback": false,
+      "rollback_target": null,
+      "reason": "Hard rollback is handled by RollbackManager, not Analyzer."
+    },
+    "self_evaluation_lesson": "Current memory mainly supports avoiding known failures, not claiming success.",
+    "previous_selection_used": {
+      "round": 6,
+      "selected_candidate": "round6_candidate1_progress_conditioned",
+      "selection_mode": "memory_tage_offline_selection",
+      "memory_coverage_type": "partial_or_success_only",
+      "decision_level": "no_decision",
+      "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+      "candidate_scores": [
+        {
+          "candidate_id": "round6_candidate0_component_recomposition",
+          "mutation_family": "component_recomposition",
+          "valid": true,
+          "decision_level": "no_decision",
+          "tage_score": 0.587866793430408,
+          "failure_avoidance": 0.9720237069289644,
+          "preference_consistency": 0.0,
+          "novelty": 0.006183133219752723,
+          "static_score": 0.8,
+          "selection_score": 0.6015457833049382,
+          "recommended_use": null,
+          "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_0_component_recomposition/reward_fn_source.py",
+          "candidate_dir": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_0_component_recomposition",
+          "tage_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_0_component_recomposition/tage_report.json",
+          "validator_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_0_component_recomposition/validator_report.json",
+          "decision": "not_selected"
+        },
+        {
+          "candidate_id": "round6_candidate1_progress_conditioned",
+          "mutation_family": "progress_conditioned",
+          "valid": true,
+          "decision_level": "no_decision",
+          "tage_score": 0.5417444273715147,
+          "failure_avoidance": 0.8310835341187519,
+          "preference_consistency": 0.0,
+          "novelty": 0.08734220104046242,
+          "static_score": 0.9,
+          "selection_score": 0.6968355502601157,
+          "recommended_use": null,
+          "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+          "candidate_dir": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned",
+          "tage_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned/tage_report.json",
+          "validator_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned/validator_report.json",
+          "decision": "selected_for_long_training"
+        },
+        {
+          "candidate_id": "round6_candidate2_local_repair",
+          "mutation_family": "local_repair",
+          "valid": true,
+          "decision_level": "no_decision",
+          "tage_score": 0.5846434182890023,
+          "failure_avoidance": 0.965576956646153,
+          "preference_consistency": 0.0,
+          "novelty": 0.006183133219752723,
+          "static_score": 0.7,
+          "selection_score": 0.5265457833049381,
+          "recommended_use": null,
+          "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_local_repair/reward_fn_source.py",
+          "candidate_dir": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_local_repair",
+          "tage_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_local_repair/tage_report.json",
+          "validator_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_local_repair/validator_report.json",
+          "decision": "not_selected"
+        }
+      ],
+      "reason": "Memory coverage has no selection authority; selected conservative valid candidate using static/novelty prior.",
+      "phase": "error_aware_selector"
+    },
+    "component_summary_used": {
+      "component_stats": {
+        "approach_progress": {
+          "failure_mean": 1.0329582277249951,
+          "positive_mean": -12.235923362105465,
+          "num_failure": 33,
+          "num_positive": 616
+        },
+        "stability_near": {
+          "failure_mean": -10.14674953319242,
+          "positive_mean": -25.61499003245857,
+          "num_failure": 17,
+          "num_positive": 197
+        },
+        "terminal_penalty": {
+          "failure_mean": -10.0,
+          "positive_mean": -7.724137931034483,
+          "num_failure": 17,
+          "num_positive": 145
+        },
+        "terminal_bonus": {
+          "failure_mean": 0.0,
+          "positive_mean": 2.4482758620689653,
+          "num_failure": 17,
+          "num_positive": 145
+        },
+        "low_progress_timeout": {
+          "failure_mean": 0.0,
+          "positive_mean": -0.1462882096069869,
+          "num_failure": 48,
+          "num_positive": 687
+        },
+        "far_penalty": {
+          "failure_mean": 0.0,
+          "positive_mean": -40.945501170623544,
+          "num_failure": 0,
+          "num_positive": 48
+        },
+        "near_stability": {
+          "failure_mean": 4.231241680538534,
+          "positive_mean": 19.66321155860918,
+          "num_failure": 31,
+          "num_positive": 490
+        },
+        "terminal_reward": {
+          "failure_mean": 4.375,
+          "positive_mean": 2.9935275080906147,
+          "num_failure": 24,
+          "num_positive": 309
+        },
+        "proximity_bonus": {
+          "failure_mean": 2.27304425542817,
+          "positive_mean": 14.093236022445911,
+          "num_failure": 31,
+          "num_positive": 442
+        },
+        "leg_bonus": {
+          "failure_mean": 0.0,
+          "positive_mean": 17.850678733031675,
+          "num_failure": 31,
+          "num_positive": 442
+        },
+        "far_approach": {
+          "failure_mean": 1.9149134491523216,
+          "positive_mean": 2.021819548533459,
+          "num_failure": 15,
+          "num_positive": 71
+        },
+        "far_quality_penalty": {
+          "failure_mean": -19.70488976237369,
+          "positive_mean": -5.530506739903094,
+          "num_failure": 15,
+          "num_positive": 71
+        },
+        "low_progress_penalty": {
+          "failure_mean": -10.880000000000004,
+          "positive_mean": -1.8845070422535197,
+          "num_failure": 15,
+          "num_positive": 71
+        },
+        "crash_penalty": {
+          "failure_mean": -5.0,
+          "positive_mean": -0.3648068669527897,
+          "num_failure": 7,
+          "num_positive": 233
+        },
+        "safe_landing_bonus": {
+          "failure_mean": 0.0,
+          "positive_mean": 0.38626609442060084,
+          "num_failure": 7,
+          "num_positive": 233
+        },
+        "far_instability_penalty": {
+          "failure_mean": 0.0,
+          "positive_mean": -87.87018687701044,
+          "num_failure": 0,
+          "num_positive": 100
+        }
+      }
+    },
+    "recent_failure_memory_used": [
+      {
+        "round": 4,
+        "parent_reward_id": "round3_candidate1_progress_conditioned",
+        "selected_candidate_id": "round4_candidate0_component_recomposition",
+        "mutation_family": "component_recomposition",
+        "observed_outcome": {
+          "coarse_result": "partial_progress_available_and_success_like_low",
+          "main_failure_remaining": "terminal_reward_misassignment_causes_survival_exploitation",
+          "main_success_signal": "approach_progress_and_near_stability_favor_success_like_trajectories"
+        },
+        "failure_repair_outcome": {
+          "failure_before": "terminal_reward component assigned high positive reward (failure_mean=10.0) to early_failure trajectories, encouraging exploitation of survival rather than safe landing.",
+          "repair_attempt": "Replaced terminal_reward with safe_landing_bonus and crash_penalty components to reward only safe landings (both legs contact, low speed, small angle) and penalize crashes.",
+          "outcome_after": "Candidate shows high failure avoidance (0.988), but no success_like preference pairs exist (decision_level=no_decision) due to low success_like count (21/360) in training set."
+        },
+        "lesson": "Terminal_reward must be restructured to avoid rewarding crashes, but without sufficient success_like trajectories, success depends on making safe landing conditions stringent enough to convert partial_progress into success_like behavior; component_recomposition can help but requires careful threshold tuning.",
+        "future_guidance": [
+          "Preserve approach_progress, proximity_bonus, near_stability, leg_bonus, low_progress_timeout components.",
+          "Ensure safe_landing_bonus conditions are stringent to avoid rewarding non-landing terminations.",
+          "Avoid global survival bonus without progress gating.",
+          "Consider recalibrating approach_progress to better discriminate partial_progress from early_failure.",
+          "Monitor training to verify that survival exploitation decreases and safe landing rate increases."
+        ],
+        "archive_update": {
+          "add_to_elite_archive": false,
+          "rollback_triggered": false,
+          "next_parent_reward_id": "round4_candidate0_component_recomposition",
+          "reason": "Selected candidate not yet evaluated for long training; elite archive best is round3_candidate1_progress_conditioned with 10 success_like trajectories."
+        },
+        "uncertainties": [
+          "Low success_like count (21/360) relative to partial_progress (316/360); no preference pairs possible.",
+          "Decision level remains no_decision; cannot build strong selection signals.",
+          "Terminal_reward anomaly may be fixed in candidate, but training outcome not yet confirmed.",
+          "Episode length saturation (mean ~999/1000) in parent may distort true progress measures."
+        ],
+        "agent_mode": "llm_reflector"
+      },
+      {
+        "round": 5,
+        "parent_reward_id": "round3_candidate1_progress_conditioned",
+        "selected_candidate_id": "round5_candidate2_progress_conditioned",
+        "mutation_family": "progress_conditioned",
+        "observed_outcome": {
+          "coarse_result": "partial_progress_available",
+          "main_failure_remaining": "approach_progress still over-rewards early_failure trajectories, allowing them to persist despite removal of terminal_reward; success-like count is low and uncertain",
+          "main_success_signal": "progress-conditioned gating preserves partial_progress; leg_bonus, proximity_bonus, near_stability strongly favor positive trajectories"
+        },
+        "failure_repair_outcome": {
+          "failure_before": "terminal_reward misassigned high reward to low-quality terminations; approach_progress did not differentiate early_failure from partial_progress",
+          "repair_attempt": "removed terminal_reward, added safe_landing_bonus with stringent conditions, restructured approach_progress to better penalize early_failure",
+          "outcome_after": "terminal_reward misassignment eliminated, but approach_progress still yields high reward on early_failure trajectories (mean reward 8.008 on failures); success_like count 31 in coverage but only 2 in trajectory judgment summary, indicating label inconsistency"
+        },
+        "lesson": "Removing a misaligned component (terminal_reward) is necessary but insufficient; approach_progress must be structurally recalibrated to penalize early_failure trajectories more heavily, otherwise failure trajectories continue to receive high reward.",
+        "future_guidance": [
+          "preserve progress-conditioned gating, leg_bonus, proximity_bonus, near_stability, low_progress_timeout",
+          "continue restructuring approach_progress to clearly penalize early_failure and favor partial_progress",
+          "do not reintroduce terminal_reward without stringent landing conditions and validation",
+          "validate trajectory labels to resolve discrepancy between coverage (31 success_like) and judgment summary (2)"
+        ],
+        "archive_update": {
+          "add_to_elite_archive": false,
+          "rollback_triggered": false,
+          "next_parent_reward_id": "round5_candidate2_progress_conditioned",
+          "reason": "Selected candidate is usable but not yet clearly elite; its score (0.679) is below best elite (0.723) and success_like evidence is uncertain"
+        },
+        "uncertainties": [
+          "Discrepancy between coverage report (31 success_like) and trajectory judgment summary (2 success_like) raises ambiguity about actual success generation",
+          "No preference pairs could be constructed due to insufficient high-confidence trajectories",
+          "Early_failure count (32) is low, but the component alignment diagnosis indicates approach_progress may still over-reward them"
+        ],
+        "agent_mode": "llm_reflector"
+      },
+      {
+        "round": 5,
+        "parent_reward_id": "round3_candidate1_progress_conditioned",
+        "selected_candidate_id": "round5_candidate2_progress_conditioned",
+        "mutation_family": "progress_conditioned",
+        "observed_outcome": {
+          "coarse_result": "partial_progress_abundant_with_success_like",
+          "main_failure_remaining": "terminal_reward over-rewards early_failure trajectories; approach_progress margin to early_failure still insufficient despite large partial_progress count (402/467)",
+          "main_success_signal": "31 success_like trajectories with positive progress mean (1.13) and large stability gap (2.25) from failures, but no high-confidence preference pairs possible yet"
+        },
+        "failure_repair_outcome": {
+          "failure_before": "Terminal_reward over-rewarded failure trajectories (mean 5.29 on failures vs 2.48 on positive); approach_progress gap between partial_progress and early_failure was insufficient (progress_gap ~0.59 but needed larger margin)",
+          "repair_attempt": "Replaced terminal_reward with crash_penalty and safe_landing_bonus; preserved progress-conditioned gating and components approach_progress, proximity_bonus, near_stability, leg_bonus, low_progress_timeout",
+          "outcome_after": "Failures still receive high absolute reward (mean 22.53) but failure avoidance normalized score is high (0.974); early_failure count 27 and low_progress_survival 7 remain; approach_progress component may still over-reward low-quality trajectories as per tage component diagnosis"
+        },
+        "lesson": "Replacing terminal_reward with crash_penalty and safe_landing_bonus does not automatically resolve failure over-reward; approach_progress must be structurally recalibrated to provide a larger gap between partial_progress and early_failure, and crash_penalty must be sufficiently negative to penalize failures.",
+        "future_guidance": [
+          "Continue to preserve progress-conditioned gating and components that work (proximity_bonus, near_stability, leg_bonus, low_progress_timeout).",
+          "Recalibrate approach_progress to increase margin between partial_progress and early_failure (e.g., stronger scaling or quality adjustment).",
+          "Ensure crash_penalty is sufficiently negative to penalize early_failure and low_progress_survival trajectories.",
+          "Do not treat partial_progress as success_like; avoid constructing success_like preference pairs.",
+          "Prefer conservative mutations that do not reintroduce global survival bonuses without progress gating."
+        ],
+        "archive_update": {
+          "add_to_elite_archive": true,
+          "rollback_triggered": false,
+          "next_parent_reward_id": "round5_candidate2_progress_conditioned",
+          "reason": "Selected candidate shows improvement in failure avoidance and novelty; added to elite archive for future reference though approach_progress still needs recalibration."
+        },
+        "uncertainties": [
+          "No high-confidence success_like trajectory exists; label margin sufficient but decision_level remains no_decision",
+          "Component diagnosis from component_summary may include data from multiple reward functions; parent-specific diagnosis inferred",
+          "Mean reward on failure for candidate2 is high (22.53), but normalized failure avoidance score is high, indicating relative ranking may be acceptable; absolute numeric interpretation is uncertain"
+        ],
+        "agent_mode": "llm_reflector"
+      },
+      {
+        "round": 5,
+        "parent_reward_id": "round3_candidate1_progress_conditioned",
+        "selected_candidate_id": "round5_candidate1_progress_conditioned",
+        "mutation_family": "progress_conditioned",
+        "observed_outcome": {
+          "coarse_result": "partial_and_success_available_but_no_decision",
+          "main_failure_remaining": "early_failure (25) and low_progress_survival (5) persist but counts are low",
+          "main_success_signal": "success_like trajectories appear (31), label margin sufficient (progress_gap 0.617, stability_gap 2.45), but preference construction is forbidden"
+        },
+        "failure_repair_outcome": {
+          "failure_before": "over-penalizing components stability_near and terminal_reward discouraged near-goal progress; early_failure and low_progress_survival present",
+          "repair_attempt": "progress_conditioned mutation that removed stability_near and terminal_reward, added terminal_bonus and far_quality_penalty, preserved positive components like approach_progress, leg_bonus, near_stability, proximity_bonus",
+          "outcome_after": "failures reduced (25 early_failure, 5 low_progress_survival), success_like trajectories generated, but coverage policy still forbids preference construction"
+        },
+        "lesson": "Removing over-penalizing components while preserving progress-conditioned gating and adding achievable terminal bonuses can generate success_like trajectories, but label margin sufficiency alone does not guarantee high-confidence preference construction when coverage policy deems success_like trajectories low-confidence; future work must address ambiguous trajectory classification to allow preference learning.",
+        "future_guidance": [
+          "preserve progress-conditioned gating and low_progress_timeout",
+          "continue to strengthen terminal_bonus achievability",
+          "monitor early_failure and low_progress_survival counts to ensure they decrease further",
+          "do not construct success_like preference pairs until coverage policy permits",
+          "consider addressing trajectory judgment inconsistency to improve coverage quality",
+          "maintain conservative mutation approach; avoid local repair as it did not succeed in previous rounds"
+        ],
+        "archive_update": {
+          "add_to_elite_archive": false,
+          "rollback_triggered": false,
+          "next_parent_reward_id": "round5_candidate1_progress_conditioned",
+          "reason": "Selected candidate shows progress in reducing failures and generating success_like trajectories, but label margin and coverage policy still prevent full confidence; continue evolutionary refinement from this candidate."
+        },
+        "uncertainties": [
+          "Success_like trajectories exist in main coverage (31) but trajectory judgment subset (50 trajectories) shows 0 success_like, indicating labeling inconsistency across dataset sizes",
+          "Preference construction is forbidden even though label margin is sufficient, because policy deems no high-confidence success_like trajectory",
+          "Parent reward ID for round 5 mutations is uncertain; analyzer indicates round3_candidate1_progress_conditioned but could be round4_candidate1_progress_conditioned"
+        ],
+        "agent_mode": "llm_reflector"
+      },
+      {
+        "round": 6,
+        "parent_reward_id": "round3_candidate1_progress_conditioned",
+        "selected_candidate_id": "round6_candidate2_progress_conditioned",
+        "mutation_family": "progress_conditioned",
+        "observed_outcome": {
+          "coarse_result": "partial_or_success_only",
+          "main_failure_remaining": "approach_progress still over-rewards early_failure trajectories; success_like count insufficient for preference construction",
+          "main_success_signal": "partial_progress trajectories (468) and success_like trajectories (33) exist, but success_like not high-confidence; progress_gap 0.517 and stability_gap 1.988 are sufficient for margin but not for preference pairs"
+        },
+        "failure_repair_outcome": {
+          "failure_before": "approach_progress over-rewards early_failure; terminal_reward misassignment; low_progress_survival persists",
+          "repair_attempt": "progress_conditioned mutation with gating of stability_near, terminal_reward, low_progress_timeout, and preservation of progress incentives",
+          "outcome_after": "Candidate selected; failure avoidance normalized score 0.590, but training not yet completed"
+        },
+        "lesson": "Progress-conditioned gating can improve failure avoidance but approach_progress must be structurally recalibrated to sharply penalize early_failure; terminal_reward removal and component gating alone are insufficient to produce high-confidence success-like behavior.",
+        "future_guidance": [
+          "preserve progress-conditioned gating, leg_bonus, proximity_bonus, near_stability, low_progress_timeout",
+          "restructure approach_progress to clearly penalize early_failure and favor partial_progress",
+          "do not reintroduce terminal_reward without stringent landing conditions and validation",
+          "validate trajectory labels to resolve discrepancy between coverage (33 success_like) and judgment summary (0 success_like)",
+          "avoid constructing preference pairs until high-confidence success_like trajectories exist"
+        ],
+        "archive_update": {
+          "add_to_elite_archive": true,
+          "rollback_triggered": false,
+          "next_parent_reward_id": "round6_candidate2_progress_conditioned",
+          "reason": "Selected candidate added to elite archive based on static evaluation; no rollback triggered; training results pending"
+        },
+        "uncertainties": [
+          "Success_like count (33) is low for high-confidence preference construction; trajectory judgment summary shows 0 success_like in 50 trajectories, indicating possible label inconsistency",
+          "No preference pairs could be constructed due to decision_level no_decision",
+          "Approach_progress component alignment still uncertain due to lack of preference pairs"
+        ],
+        "agent_mode": "llm_reflector"
+      }
+    ],
+    "elite_archive_summary": {
+      "elite_rewards": [
+        {
+          "reward_id": "round0_candidate2_progress_conditioned",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round0_candidate2_progress_conditioned.py",
+          "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round0/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+          "score": 0.9,
+          "round": 0,
+          "metadata": {
+            "num_trajectory_cards": 50,
+            "label_counts": {
+              "ambiguous": 20,
+              "partial_progress": 30
+            }
+          },
+          "training_return": -69.86799703424138,
+          "num_success_like": 0,
+          "num_partial_progress": 30
+        },
+        {
+          "reward_id": "round5_candidate2_progress_conditioned",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round5_candidate2_progress_conditioned.py",
+          "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round5/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+          "score": 0.7736109966228415,
+          "round": 5,
+          "metadata": {
+            "num_trajectory_cards": 50,
+            "label_counts": {
+              "partial_progress": 43,
+              "early_failure": 2,
+              "ambiguous": 5
+            }
+          },
+          "training_return": 1.4828764008025421,
+          "num_success_like": 0,
+          "num_partial_progress": 43
+        },
+        {
+          "reward_id": "round4_candidate1_progress_conditioned",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round4_candidate1_progress_conditioned.py",
+          "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round4/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+          "score": 0.7683044973356808,
+          "round": 4,
+          "metadata": {
+            "num_trajectory_cards": 50,
+            "label_counts": {
+              "ambiguous": 21,
+              "early_failure": 2,
+              "partial_progress": 25,
+              "low_progress_survival": 2
+            }
+          },
+          "training_return": 25.18159598092438,
+          "num_success_like": 0,
+          "num_partial_progress": 25
+        },
+        {
+          "reward_id": "round6_candidate2_progress_conditioned",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round6_candidate2_progress_conditioned.py",
+          "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+          "score": 0.73808521487604,
+          "round": 6,
+          "metadata": {
+            "num_trajectory_cards": 50,
+            "label_counts": {
+              "partial_progress": 50
+            }
+          },
+          "training_return": -13.971407690964579,
+          "num_success_like": 0,
+          "num_partial_progress": 50
+        },
+        {
+          "reward_id": "round3_candidate1_progress_conditioned",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round3_candidate1_progress_conditioned.py",
+          "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round3/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+          "score": 0.7232181772818118,
+          "round": 3,
+          "metadata": {
+            "num_trajectory_cards": 50,
+            "label_counts": {
+              "partial_progress": 36,
+              "success_like": 10,
+              "ambiguous": 1,
+              "early_failure": 3
+            }
+          },
+          "training_return": 6.035687296987295,
+          "num_success_like": 10,
+          "num_partial_progress": 36
+        },
+        {
+          "reward_id": "round1_candidate1_progress_conditioned",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round1_candidate1_progress_conditioned.py",
+          "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round1/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+          "score": 0.7017846740062919,
+          "round": 1,
+          "metadata": {
+            "num_trajectory_cards": 50,
+            "label_counts": {
+              "ambiguous": 34,
+              "partial_progress": 16
+            }
+          },
+          "training_return": -62.945729447451505,
+          "num_success_like": 0,
+          "num_partial_progress": 16
+        },
+        {
+          "reward_id": "round2_candidate0_progress_conditioned",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round2_candidate0_progress_conditioned.py",
+          "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round2/candidates/candidate_0_progress_conditioned/reward_fn_source.py",
+          "score": 0.6922032304267518,
+          "round": 2,
+          "metadata": {
+            "num_trajectory_cards": 50,
+            "label_counts": {
+              "partial_progress": 50
+            }
+          },
+          "training_return": -10.567226507315299,
+          "num_success_like": 0,
+          "num_partial_progress": 50
+        },
+        {
+          "reward_id": "round2_candidate1_progress_conditioned",
+          "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round2_candidate1_progress_conditioned.py",
+          "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round2/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+          "score": 0.6787189753887711,
+          "round": 2,
+          "metadata": {
+            "num_trajectory_cards": 50,
+            "label_counts": {
+              "partial_progress": 37,
+              "low_progress_survival": 3,
+              "early_failure": 9,
+              "success_like": 1
+            }
+          },
+          "training_return": -33.02440508078906,
+          "num_success_like": 1,
+          "num_partial_progress": 37
+        }
+      ],
+      "best_reward_id": "round0_candidate2_progress_conditioned",
+      "best_by_training_return_id": "round4_candidate1_progress_conditioned",
+      "best_by_success_like_id": "round3_candidate1_progress_conditioned"
+    },
+    "previous_training_results_used": {
+      "previous_rounds": [
+        {
+          "mean_candidate_return": -69.86799703424138,
+          "mean_episode_length": 85.3,
+          "candidate_id": "round0_candidate2_progress_conditioned",
+          "round": 0,
+          "num_success_like": 0,
+          "num_partial_progress": 30,
+          "label_counts": {
+            "ambiguous": 20,
+            "partial_progress": 30
+          }
+        },
+        {
+          "mean_candidate_return": -62.945729447451505,
+          "mean_episode_length": 71.84,
+          "candidate_id": "round1_candidate1_progress_conditioned",
+          "round": 1,
+          "num_success_like": 0,
+          "num_partial_progress": 16,
+          "label_counts": {
+            "ambiguous": 34,
+            "partial_progress": 16
+          }
+        },
+        {
+          "mean_candidate_return": -33.02440508078906,
+          "mean_episode_length": 187.4,
+          "candidate_id": "round2_candidate1_progress_conditioned",
+          "round": 2,
+          "num_success_like": 1,
+          "num_partial_progress": 37,
+          "label_counts": {
+            "partial_progress": 37,
+            "low_progress_survival": 3,
+            "early_failure": 9,
+            "success_like": 1
+          }
+        },
+        {
+          "mean_candidate_return": 6.035687296987295,
+          "mean_episode_length": 998.98,
+          "candidate_id": "round3_candidate1_progress_conditioned",
+          "round": 3,
+          "num_success_like": 10,
+          "num_partial_progress": 36,
+          "label_counts": {
+            "partial_progress": 36,
+            "success_like": 10,
+            "ambiguous": 1,
+            "early_failure": 3
+          }
+        },
+        {
+          "mean_candidate_return": 25.18159598092438,
+          "mean_episode_length": 111.86,
+          "candidate_id": "round4_candidate1_progress_conditioned",
+          "round": 4,
+          "num_success_like": 0,
+          "num_partial_progress": 25,
+          "label_counts": {
+            "ambiguous": 21,
+            "early_failure": 2,
+            "partial_progress": 25,
+            "low_progress_survival": 2
+          }
+        },
+        {
+          "mean_candidate_return": 1.4828764008025421,
+          "mean_episode_length": 982.02,
+          "candidate_id": "round5_candidate2_progress_conditioned",
+          "round": 5,
+          "num_success_like": 0,
+          "num_partial_progress": 43,
+          "label_counts": {
+            "partial_progress": 43,
+            "early_failure": 2,
+            "ambiguous": 5
+          }
+        },
+        {
+          "mean_candidate_return": -13.971407690964579,
+          "mean_episode_length": 68.72,
+          "candidate_id": "round6_candidate2_progress_conditioned",
+          "round": 6,
+          "num_success_like": 0,
+          "num_partial_progress": 50,
+          "label_counts": {
+            "partial_progress": 50
+          }
+        }
+      ],
+      "num_rounds_with_training": 7,
+      "mean_returns_chronological": [
+        -69.86799703424138,
+        -62.945729447451505,
+        -33.02440508078906,
+        6.035687296987295,
+        25.18159598092438,
+        1.4828764008025421,
+        -13.971407690964579
+      ],
+      "trend": "improving"
+    },
+    "archival_lessons_used": [
+      {
+        "round": 4,
+        "lesson": "Terminal_reward must be restructured to avoid rewarding crashes, but without sufficient success_like trajectories, success depends on making safe landing conditions stringent enough to convert partial_progress into success_like behavior; component_recomposition can help but requires careful threshold tuning.",
+        "future_guidance": [
+          "Preserve approach_progress, proximity_bonus, near_stability, leg_bonus, low_progress_timeout components.",
+          "Ensure safe_landing_bonus conditions are stringent to avoid rewarding non-landing terminations.",
+          "Avoid global survival bonus without progress gating.",
+          "Consider recalibrating approach_progress to better discriminate partial_progress from early_failure.",
+          "Monitor training to verify that survival exploitation decreases and safe landing rate increases."
+        ],
+        "uncertainties": [
+          "Low success_like count (21/360) relative to partial_progress (316/360); no preference pairs possible.",
+          "Decision level remains no_decision; cannot build strong selection signals.",
+          "Terminal_reward anomaly may be fixed in candidate, but training outcome not yet confirmed.",
+          "Episode length saturation (mean ~999/1000) in parent may distort true progress measures."
+        ]
+      },
+      {
+        "round": 5,
+        "lesson": "Removing a misaligned component (terminal_reward) is necessary but insufficient; approach_progress must be structurally recalibrated to penalize early_failure trajectories more heavily, otherwise failure trajectories continue to receive high reward.",
+        "future_guidance": [
+          "preserve progress-conditioned gating, leg_bonus, proximity_bonus, near_stability, low_progress_timeout",
+          "continue restructuring approach_progress to clearly penalize early_failure and favor partial_progress",
+          "do not reintroduce terminal_reward without stringent landing conditions and validation",
+          "validate trajectory labels to resolve discrepancy between coverage (31 success_like) and judgment summary (2)"
+        ],
+        "uncertainties": [
+          "Discrepancy between coverage report (31 success_like) and trajectory judgment summary (2 success_like) raises ambiguity about actual success generation",
+          "No preference pairs could be constructed due to insufficient high-confidence trajectories",
+          "Early_failure count (32) is low, but the component alignment diagnosis indicates approach_progress may still over-reward them"
+        ]
+      },
+      {
+        "round": 5,
+        "lesson": "Replacing terminal_reward with crash_penalty and safe_landing_bonus does not automatically resolve failure over-reward; approach_progress must be structurally recalibrated to provide a larger gap between partial_progress and early_failure, and crash_penalty must be sufficiently negative to penalize failures.",
+        "future_guidance": [
+          "Continue to preserve progress-conditioned gating and components that work (proximity_bonus, near_stability, leg_bonus, low_progress_timeout).",
+          "Recalibrate approach_progress to increase margin between partial_progress and early_failure (e.g., stronger scaling or quality adjustment).",
+          "Ensure crash_penalty is sufficiently negative to penalize early_failure and low_progress_survival trajectories.",
+          "Do not treat partial_progress as success_like; avoid constructing success_like preference pairs.",
+          "Prefer conservative mutations that do not reintroduce global survival bonuses without progress gating."
+        ],
+        "uncertainties": [
+          "No high-confidence success_like trajectory exists; label margin sufficient but decision_level remains no_decision",
+          "Component diagnosis from component_summary may include data from multiple reward functions; parent-specific diagnosis inferred",
+          "Mean reward on failure for candidate2 is high (22.53), but normalized failure avoidance score is high, indicating relative ranking may be acceptable; absolute numeric interpretation is uncertain"
+        ]
+      },
+      {
+        "round": 5,
+        "lesson": "Removing over-penalizing components while preserving progress-conditioned gating and adding achievable terminal bonuses can generate success_like trajectories, but label margin sufficiency alone does not guarantee high-confidence preference construction when coverage policy deems success_like trajectories low-confidence; future work must address ambiguous trajectory classification to allow preference learning.",
+        "future_guidance": [
+          "preserve progress-conditioned gating and low_progress_timeout",
+          "continue to strengthen terminal_bonus achievability",
+          "monitor early_failure and low_progress_survival counts to ensure they decrease further",
+          "do not construct success_like preference pairs until coverage policy permits",
+          "consider addressing trajectory judgment inconsistency to improve coverage quality",
+          "maintain conservative mutation approach; avoid local repair as it did not succeed in previous rounds"
+        ],
+        "uncertainties": [
+          "Success_like trajectories exist in main coverage (31) but trajectory judgment subset (50 trajectories) shows 0 success_like, indicating labeling inconsistency across dataset sizes",
+          "Preference construction is forbidden even though label margin is sufficient, because policy deems no high-confidence success_like trajectory",
+          "Parent reward ID for round 5 mutations is uncertain; analyzer indicates round3_candidate1_progress_conditioned but could be round4_candidate1_progress_conditioned"
+        ]
+      },
+      {
+        "round": 6,
+        "lesson": "Progress-conditioned gating can improve failure avoidance but approach_progress must be structurally recalibrated to sharply penalize early_failure; terminal_reward removal and component gating alone are insufficient to produce high-confidence success-like behavior.",
+        "future_guidance": [
+          "preserve progress-conditioned gating, leg_bonus, proximity_bonus, near_stability, low_progress_timeout",
+          "restructure approach_progress to clearly penalize early_failure and favor partial_progress",
+          "do not reintroduce terminal_reward without stringent landing conditions and validation",
+          "validate trajectory labels to resolve discrepancy between coverage (33 success_like) and judgment summary (0 success_like)",
+          "avoid constructing preference pairs until high-confidence success_like trajectories exist"
+        ],
+        "uncertainties": [
+          "Success_like count (33) is low for high-confidence preference construction; trajectory judgment summary shows 0 success_like in 50 trajectories, indicating possible label inconsistency",
+          "No preference pairs could be constructed due to decision_level no_decision",
+          "Approach_progress component alignment still uncertain due to lack of preference pairs"
+        ]
+      }
+    ],
+    "agent_mode": "deterministic_full_evidence_analyzer"
+  },
+  "memory_coverage_report": {
+    "num_trajectories": 735,
+    "num_labeled_non_ambiguous": 735,
+    "num_use_for_tage_pair": 735,
+    "label_counts": {
+      "partial_progress": 654,
+      "early_failure": 39,
+      "success_like": 33,
+      "low_progress_survival": 9
+    },
+    "labeled_label_counts": {
+      "partial_progress": 654,
+      "early_failure": 39,
+      "success_like": 33,
+      "low_progress_survival": 9
+    },
+    "preference_role_counts": {
+      "mid_reference": 654,
+      "negative_reference": 48,
+      "positive_reference": 33
+    },
+    "dynamic_min_count_per_label": 111,
+    "nontrivial_labels": [
+      "partial_progress"
+    ],
+    "label_margin": {
+      "is_margin_sufficient": true,
+      "positive_label_group": "success_like",
+      "num_failure_cards": 48,
+      "num_positive_cards": 33,
+      "failure_progress_mean": 0.5553711371534874,
+      "positive_progress_mean": 1.0868379423359147,
+      "progress_gap": 0.5314668051824273,
+      "failure_stability_proxy_mean": -1.18402847078261,
+      "positive_stability_proxy_mean": 0.7145911656039907,
+      "stability_gap": 1.8986196363866008,
+      "thresholds": {
+        "progress_gap_min": 0.05,
+        "stability_gap_min": -0.05
+      }
+    },
+    "coverage_type": "partial_or_success_only",
+    "decision_level": "no_decision",
+    "can_build_preference_pairs": false,
+    "allowed_preference_relations": [],
+    "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+    "forbidden_assumptions": [
+      "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+    ],
+    "suggested_search_mode": "preserve_progress_and_explore_failures",
+    "phase": "error_aware_memory_coverage"
+  },
+  "mutation_family": "component_recomposition",
+  "reflection_guidance": [
+    "preserve progress-conditioned gating, leg_bonus, proximity_bonus, near_stability, low_progress_timeout",
+    "restructure approach_progress to clearly penalize early_failure and favor partial_progress",
+    "do not reintroduce terminal_reward without stringent landing conditions and validation",
+    "validate trajectory labels to resolve discrepancy between coverage (33 success_like) and judgment summary (0 success_like)",
+    "avoid constructing preference pairs until high-confidence success_like trajectories exist"
+  ]
+}
+```
+
+Return only Python code.

@@ -1,0 +1,72 @@
+{
+  "round": 2,
+  "success": true,
+  "winner_health": {
+    "overall_health": 36.4,
+    "components": [
+      {
+        "name": "desired_state_reward",
+        "mean": 0.765181,
+        "std": 0.45404,
+        "share": 0.803,
+        "active": true,
+        "progress_corr": 0.0014,
+        "failure_corr": -0.0313,
+        "health": 0.4268,
+        "verdict": "reduce",
+        "reason": "no progress signal (P=+0.00); dominates reward (80% share)"
+      },
+      {
+        "name": "alive_bonus",
+        "mean": 0.1,
+        "std": 0.0,
+        "share": 0.105,
+        "active": true,
+        "progress_corr": 0.0,
+        "failure_corr": 0.0,
+        "health": 0.3637,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=+0.00)"
+      },
+      {
+        "name": "leg_bonus",
+        "mean": 0.002066,
+        "std": 0.010178,
+        "share": 0.002,
+        "active": false,
+        "progress_corr": 0.1571,
+        "failure_corr": 0.1345,
+        "health": 0.2506,
+        "verdict": "remove",
+        "reason": "leg_bonus is inactive (|mean| ≈ 0) — remove or rescale"
+      },
+      {
+        "name": "fuel_penalty",
+        "mean": -0.000828,
+        "std": 5.3e-05,
+        "share": 0.001,
+        "active": false,
+        "progress_corr": -0.0008,
+        "failure_corr": 0.008,
+        "health": 0.1747,
+        "verdict": "remove",
+        "reason": "fuel_penalty is inactive (|mean| ≈ 0) — remove or rescale"
+      },
+      {
+        "name": "terminal_bonus",
+        "mean": 0.08462,
+        "std": 0.651861,
+        "share": 0.089,
+        "active": true,
+        "progress_corr": 0.0073,
+        "failure_corr": 0.1354,
+        "health": 0.6044,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=+0.01)"
+      }
+    ],
+    "summary": "5 components: 3 active, 0 aligned with progress, 0 misaligned, health=36/100",
+    "verdict": "ok"
+  },
+  "stopped": false
+}

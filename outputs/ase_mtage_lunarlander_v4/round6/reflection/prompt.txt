@@ -1,0 +1,809 @@
+# Reflection / Memory Agent Prompt
+
+## Role
+
+You are the **Reflection / Memory Agent** in ASE-MTAGE.
+
+Your job is to convert one round of evidence into durable memory:
+
+1. failure-repair memory;
+2. archival lessons;
+3. future guidance for Analyzer and Mutator.
+
+You are not writing reward code. You are not selecting candidates. You are not
+changing rollback decisions.
+
+## Goal
+
+Given the artifacts from one round, produce a concise, evidence-grounded memory
+record describing:
+
+1. what failure or limitation was observed;
+2. what repair or mutation was attempted;
+3. what outcome followed;
+4. what should be preserved or avoided in future rounds;
+5. whether rollback happened and why.
+
+## Reward-Leakage Policy
+
+You must not use, infer, or reconstruct the official environment reward.
+
+Allowed evidence:
+
+- Analyzer self-evaluation;
+- selection report;
+- coverage report;
+- trajectory judgment summary;
+- Memory-TAGE reports;
+- rollback report;
+- generated reward component information;
+- elite archive metadata.
+
+Forbidden:
+
+- official reward formula;
+- official return as direct ground truth;
+- unsupported claims not present in round artifacts.
+
+If the evidence is weak, state uncertainty explicitly.
+
+## Input Artifacts
+
+```text
+round_index
+analyzer_self_evaluation
+selection_report
+coverage_report
+trajectory_judgment_summary_optional
+tage_summary_optional
+rollback_report
+elite_archive_optional
+```
+
+## Output Requirements
+
+Output only valid JSON:
+
+```json
+{
+  "round": 1,
+  "parent_reward_id": "string or null",
+  "selected_candidate_id": "string or null",
+  "mutation_family": "string or null",
+  "observed_outcome": {
+    "coarse_result": "string",
+    "main_failure_remaining": "string",
+    "main_success_signal": "string"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "string",
+    "repair_attempt": "string",
+    "outcome_after": "string"
+  },
+  "lesson": "string",
+  "future_guidance": ["string"],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "string or null",
+    "reason": "string"
+  },
+  "uncertainties": ["string"]
+}
+```
+
+## Reflection Rules
+
+1. Do not turn a partial-progress result into a success claim.
+2. Do not invent new failure modes that are not supported by trajectory labels or TAGE evidence.
+3. If memory coverage is weak, write that future conclusions should be conservative.
+4. If rollback happened, record the hard rollback reason from `rollback_report`.
+5. If a mutation family was selected, explain what it attempted to fix.
+6. Keep the lesson short enough to be useful in the next Analyzer prompt.
+7. The lesson should be causal, not just descriptive.
+
+Bad lesson:
+
+```text
+The reward was bad.
+```
+
+Good lesson:
+
+```text
+Dense survival reward should be gated by progress because it can make low-progress survival trajectories rank above partial-progress trajectories.
+```
+
+## Example Output
+
+```json
+{
+  "round": 3,
+  "parent_reward_id": "round2_candidate1",
+  "selected_candidate_id": "round3_candidate2",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "terminal_instability",
+    "main_success_signal": "distance improvement increased"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "low_progress_survival and unstable approach",
+    "repair_attempt": "removed dense alive bonus and added progress-conditioned stability",
+    "outcome_after": "low-progress survival was reduced, but no success_like trajectory is available yet"
+  },
+  "lesson": "Progress-conditioned mutation can reduce survival hacking, but terminal stability must be strengthened near the goal before partial progress can become success-like behavior.",
+  "future_guidance": [
+    "preserve progress_delta if it favors partial_progress over failures",
+    "strengthen near-terminal stability",
+    "avoid global alive bonus without progress gating"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": false,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round3_candidate2",
+    "reason": "Selected candidate is usable but not yet clearly elite"
+  },
+  "uncertainties": [
+    "No success_like trajectories exist, so success-level preference cannot be constructed"
+  ]
+}
+```
+
+## Now Perform The Task
+
+Input:
+
+```text
+{
+  "round_index": 6,
+  "analyzer_self_evaluation": {
+    "round": 6,
+    "parent_reward_id": "round3_candidate1_progress_conditioned",
+    "overall_judgment": "parent_reward_provides_usable_memory_but_needs_evolution",
+    "failure_summary": "The parent reward still over-rewards early_failure trajectories via approach_progress and terminal_reward components, and does not generate high-confidence success_like behavior.",
+    "memory_interpretation": {
+      "coverage_type": "partial_or_success_only",
+      "decision_level": "no_decision",
+      "usable_preference_level": "none",
+      "main_known_failures": [
+        "early_failure",
+        "low_progress_survival"
+      ],
+      "main_useful_patterns": [
+        "approach_progress, proximity_bonus, near_stability, leg_bonus favor higher-quality trajectories",
+        "progress-conditioned gating provides some structure"
+      ],
+      "uncertainties": [
+        "No high-confidence success_like trajectory exists; preference construction forbidden",
+        "Label margin sufficient but decision_level remains no_decision",
+        "Component_summary includes components not in parent code, complicating diagnosis"
+      ]
+    },
+    "component_diagnosis": [
+      {
+        "component": "approach_progress",
+        "verdict": "restructure",
+        "evidence": "Repeated archival lessons indicate approach_progress over-rewards early_failure; component_summary shows failure_mean (1.03) and positive_mean (1.73), with insufficient gap."
+      },
+      {
+        "component": "terminal_reward",
+        "verdict": "remove_or_gate",
+        "evidence": "Component_summary shows failure_mean (4.375) higher than positive_mean (2.994), indicating failures receive unwarranted positive terminal reward; archival lessons confirm misassignment."
+      },
+      {
+        "component": "proximity_bonus",
+        "verdict": "keep",
+        "evidence": "Component_summary shows positive_mean (18.21) much higher than failure_mean (2.27), indicating good discrimination."
+      },
+      {
+        "component": "near_stability",
+        "verdict": "keep",
+        "evidence": "Component_summary shows positive_mean (24.71) much higher than failure_mean (4.23), indicating strong favor for better trajectories."
+      },
+      {
+        "component": "leg_bonus",
+        "verdict": "keep",
+        "evidence": "Component_summary shows nearly all reward goes to positives (failure_mean=0, positive_mean=23.07)."
+      },
+      {
+        "component": "low_progress_timeout",
+        "verdict": "keep",
+        "evidence": "Penalty is small and has little impact; no strong signal to change."
+      }
+    ],
+    "mutation_intent": {
+      "primary_family": "component_recomposition",
+      "secondary_family": "progress_conditioned",
+      "forbidden_changes": [
+        "do not use official reward",
+        "do not add global survival bonus without progress gating",
+        "do not only scale all coefficients",
+        "do not treat partial_progress as success_like"
+      ],
+      "required_changes": [
+        "restructure approach_progress to penalize early_failure and widen margin to partial_progress (e.g., add quality-based scaling or negative bias)",
+        "remove or gate terminal_reward to prevent rewarding non-landing terminations",
+        "preserve progress-conditioned gating",
+        "ensure any new terminal reward only activates for confirmed safe landings"
+      ],
+      "preserve_components": [
+        "proximity_bonus",
+        "near_stability",
+        "leg_bonus",
+        "low_progress_timeout"
+      ],
+      "remove_or_gate_components": [
+        "terminal_reward"
+      ]
+    },
+    "rollback_decision": {
+      "recommend_rollback": false,
+      "rollback_target": null,
+      "reason": "Parent reward shows positive training return (6.04) and subsequent rounds have not consistently outperformed; no clear regression warranting rollback."
+    },
+    "self_evaluation_lesson": "Partial_or_success_only coverage prevents strong preference construction; recurrent problem is approach_progress rewarding early_failure, requiring structural quality-based scaling rather than coefficient-only adjustments; terminal_reward must be removed or gated to avoid rewarding crashes.",
+    "agent_mode": "llm_analyzer"
+  },
+  "selection_report": {
+    "round": 6,
+    "selected_candidate": "round6_candidate1_progress_conditioned",
+    "selection_mode": "memory_tage_offline_selection",
+    "memory_coverage_type": "partial_or_success_only",
+    "decision_level": "no_decision",
+    "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+    "candidate_scores": [
+      {
+        "candidate_id": "round6_candidate0_component_recomposition",
+        "mutation_family": "component_recomposition",
+        "valid": true,
+        "decision_level": "no_decision",
+        "tage_score": 0.587866793430408,
+        "failure_avoidance": 0.9720237069289644,
+        "preference_consistency": 0.0,
+        "novelty": 0.006183133219752723,
+        "static_score": 0.8,
+        "selection_score": 0.6015457833049382,
+        "recommended_use": null,
+        "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_0_component_recomposition/reward_fn_source.py",
+        "candidate_dir": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_0_component_recomposition",
+        "tage_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_0_component_recomposition/tage_report.json",
+        "validator_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_0_component_recomposition/validator_report.json",
+        "decision": "not_selected"
+      },
+      {
+        "candidate_id": "round6_candidate1_progress_conditioned",
+        "mutation_family": "progress_conditioned",
+        "valid": true,
+        "decision_level": "no_decision",
+        "tage_score": 0.5417444273715147,
+        "failure_avoidance": 0.8310835341187519,
+        "preference_consistency": 0.0,
+        "novelty": 0.08734220104046242,
+        "static_score": 0.9,
+        "selection_score": 0.6968355502601157,
+        "recommended_use": null,
+        "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+        "candidate_dir": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned",
+        "tage_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned/tage_report.json",
+        "validator_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned/validator_report.json",
+        "decision": "selected_for_long_training"
+      },
+      {
+        "candidate_id": "round6_candidate2_local_repair",
+        "mutation_family": "local_repair",
+        "valid": true,
+        "decision_level": "no_decision",
+        "tage_score": 0.5846434182890023,
+        "failure_avoidance": 0.965576956646153,
+        "preference_consistency": 0.0,
+        "novelty": 0.006183133219752723,
+        "static_score": 0.7,
+        "selection_score": 0.5265457833049381,
+        "recommended_use": null,
+        "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_local_repair/reward_fn_source.py",
+        "candidate_dir": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_local_repair",
+        "tage_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_local_repair/tage_report.json",
+        "validator_report_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_local_repair/validator_report.json",
+        "decision": "not_selected"
+      }
+    ],
+    "reason": "Memory coverage has no selection authority; selected conservative valid candidate using static/novelty prior.",
+    "phase": "error_aware_selector"
+  },
+  "coverage_report": {
+    "num_trajectories": 635,
+    "num_labeled_non_ambiguous": 635,
+    "num_use_for_tage_pair": 635,
+    "label_counts": {
+      "partial_progress": 554,
+      "early_failure": 39,
+      "success_like": 33,
+      "low_progress_survival": 9
+    },
+    "labeled_label_counts": {
+      "partial_progress": 554,
+      "early_failure": 39,
+      "success_like": 33,
+      "low_progress_survival": 9
+    },
+    "preference_role_counts": {
+      "mid_reference": 554,
+      "negative_reference": 48,
+      "positive_reference": 33
+    },
+    "dynamic_min_count_per_label": 96,
+    "nontrivial_labels": [
+      "partial_progress"
+    ],
+    "label_margin": {
+      "is_margin_sufficient": true,
+      "positive_label_group": "success_like",
+      "num_failure_cards": 48,
+      "num_positive_cards": 33,
+      "failure_progress_mean": 0.5553711371534874,
+      "positive_progress_mean": 1.0868379423359147,
+      "progress_gap": 0.5314668051824273,
+      "failure_stability_proxy_mean": -1.18402847078261,
+      "positive_stability_proxy_mean": 0.7145911656039907,
+      "stability_gap": 1.8986196363866008,
+      "thresholds": {
+        "progress_gap_min": 0.05,
+        "stability_gap_min": -0.05
+      }
+    },
+    "coverage_type": "partial_or_success_only",
+    "decision_level": "no_decision",
+    "can_build_preference_pairs": false,
+    "allowed_preference_relations": [],
+    "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+    "forbidden_assumptions": [
+      "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+    ],
+    "suggested_search_mode": "preserve_progress_and_explore_failures",
+    "phase": "error_aware_memory_coverage"
+  },
+  "trajectory_judgment_summary_optional": {
+    "num_trajectories": 50,
+    "num_use_for_tage_pair": 50,
+    "label_counts": {
+      "partial_progress": 50
+    }
+  },
+  "tage_summary_optional": {
+    "candidate_tage_reports": [
+      {
+        "candidate_id": "round6_candidate0_component_recomposition",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_0_component_recomposition/reward_fn_source.py",
+        "memory_coverage_type": "partial_or_success_only",
+        "decision_level": "no_decision",
+        "score_mode": "no_decision_safety_prior",
+        "preference_consistency": {
+          "num_pairs": 0,
+          "num_satisfied": 0,
+          "score": 0.0,
+          "relations": []
+        },
+        "failure_avoidance": {
+          "known_failure_labels": [
+            "early_failure",
+            "low_progress_survival"
+          ],
+          "num_failure_trajectories": 48,
+          "mean_reward_on_failure": 4.945416037348723,
+          "normalized_score": 0.9720237069289644
+        },
+        "component_alignment": {
+          "mean_component_consistency": 0.0,
+          "components": {
+            "approach_progress": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "leg_bonus": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "low_progress_timeout": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "near_stability": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "proximity_bonus": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "safe_landing_bonus": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            }
+          }
+        },
+        "candidate_redundancy": {
+          "max_reward_vector_corr_with_other_candidates": 0.9938168667802473,
+          "novelty_score": 0.006183133219752723
+        },
+        "tage_score": 0.587866793430408,
+        "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+        "forbidden_assumptions": [
+          "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+        ],
+        "num_scored_trajectories": 635,
+        "warnings": [
+          "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+        ],
+        "phase": "error_aware_memory_tage"
+      },
+      {
+        "candidate_id": "round6_candidate1_progress_conditioned",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+        "memory_coverage_type": "partial_or_success_only",
+        "decision_level": "no_decision",
+        "score_mode": "no_decision_safety_prior",
+        "preference_consistency": {
+          "num_pairs": 0,
+          "num_satisfied": 0,
+          "score": 0.0,
+          "relations": []
+        },
+        "failure_avoidance": {
+          "known_failure_labels": [
+            "early_failure",
+            "low_progress_survival"
+          ],
+          "num_failure_trajectories": 48,
+          "mean_reward_on_failure": -16.757599282570684,
+          "normalized_score": 0.8310835341187519
+        },
+        "component_alignment": {
+          "mean_component_consistency": 0.0,
+          "components": {
+            "approach_progress": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "crash_penalty": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "landing_bonus": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "leg_bonus": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "low_progress_timeout": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "near_stability": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "proximity_bonus": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "unsafe_early": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            }
+          }
+        },
+        "candidate_redundancy": {
+          "max_reward_vector_corr_with_other_candidates": 0.9126577989595376,
+          "novelty_score": 0.08734220104046242
+        },
+        "tage_score": 0.5417444273715147,
+        "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+        "forbidden_assumptions": [
+          "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+        ],
+        "num_scored_trajectories": 635,
+        "warnings": [
+          "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+        ],
+        "phase": "error_aware_memory_tage"
+      },
+      {
+        "candidate_id": "round6_candidate2_local_repair",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_local_repair/reward_fn_source.py",
+        "memory_coverage_type": "partial_or_success_only",
+        "decision_level": "no_decision",
+        "score_mode": "no_decision_safety_prior",
+        "preference_consistency": {
+          "num_pairs": 0,
+          "num_satisfied": 0,
+          "score": 0.0,
+          "relations": []
+        },
+        "failure_avoidance": {
+          "known_failure_labels": [
+            "early_failure",
+            "low_progress_survival"
+          ],
+          "num_failure_trajectories": 48,
+          "mean_reward_on_failure": 2.4914207990589854,
+          "normalized_score": 0.965576956646153
+        },
+        "component_alignment": {
+          "mean_component_consistency": 0.0,
+          "components": {
+            "approach_progress": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "leg_bonus": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "low_progress_timeout": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "near_stability": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "proximity_bonus": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            },
+            "terminal_reward": {
+              "pair_consistency": 0.0,
+              "num_pairs": 0,
+              "num_satisfied": 0,
+              "diagnosis": "component may over-reward known low-quality trajectories"
+            }
+          }
+        },
+        "candidate_redundancy": {
+          "max_reward_vector_corr_with_other_candidates": 0.9938168667802473,
+          "novelty_score": 0.006183133219752723
+        },
+        "tage_score": 0.5846434182890023,
+        "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+        "forbidden_assumptions": [
+          "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+        ],
+        "num_scored_trajectories": 635,
+        "warnings": [
+          "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+        ],
+        "phase": "error_aware_memory_tage"
+      }
+    ]
+  },
+  "rollback_report": {
+    "round": 6,
+    "rollback_triggered": false,
+    "current_reward_id": "round6_candidate1_progress_conditioned",
+    "rollback_target_reward_id": null,
+    "next_parent_reward_id": "round6_candidate1_progress_conditioned",
+    "next_parent_reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+    "hard_conditions": {
+      "selected_score": 0.6968355502601157,
+      "best_elite_score": 0.7232181772818118,
+      "best_training_return": 6.035687296987295,
+      "score_drop_threshold": 0.3,
+      "base_threshold": 0.3,
+      "score_drop_triggered": false,
+      "no_selected_candidate": false
+    },
+    "reason": "Rollback conditions not met (threshold=0.30); continue with selected candidate.",
+    "phase": "phase_6_rollback"
+  },
+  "elite_archive_optional": {
+    "elite_rewards": [
+      {
+        "reward_id": "round0_candidate2_progress_conditioned",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round0_candidate2_progress_conditioned.py",
+        "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round0/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+        "score": 0.9,
+        "round": 0,
+        "metadata": {
+          "num_trajectory_cards": 50,
+          "label_counts": {
+            "ambiguous": 20,
+            "partial_progress": 30
+          }
+        },
+        "training_return": -69.86799703424138,
+        "num_success_like": 0,
+        "num_partial_progress": 30
+      },
+      {
+        "reward_id": "round5_candidate2_progress_conditioned",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round5_candidate2_progress_conditioned.py",
+        "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round5/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+        "score": 0.7736109966228415,
+        "round": 5,
+        "metadata": {
+          "num_trajectory_cards": 50,
+          "label_counts": {
+            "partial_progress": 43,
+            "early_failure": 2,
+            "ambiguous": 5
+          }
+        },
+        "training_return": 1.4828764008025421,
+        "num_success_like": 0,
+        "num_partial_progress": 43
+      },
+      {
+        "reward_id": "round4_candidate1_progress_conditioned",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round4_candidate1_progress_conditioned.py",
+        "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round4/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+        "score": 0.7683044973356808,
+        "round": 4,
+        "metadata": {
+          "num_trajectory_cards": 50,
+          "label_counts": {
+            "ambiguous": 21,
+            "early_failure": 2,
+            "partial_progress": 25,
+            "low_progress_survival": 2
+          }
+        },
+        "training_return": 25.18159598092438,
+        "num_success_like": 0,
+        "num_partial_progress": 25
+      },
+      {
+        "reward_id": "round6_candidate2_progress_conditioned",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round6_candidate2_progress_conditioned.py",
+        "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+        "score": 0.73808521487604,
+        "round": 6,
+        "metadata": {
+          "num_trajectory_cards": 50,
+          "label_counts": {
+            "partial_progress": 50
+          }
+        },
+        "training_return": -13.971407690964579,
+        "num_success_like": 0,
+        "num_partial_progress": 50
+      },
+      {
+        "reward_id": "round3_candidate1_progress_conditioned",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round3_candidate1_progress_conditioned.py",
+        "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round3/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+        "score": 0.7232181772818118,
+        "round": 3,
+        "metadata": {
+          "num_trajectory_cards": 50,
+          "label_counts": {
+            "partial_progress": 36,
+            "success_like": 10,
+            "ambiguous": 1,
+            "early_failure": 3
+          }
+        },
+        "training_return": 6.035687296987295,
+        "num_success_like": 10,
+        "num_partial_progress": 36
+      },
+      {
+        "reward_id": "round1_candidate1_progress_conditioned",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round1_candidate1_progress_conditioned.py",
+        "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round1/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+        "score": 0.7017846740062919,
+        "round": 1,
+        "metadata": {
+          "num_trajectory_cards": 50,
+          "label_counts": {
+            "ambiguous": 34,
+            "partial_progress": 16
+          }
+        },
+        "training_return": -62.945729447451505,
+        "num_success_like": 0,
+        "num_partial_progress": 16
+      },
+      {
+        "reward_id": "round6_candidate1_progress_conditioned",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round6_candidate1_progress_conditioned.py",
+        "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round6/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+        "score": 0.6968355502601157,
+        "round": 6,
+        "metadata": {
+          "num_trajectory_cards": 50,
+          "label_counts": {
+            "partial_progress": 50
+          }
+        },
+        "training_return": 760.5599807562878,
+        "num_success_like": 0,
+        "num_partial_progress": 50
+      },
+      {
+        "reward_id": "round2_candidate0_progress_conditioned",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round2_candidate0_progress_conditioned.py",
+        "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round2/candidates/candidate_0_progress_conditioned/reward_fn_source.py",
+        "score": 0.6922032304267518,
+        "round": 2,
+        "metadata": {
+          "num_trajectory_cards": 50,
+          "label_counts": {
+            "partial_progress": 50
+          }
+        },
+        "training_return": -10.567226507315299,
+        "num_success_like": 0,
+        "num_partial_progress": 50
+      },
+      {
+        "reward_id": "round2_candidate1_progress_conditioned",
+        "reward_path": "outputs/ase_mtage_lunarlander_v4/memory/elite_rewards/round2_candidate1_progress_conditioned.py",
+        "source_reward_path": "outputs/ase_mtage_lunarlander_v4/round2/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+        "score": 0.6787189753887711,
+        "round": 2,
+        "metadata": {
+          "num_trajectory_cards": 50,
+          "label_counts": {
+            "partial_progress": 37,
+            "low_progress_survival": 3,
+            "early_failure": 9,
+            "success_like": 1
+          }
+        },
+        "training_return": -33.02440508078906,
+        "num_success_like": 1,
+        "num_partial_progress": 37
+      }
+    ],
+    "best_reward_id": "round0_candidate2_progress_conditioned",
+    "best_by_training_return_id": "round6_candidate1_progress_conditioned",
+    "best_by_success_like_id": "round3_candidate1_progress_conditioned"
+  }
+}
+```
+
+Return only valid JSON.

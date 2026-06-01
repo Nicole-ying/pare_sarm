@@ -1,0 +1,82 @@
+{
+  "zero_action": {
+    "n_episodes": 10,
+    "mean_length": 9.5,
+    "min_length": 8,
+    "max_length": 10,
+    "early_deaths": 10,
+    "death_rate": 1.0,
+    "termination_reasons": {
+      "terminated": 10
+    },
+    "gravity_hypothesis": "strong"
+  },
+  "env_id": "CartPole-v1",
+  "spaces": {
+    "observation": {
+      "shape": [
+        4
+      ],
+      "low": -3.4028234663852886e+38,
+      "high": 3.4028234663852886e+38
+    },
+    "action": {
+      "type": "Discrete",
+      "shape": [],
+      "n": 2
+    }
+  },
+  "obs_dim": 4,
+  "episode_length_stats": {
+    "mean": 27.03,
+    "std": 19.3,
+    "min": 10,
+    "max": 95
+  },
+  "termination_summary": {
+    "terminated": {
+      "count": 30,
+      "fraction": 1.0
+    }
+  },
+  "info_keys": {},
+  "obs_dim_stats": [
+    {
+      "dim": 0,
+      "space_low": -4.8,
+      "space_high": 4.8,
+      "mean": -0.071955,
+      "std": 0.294459,
+      "sample_min": -2.082338,
+      "sample_max": 0.480595
+    },
+    {
+      "dim": 1,
+      "space_low": -3.4028234663852886e+38,
+      "space_high": 3.4028234663852886e+38,
+      "mean": -0.132078,
+      "std": 0.740031,
+      "sample_min": -3.603833,
+      "sample_max": 1.911061
+    },
+    {
+      "dim": 2,
+      "space_low": -0.418879,
+      "space_high": 0.418879,
+      "mean": -0.012497,
+      "std": 0.098856,
+      "sample_min": -0.24012,
+      "sample_max": 0.233001
+    },
+    {
+      "dim": 3,
+      "space_low": -3.4028234663852886e+38,
+      "space_high": 3.4028234663852886e+38,
+      "mean": 0.002498,
+      "std": 0.79922,
+      "sample_min": -2.18695,
+      "sample_max": 2.660056
+    }
+  ],
+  "max_episode_steps": 1000
+}

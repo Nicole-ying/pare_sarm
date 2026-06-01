@@ -1,0 +1,39 @@
+{
+  "candidate_id": "round1_candidate1_local_repair",
+  "round": 1,
+  "mutation_family": "local_repair",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "local_repair",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not treat partial_progress as success_like",
+      "do not only scale all coefficients",
+      "do not remove progress-conditioned structure"
+    ],
+    "required_changes": [
+      "strengthen near-goal landing incentives cautiously",
+      "monitor ambiguous trajectories to avoid reward hacking"
+    ],
+    "preserve_components": [
+      "approach_progress",
+      "velocity_control",
+      "angle_stability",
+      "landing_bonus",
+      "crash_penalty",
+      "timeout_penalty",
+      "survival_bonus"
+    ],
+    "remove_or_gate_components": []
+  },
+  "coverage_type_used": "partial_or_success_only",
+  "intended_fix": [
+    "make a conservative reward with clear components",
+    "use analyzer context to gate known failure patterns"
+  ],
+  "expected_effect": "Provide a simple, interpretable baseline candidate that reacts to known failures.",
+  "risk": "May be too weak for difficult tasks.",
+  "official_reward_used": false
+}

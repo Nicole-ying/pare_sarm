@@ -1,0 +1,113 @@
+{
+  "env_name": "LunarLander-v2",
+  "task_goal": "land safely on the landing pad using observable state evidence, without using the official reward",
+  "official_reward_visible": false,
+  "observation_schema": [
+    {
+      "index": 0,
+      "name": "x_position",
+      "meaning": "horizontal position relative to the center of the viewport (landing pad at 0)",
+      "used_for_labeling": true
+    },
+    {
+      "index": 1,
+      "name": "y_position",
+      "meaning": "vertical position relative to the ground (higher is up)",
+      "used_for_labeling": true
+    },
+    {
+      "index": 2,
+      "name": "x_velocity",
+      "meaning": "horizontal velocity",
+      "used_for_labeling": true
+    },
+    {
+      "index": 3,
+      "name": "y_velocity",
+      "meaning": "vertical velocity",
+      "used_for_labeling": true
+    },
+    {
+      "index": 4,
+      "name": "angle",
+      "meaning": "orientation angle in radians (0 is upright)",
+      "used_for_labeling": true
+    },
+    {
+      "index": 5,
+      "name": "angular_velocity",
+      "meaning": "angular velocity in radians per second (after scaling factor 2.5)",
+      "used_for_labeling": true
+    },
+    {
+      "index": 6,
+      "name": "left_leg_contact",
+      "meaning": "boolean indicating whether the left leg is in contact with the ground",
+      "used_for_labeling": true
+    },
+    {
+      "index": 7,
+      "name": "right_leg_contact",
+      "meaning": "boolean indicating whether the right leg is in contact with the ground",
+      "used_for_labeling": true
+    }
+  ],
+  "action_schema": [
+    {
+      "id": 0,
+      "meaning": "do nothing"
+    },
+    {
+      "id": 1,
+      "meaning": "fire left orientation engine"
+    },
+    {
+      "id": 2,
+      "meaning": "fire main engine"
+    },
+    {
+      "id": 3,
+      "meaning": "fire right orientation engine"
+    }
+  ],
+  "termination_signals": [
+    "terminated indicates an environment terminal event from the gym env; from docstring: crashes (lander body contacts moon), lander goes outside viewport (x > 1), or lander becomes not awake (sleeping). Use observable state to detect these: low y position with leg contact not both sure? but we can infer from state after termination.",
+    "truncated indicates time limit or wrapper-dependent cutoff"
+  ],
+  "available_info_keys": [],
+  "trajectory_features_to_extract": [
+    "episode_length",
+    "terminated",
+    "truncated",
+    "initial_distance_to_pad",
+    "final_distance_to_pad",
+    "distance_improvement",
+    "final_vertical_velocity",
+    "final_horizontal_velocity",
+    "final_angle_abs",
+    "final_angular_velocity_abs",
+    "final_left_leg_contact",
+    "final_right_leg_contact",
+    "both_legs_contact_final",
+    "final_y_position"
+  ],
+  "coarse_outcome_labels": [
+    "early_failure",
+    "low_progress_survival",
+    "partial_progress",
+    "success_like",
+    "ambiguous"
+  ],
+  "labeling_cautions": [
+    "Do not use or infer the official environment reward.",
+    "Do not treat long episode length alone as success_like.",
+    "Do not treat stable hover at low altitude without both legs contacting ground as success_like.",
+    "Do not treat low velocity with high angle or off-pad location as success_like.",
+    "Success_like requires strong evidence: both legs in contact, lander near upright (angle close to 0), near zero velocity, and position near landing pad (x near 0, y near ground within viewport).",
+    "If termination occurred by landing on pad but with significant velocity or angle, classify as partial_progress or ambiguous."
+  ],
+  "unknowns": [
+    "Exact termination condition logic from the gym runtime (whether code uses game_over flag; we rely on docstring conditions and observable final state).",
+    "Exact truncation wrapper configuration; assume time limit at 1000 steps."
+  ]
+}

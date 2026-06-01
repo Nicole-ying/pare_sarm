@@ -1,0 +1,39 @@
+{
+  "round": 4,
+  "parent_reward_id": "round2_candidate0_component_recomposition",
+  "selected_candidate_id": "round4_candidate2_local_repair",
+  "mutation_family": "local_repair",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "no_success_like_trajectories; partial_progress count dropped from 50 to 17 in long training",
+    "main_success_signal": "memory coverage still shows 124 partial_progress trajectories, but candidate training regressed"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "parent reward consistently generates partial_progress (124 in memory, 50 in previous training) but no success_like trajectories; plateau in partial_progress conversion",
+    "repair_attempt": "local_repair mutation to strengthen terminal condition rewards (safe_landing_bonus) and reduce ineffective components (stability_penalty, crash_penalty, etc.) while preserving approach_progress and near_stage_stability",
+    "outcome_after": "long training produced only 17 partial_progress, 20 ambiguous, and 9 early_failure; training return dropped from 166 to 20.9; no success_like trajectories emerged; the repair disrupted partial_progress generation without achieving progress toward success"
+  },
+  "lesson": "Local repair that simultaneously removes multiple components and modifies terminal conditions can destabilize the existing partial_progress behavior; preserving the ability to generate partial_progress is a prerequisite before attempting to bridge to success; incremental, single-component changes with validation of partial_progress retention are safer.",
+  "future_guidance": [
+    "preserve approach_progress component as it is the primary driver of partial_progress",
+    "avoid simultaneous removal or gating of multiple components; test each change individually",
+    "before introducing new success mechanisms, ensure the reward function maintains at least the same number of partial_progress trajectories as the parent",
+    "investigate ambiguous trajectories: they may indicate reward misalignment and should be minimized",
+    "do not treat ambiguous trajectories as progress in preference construction",
+    "consider using a conservative mutation that adds a mild success bonus without altering existing components",
+    "re-evaluate the necessity of removing components that were previously helpful (e.g., crash_penalty, stability_penalty) as their removal may degrade partial_progress"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round4_candidate2_local_repair",
+    "reason": "Candidate was selected, trained, and added to elite archive despite regression; next round should consider reverting to a parent that preserved partial_progress (e.g., round2 or round3 elite) and apply more conservative mutations."
+  },
+  "uncertainties": [
+    "The regression in partial_progress may be due to stochasticity in training or the mutation itself; the candidate's TAGE score on memory was positive (0.63), so the memory evaluation did not predict the training outcome",
+    "No success_like trajectories exist, so success-level preference cannot be constructed",
+    "The high number of ambiguous trajectories (20) indicates the reward function may be poorly calibrated for the policy's actual behavior",
+    "Decision level was weak_pairwise_selection, so all conclusions are tentative and may not generalize"
+  ],
+  "agent_mode": "llm_reflector"
+}

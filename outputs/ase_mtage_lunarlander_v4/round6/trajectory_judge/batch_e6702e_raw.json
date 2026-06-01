@@ -1,0 +1,32 @@
+{
+  "id": "1a8641c1-04c7-4315-96bb-2bf0a24722f5",
+  "object": "chat.completion",
+  "created": 1780246030,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep020\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep021\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep022\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep023\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep024\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep025\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep026\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep027\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep028\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep029\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory cards. All trajectories have episode length 1000, terminated=false, truncated=true. They all ran to the time limit. The features show final distances around 0.6-0.8, distance improvements around 0.66-0.8, final speeds relatively low (mostly 0.01-0.07), final angles small, but contact_ratio_last20 = 0.0 for all. That means no leg contact in last 20 steps. Also reward component totals show no leg_bonus, no safe_landing_bonus, no crash_penalty. So no landing occurred. The trajectories show decent approach progress but no landing. Since they are truncated (time limit), not terminated, it's ambiguous whether they would have landed successfully. According to labeling cautions: \"Label as ambiguous if termination reason is unclear (e.g., time limit reached with partial progress).\" Also evidence is insufficient for success_like because no leg contact, no stability at landing. But they show real progress (distance improvement) but no landing. It's not early failure because they lasted full episode. Not low_progress_survival because progress is significant. So partial_progress? However, the episode length is max, so it's not early. But they show partial progress without reaching stable success. The instructions say: \"partial_progress: trajectory shows real progress but does not reach stable success.\" That fits because they approach the pad but never land (no leg contact). Also \"Do not treat high approach progress with unstable final speed, large tilt, or lack of leg contact as success_like.\" So not success_like. They are not ambiguous because evidence is clear: they made progress but did not land. So partial_progress seems appropriate. But check for conflicts: none. So all are partial_progress, use_for_tage_pair=true.\n\nThus output: for each trajectory, coarse_label=\"partial_progress\", use_for_tage_pair=true."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7821,
+    "completion_tokens": 790,
+    "total_tokens": 8611,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 407
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5773
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

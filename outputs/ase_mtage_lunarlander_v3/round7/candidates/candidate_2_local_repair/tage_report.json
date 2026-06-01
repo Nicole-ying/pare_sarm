@@ -1,0 +1,92 @@
+{
+  "candidate_id": "round7_candidate2_local_repair",
+  "reward_path": "outputs/ase_mtage_lunarlander_v3/round7/candidates/candidate_2_local_repair/reward_fn_source.py",
+  "memory_coverage_type": "failure_plus_partial_progress",
+  "decision_level": "weak_pairwise_selection",
+  "score_mode": "weak_pairwise_failure_aware",
+  "preference_consistency": {
+    "num_pairs": 15368,
+    "num_satisfied": 13396,
+    "score": 0.8716814159292036,
+    "relations": [
+      [
+        "partial_progress",
+        "early_failure"
+      ],
+      [
+        "partial_progress",
+        "low_progress_survival"
+      ]
+    ],
+    "relation_counts": {
+      "partial_progress>early_failure": {
+        "pairs": 7752,
+        "satisfied": 7505
+      },
+      "partial_progress>low_progress_survival": {
+        "pairs": 7616,
+        "satisfied": 5891
+      }
+    }
+  },
+  "failure_avoidance": {
+    "known_failure_labels": [
+      "early_failure",
+      "low_progress_survival"
+    ],
+    "num_failure_trajectories": 113,
+    "mean_reward_on_failure": 12.95187825038301,
+    "normalized_score": 0.9920025639737438
+  },
+  "component_alignment": {
+    "mean_component_consistency": 0.4394456012493492,
+    "components": {
+      "early_approach": {
+        "pair_consistency": 0.9606975533576262,
+        "num_pairs": 15368,
+        "num_satisfied": 14764,
+        "diagnosis": "component generally favors higher-quality remembered trajectories"
+      },
+      "leg_bonus": {
+        "pair_consistency": 0.10294117647058823,
+        "num_pairs": 15368,
+        "num_satisfied": 1582,
+        "diagnosis": "component may over-reward known low-quality trajectories"
+      },
+      "pad_approach_stability": {
+        "pair_consistency": 0.4993492972410203,
+        "num_pairs": 15368,
+        "num_satisfied": 7674,
+        "diagnosis": "component evidence is mixed"
+      },
+      "terminal_bonus": {
+        "pair_consistency": 0.051470588235294115,
+        "num_pairs": 15368,
+        "num_satisfied": 791,
+        "diagnosis": "component may over-reward known low-quality trajectories"
+      },
+      "terminal_penalty": {
+        "pair_consistency": 0.5827693909422176,
+        "num_pairs": 15368,
+        "num_satisfied": 8956,
+        "diagnosis": "component evidence is mixed"
+      }
+    }
+  },
+  "candidate_redundancy": {
+    "max_reward_vector_corr_with_other_candidates": 0.0,
+    "novelty_score": 0.5
+  },
+  "tage_score": 0.7715944424194412,
+  "allowed_decision": "Use weak preference pairs to select a candidate for long training with low-confidence warning.",
+  "forbidden_assumptions": [
+    "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists.",
+    "Do not treat partial_progress as success_like; only weak preference pairs are allowed."
+  ],
+  "num_scored_trajectories": 249,
+  "warnings": [
+    "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists.",
+    "Do not treat partial_progress as success_like; only weak preference pairs are allowed."
+  ],
+  "phase": "error_aware_memory_tage"
+}

@@ -1,0 +1,43 @@
+{
+  "experiment_name": "ase_mtage_lunarlander_formal_500k",
+  "output_root": "outputs",
+  "method": {
+    "name": "ASE-MTAGE",
+    "k_candidates": 3,
+    "max_rounds": 10,
+    "selected_long_train_per_round": 1,
+    "use_short_training": false
+  },
+  "llm": {
+    "enabled": true,
+    "provider": "deepseek",
+    "model": "deepseek-reasoner",
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "api_key": "sk-de61a363f7fc424e957d91e1559f0286",
+    "base_url": "https://api.deepseek.com",
+    "fallback_on_error": true,
+    "timeout_seconds": 600,
+    "max_tokens": 4096,
+    "temperature": {
+      "env_perception": 0.2,
+      "trajectory_judge": 0.2,
+      "analyzer": 0.4,
+      "mutator": 0.6,
+      "reflector": 0.3
+    }
+  },
+  "training": {
+    "env_id": "LunarLander-v2",
+    "full_timesteps": 500000,
+    "eval_interval": 50000,
+    "eval_episodes_per_interval": 5,
+    "final_eval_episodes": 50,
+    "seed": 42,
+    "device": "cpu"
+  },
+  "trajectory_memory": {
+    "min_trajectories": 20,
+    "min_labeled_trajectories": 12,
+    "use_ambiguous_for_tage": false
+  }
+}

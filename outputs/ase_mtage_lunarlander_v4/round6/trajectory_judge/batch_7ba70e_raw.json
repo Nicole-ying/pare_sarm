@@ -1,0 +1,32 @@
+{
+  "id": "145b7a65-ccbf-4c6d-b7fc-a251a3f86f56",
+  "object": "chat.completion",
+  "created": 1780246038,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep030\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep031\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep032\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep033\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep034\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep035\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep036\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep037\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep038\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep039\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards. Each trajectory has episode length 1000, truncated=true, terminated=false. Features show distance improvement (progress improvement) ranging from 0.61 to 0.80. Final speeds are low, final angles small, but contact_ratio_last20 is 0.0 for all, meaning no leg contact in last 20 steps. Both legs not contacting ground. No leg contact indicates not landed on pad. Termination is due to time limit (truncated), not a safe landing. Task goal is to land safely on landing pad. Since no leg contact and truncated, these are not success_like. They show progress (distance improved) but final state is hovering or near pad but not landed. According to allowed labels: early_failure (episode ends early with little progress), low_progress_survival (episode lasts but little progress), partial_progress (real progress but not stable success), success_like (strongly matches goal), ambiguous (insufficient/conflicting). Here, all have significant progress (0.6-0.8 distance improvement) but no landing contact. So they are not early_failure (not early, length 1000) nor low_progress_survival (progress is significant). They are partial_progress because they show real progress but do not reach stable success (no leg contact). Also not ambiguous because evidence is clear: all truncated, no leg contact. So label each as partial_progress. Since label is clear, use_for_tage_pair=true. Note: rule 5 says clear classifications should have true. So all trajectories get partial_progress and true. Output JSON array.\n\nLet's construct output."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7815,
+    "completion_tokens": 730,
+    "total_tokens": 8545,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 347
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5767
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

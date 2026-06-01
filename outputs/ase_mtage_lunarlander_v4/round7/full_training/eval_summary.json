@@ -1,0 +1,1461 @@
+{
+  "env_id": "LunarLander-v2",
+  "reward_path": "outputs/ase_mtage_lunarlander_v4/round7/candidates/candidate_2_progress_conditioned/reward_fn_source.py",
+  "num_episodes": 50,
+  "step_tag": "final",
+  "mean_candidate_return": -55.999227545827004,
+  "mean_episode_length": 68.5,
+  "episodes": [
+    {
+      "trajectory_id": "final_ep000",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep000.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep000_components.json",
+      "episode_length": 54,
+      "candidate_return": -13.839860675755016,
+      "env_return_recorded_for_debug_only": -108.44172540400061,
+      "component_totals": {
+        "far_approach": 2.6035706876514526,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -49.37406365957577,
+        "near_stability": 1.6306843579454018,
+        "proximity_bonus": 13.299947938223912,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": 0.0
+      },
+      "final_obs": [
+        0.13402919471263885,
+        -0.04280475527048111,
+        0.1844371259212494,
+        -2.6400170938245537e-08,
+        0.0002206687058787793,
+        -5.211219900047581e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep001",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep001.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep001_components.json",
+      "episode_length": 59,
+      "candidate_return": -53.083209123488444,
+      "env_return_recorded_for_debug_only": -119.3447118566339,
+      "component_totals": {
+        "far_approach": 2.648796455421829,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -59.03699023183435,
+        "near_stability": 0.0,
+        "proximity_bonus": 8.804984652924079,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -3.5
+      },
+      "final_obs": [
+        0.22368068993091583,
+        0.006092021241784096,
+        -0.42529767751693726,
+        -1.0218641757965088,
+        0.15411154925823212,
+        5.9061689376831055,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep002",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep002.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep002_components.json",
+      "episode_length": 56,
+      "candidate_return": -49.78333149933042,
+      "env_return_recorded_for_debug_only": -99.11255649891523,
+      "component_totals": {
+        "far_approach": 2.680263199572084,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -63.4751387918368,
+        "near_stability": 0.0,
+        "proximity_bonus": 9.011544092934288,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -1.0
+      },
+      "final_obs": [
+        -0.23751258850097656,
+        -0.004167785868048668,
+        0.3442092537879944,
+        -0.9014551639556885,
+        -0.27888116240501404,
+        -6.224392414093018,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep003",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep003.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep003_components.json",
+      "episode_length": 71,
+      "candidate_return": -133.42688717584312,
+      "env_return_recorded_for_debug_only": -104.27150576728835,
+      "component_totals": {
+        "far_approach": 2.5883928554319025,
+        "far_regress_penalty": 0.0714288122001483,
+        "far_quality_penalty": -117.58670884347521,
+        "near_stability": 0.0,
+        "proximity_bonus": 0.0,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -13.5
+      },
+      "final_obs": [
+        -0.527400553226471,
+        0.20724435150623322,
+        0.06252050399780273,
+        -0.7160065770149231,
+        -0.13630612194538116,
+        -5.8335442543029785,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep004",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep004.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep004_components.json",
+      "episode_length": 75,
+      "candidate_return": -23.439475500749687,
+      "env_return_recorded_for_debug_only": -120.82274342562414,
+      "component_totals": {
+        "far_approach": 2.6622442186378166,
+        "far_regress_penalty": 0.028150577573042845,
+        "far_quality_penalty": -53.28242043964565,
+        "near_stability": 1.9993370632278555,
+        "proximity_bonus": 14.653213079457252,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -10.5
+      },
+      "final_obs": [
+        -0.1251925528049469,
+        -0.04282417520880699,
+        -6.580019373814139e-08,
+        5.279857617779271e-08,
+        0.00033134978730231524,
+        3.076276300362224e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep005",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep005.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep005_components.json",
+      "episode_length": 80,
+      "candidate_return": -53.36882623443451,
+      "env_return_recorded_for_debug_only": -105.57599433218292,
+      "component_totals": {
+        "far_approach": 2.741936829189201,
+        "far_regress_penalty": 0.12827577458675576,
+        "far_quality_penalty": -74.35660936217755,
+        "near_stability": 1.8135236676170479,
+        "proximity_bonus": 8.304046856350034,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -13.0
+      },
+      "final_obs": [
+        -0.27796483039855957,
+        -0.03161304071545601,
+        4.708980583245648e-08,
+        -6.339564606605563e-08,
+        -0.09323805570602417,
+        -2.523171929169621e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep006",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep006.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep006_components.json",
+      "episode_length": 82,
+      "candidate_return": -17.88475093760224,
+      "env_return_recorded_for_debug_only": -101.9715974382026,
+      "component_totals": {
+        "far_approach": 2.8377815541994824,
+        "far_regress_penalty": 0.17691435505701625,
+        "far_quality_penalty": -46.310946630721446,
+        "near_stability": 1.4511179476976395,
+        "proximity_bonus": 16.46038183616506,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -13.5
+      },
+      "final_obs": [
+        0.024151897057890892,
+        -0.04094362631440163,
+        0.1689796894788742,
+        0.08381806313991547,
+        -0.021643273532390594,
+        -0.4485097825527191,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep007",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep007.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep007_components.json",
+      "episode_length": 75,
+      "candidate_return": -153.55470493187815,
+      "env_return_recorded_for_debug_only": -131.24298987305704,
+      "component_totals": {
+        "far_approach": 2.660903199654591,
+        "far_regress_penalty": 0.32725910337527697,
+        "far_quality_penalty": -136.54286723490804,
+        "near_stability": 0.0,
+        "proximity_bonus": 0.0,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -15.0
+      },
+      "final_obs": [
+        -0.5658109784126282,
+        -0.170380637049675,
+        -1.2229058742523193,
+        -1.1251195669174194,
+        0.14827625453472137,
+        5.789597511291504,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep008",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep008.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep008_components.json",
+      "episode_length": 62,
+      "candidate_return": -43.2429001868079,
+      "env_return_recorded_for_debug_only": -125.08220232478905,
+      "component_totals": {
+        "far_approach": 2.6369090463207208,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -66.646506690362,
+        "near_stability": 0.9559791013598442,
+        "proximity_bonus": 6.810718355873529,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -5.0
+      },
+      "final_obs": [
+        0.29854851961135864,
+        -0.00041913031600415707,
+        -0.21547719836235046,
+        -0.03925371542572975,
+        0.2672795355319977,
+        6.218091357368394e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep009",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep009.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep009_components.json",
+      "episode_length": 72,
+      "candidate_return": -30.250094785681455,
+      "env_return_recorded_for_debug_only": -118.79019496460626,
+      "component_totals": {
+        "far_approach": 2.6598587792956074,
+        "far_regress_penalty": 0.006414678095232329,
+        "far_quality_penalty": -58.496702114120126,
+        "near_stability": 1.9271167977713048,
+        "proximity_bonus": 12.153217073276515,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -9.5
+      },
+      "final_obs": [
+        -0.1764751374721527,
+        -0.04272890463471413,
+        -0.01820545271039009,
+        0.016893280670046806,
+        -0.0013428677339106798,
+        -0.08949804306030273,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep010",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep010.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep010_components.json",
+      "episode_length": 79,
+      "candidate_return": -80.34608763705712,
+      "env_return_recorded_for_debug_only": -111.39875255159373,
+      "component_totals": {
+        "far_approach": 2.803280527988049,
+        "far_regress_penalty": 0.1325049467846906,
+        "far_quality_penalty": -92.11308053322136,
+        "near_stability": 1.1268362551927567,
+        "proximity_bonus": 3.2043711661987544,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -13.5
+      },
+      "final_obs": [
+        -0.3897537291049957,
+        0.004408881533890963,
+        0.06816678494215012,
+        -0.16357173025608063,
+        -0.20484335720539093,
+        0.8639891743659973,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep011",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep011.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep011_components.json",
+      "episode_length": 65,
+      "candidate_return": -65.98772233445544,
+      "env_return_recorded_for_debug_only": -119.91306496930156,
+      "component_totals": {
+        "far_approach": 2.6925592819212345,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -68.3705073427409,
+        "near_stability": 0.0,
+        "proximity_bonus": 8.190225726364213,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -6.5
+      },
+      "final_obs": [
+        -0.2662518620491028,
+        -0.020394792780280113,
+        -0.037194062024354935,
+        -1.0594593286514282,
+        -0.07335007190704346,
+        -6.435976982116699,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep012",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep012.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep012_components.json",
+      "episode_length": 71,
+      "candidate_return": -73.62723660700942,
+      "env_return_recorded_for_debug_only": -134.43624523654614,
+      "component_totals": {
+        "far_approach": 2.702820283862591,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -70.46861767931841,
+        "near_stability": 0.0,
+        "proximity_bonus": 7.638560788446412,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -8.5
+      },
+      "final_obs": [
+        0.32249554991722107,
+        -0.0817541852593422,
+        1.2210795879364014,
+        -0.8689009547233582,
+        -0.023637019097805023,
+        -5.1100544929504395,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep013",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep013.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep013_components.json",
+      "episode_length": 60,
+      "candidate_return": -66.67917594726254,
+      "env_return_recorded_for_debug_only": -127.40500551111595,
+      "component_totals": {
+        "far_approach": 2.6561631782779163,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -69.02083768259035,
+        "near_stability": 0.0,
+        "proximity_bonus": 7.185498557049871,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -2.5
+      },
+      "final_obs": [
+        0.3295213580131531,
+        -0.087159663438797,
+        1.2927489280700684,
+        -0.8367863893508911,
+        0.139335036277771,
+        -4.998418807983398,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep014",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep014.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep014_components.json",
+      "episode_length": 61,
+      "candidate_return": -20.3877654631602,
+      "env_return_recorded_for_debug_only": -114.54400346372208,
+      "component_totals": {
+        "far_approach": 2.6542136599892423,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -54.64922175521497,
+        "near_stability": 1.6406642040237784,
+        "proximity_bonus": 12.466578428041757,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -3.5
+      },
+      "final_obs": [
+        0.17770767211914062,
+        -0.04185325279831886,
+        0.16544468700885773,
+        0.003875472117215395,
+        0.010347738862037659,
+        3.361390668032982e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep015",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep015.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep015_components.json",
+      "episode_length": 52,
+      "candidate_return": -25.503643971441655,
+      "env_return_recorded_for_debug_only": -89.13814123147377,
+      "component_totals": {
+        "far_approach": 2.643284577910376,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -60.92484639491886,
+        "near_stability": 1.7006136130075902,
+        "proximity_bonus": 10.077304232559237,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": 0.0
+      },
+      "final_obs": [
+        -0.23754644393920898,
+        -0.04321946203708649,
+        -0.14115603268146515,
+        -0.0003038874128833413,
+        0.008233273401856422,
+        0.0024422279093414545,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep016",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep016.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep016_components.json",
+      "episode_length": 61,
+      "candidate_return": -61.640890420719494,
+      "env_return_recorded_for_debug_only": -115.109088460723,
+      "component_totals": {
+        "far_approach": 2.7059412064970294,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -66.97432410623878,
+        "near_stability": 0.0,
+        "proximity_bonus": 8.627492479022278,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -4.0
+      },
+      "final_obs": [
+        -0.2597605288028717,
+        -0.022220231592655182,
+        0.023746298626065254,
+        -1.0222865343093872,
+        -0.18770334124565125,
+        -6.450443267822266,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep017",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep017.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep017_components.json",
+      "episode_length": 88,
+      "candidate_return": -138.91193396781762,
+      "env_return_recorded_for_debug_only": -106.35549608217605,
+      "component_totals": {
+        "far_approach": 2.8988894938492455,
+        "far_regress_penalty": 0.5337814170195349,
+        "far_quality_penalty": -136.84460487868637,
+        "near_stability": 0.0,
+        "proximity_bonus": 0.0,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -20.5
+      },
+      "final_obs": [
+        -0.5535996556282043,
+        0.10005563497543335,
+        -0.3617542088031769,
+        -0.008331002667546272,
+        0.058653589338064194,
+        -0.03603924438357353,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep018",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep018.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep018_components.json",
+      "episode_length": 91,
+      "candidate_return": -62.96099664648462,
+      "env_return_recorded_for_debug_only": -100.57832966003025,
+      "component_totals": {
+        "far_approach": 3.0600378121748406,
+        "far_regress_penalty": 0.5175980112075729,
+        "far_quality_penalty": -60.06726167284614,
+        "near_stability": 1.9248153563737134,
+        "proximity_bonus": 14.10381384660538,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -17.5
+      },
+      "final_obs": [
+        0.08670158684253693,
+        -0.0428180955350399,
+        0.03728731349110603,
+        5.279857617779271e-08,
+        0.00030495552346110344,
+        4.955289796271245e-07,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep019",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep019.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep019_components.json",
+      "episode_length": 69,
+      "candidate_return": -119.73543784013842,
+      "env_return_recorded_for_debug_only": -115.3899240125358,
+      "component_totals": {
+        "far_approach": 2.7412160855953083,
+        "far_regress_penalty": 0.012485111455078357,
+        "far_quality_penalty": -107.15316171944141,
+        "near_stability": 0.0,
+        "proximity_bonus": 0.1640226822526194,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -10.5
+      },
+      "final_obs": [
+        -0.4694749712944031,
+        0.10840066522359848,
+        -0.2968951463699341,
+        -0.9758082628250122,
+        -0.0067138709127902985,
+        -6.200715065002441,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep020",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep020.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep020_components.json",
+      "episode_length": 63,
+      "candidate_return": -3.3534656049275178,
+      "env_return_recorded_for_debug_only": -112.89093576254174,
+      "component_totals": {
+        "far_approach": 2.63445066762174,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -41.41132125619333,
+        "near_stability": 1.9995722623952927,
+        "proximity_bonus": 16.923832721248793,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -4.5
+      },
+      "final_obs": [
+        -0.025139426812529564,
+        -0.042756084352731705,
+        -1.0402744204246472e-12,
+        1.6940332600232089e-12,
+        0.00021386879961937666,
+        5.22014202697374e-12,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep021",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep021.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep021_components.json",
+      "episode_length": 71,
+      "candidate_return": -58.02806283633062,
+      "env_return_recorded_for_debug_only": -127.14388306451798,
+      "component_totals": {
+        "far_approach": 2.7171170685362687,
+        "far_regress_penalty": 0.0008169546977820907,
+        "far_quality_penalty": -79.11606783652678,
+        "near_stability": 1.775564554588609,
+        "proximity_bonus": 4.594506422373546,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -9.0
+      },
+      "final_obs": [
+        0.3784404695034027,
+        -0.041741564869880676,
+        -1.2730192011645158e-08,
+        1.5454553192739695e-08,
+        0.11221769452095032,
+        5.389025048430085e-08,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep022",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep022.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep022_components.json",
+      "episode_length": 56,
+      "candidate_return": -3.4877724066901123,
+      "env_return_recorded_for_debug_only": -96.71209435003503,
+      "component_totals": {
+        "far_approach": 2.6541965429458627,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -44.13819942204282,
+        "near_stability": 1.9283215999479637,
+        "proximity_bonus": 15.567908872458872,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -0.5
+      },
+      "final_obs": [
+        0.05643968656659126,
+        -0.04277832806110382,
+        0.035515014082193375,
+        -1.799551654357856e-07,
+        -0.00032400598865933716,
+        -8.803123137113289e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep023",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep023.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep023_components.json",
+      "episode_length": 89,
+      "candidate_return": -79.02993078417711,
+      "env_return_recorded_for_debug_only": -107.59026545486418,
+      "component_totals": {
+        "far_approach": 2.9801167658825234,
+        "far_regress_penalty": 0.45679548329512376,
+        "far_quality_penalty": -72.64446693193167,
+        "near_stability": 0.0,
+        "proximity_bonus": 9.177623898576943,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -17.0
+      },
+      "final_obs": [
+        0.219617560505867,
+        -0.008871628902852535,
+        -0.5263100862503052,
+        -1.0609591007232666,
+        0.3264428377151489,
+        6.07096529006958,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep024",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep024.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep024_components.json",
+      "episode_length": 57,
+      "candidate_return": -10.58827992684795,
+      "env_return_recorded_for_debug_only": -103.53901116197176,
+      "component_totals": {
+        "far_approach": 2.639735675454148,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -48.94411012309138,
+        "near_stability": 1.7303496293434364,
+        "proximity_bonus": 13.985744891445835,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -1.0
+      },
+      "final_obs": [
+        0.11808137595653534,
+        -0.042811550199985504,
+        0.13456031680107117,
+        -4.839876055484638e-09,
+        0.0002648636873345822,
+        1.8688083969209401e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep025",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep025.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep025_components.json",
+      "episode_length": 65,
+      "candidate_return": -60.233003963524354,
+      "env_return_recorded_for_debug_only": -121.45615199379185,
+      "component_totals": {
+        "far_approach": 2.6519740516604866,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -64.30026831198484,
+        "near_stability": 0.0,
+        "proximity_bonus": 9.415290296799991,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -6.0
+      },
+      "final_obs": [
+        -0.24017424881458282,
+        -0.0293864868581295,
+        -0.019814321771264076,
+        -1.0639525651931763,
+        -0.09815923124551773,
+        -6.43447732925415,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep026",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep026.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep026_components.json",
+      "episode_length": 52,
+      "candidate_return": -69.07048211417771,
+      "env_return_recorded_for_debug_only": -110.82361038093879,
+      "component_totals": {
+        "far_approach": 2.69465164847532,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -73.97804011183325,
+        "near_stability": 0.0,
+        "proximity_bonus": 4.212906349180254,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": 0.0
+      },
+      "final_obs": [
+        0.3502059876918793,
+        0.03023429960012436,
+        0.24833345413208008,
+        -1.018499493598938,
+        0.2945857048034668,
+        6.775730133056641,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep027",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep027.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep027_components.json",
+      "episode_length": 53,
+      "candidate_return": -1.1815854291045866,
+      "env_return_recorded_for_debug_only": -88.03744391238529,
+      "component_totals": {
+        "far_approach": 2.6533700912482487,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -42.99169433885254,
+        "near_stability": 1.9997542791141676,
+        "proximity_bonus": 16.156984539385537,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": 0.0
+      },
+      "final_obs": [
+        -0.041732024401426315,
+        -0.04277772083878517,
+        2.2918595021792498e-08,
+        1.9170618870134604e-08,
+        0.0001228183537023142,
+        -1.0323132926259859e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep028",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep028.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep028_components.json",
+      "episode_length": 76,
+      "candidate_return": -140.170961394791,
+      "env_return_recorded_for_debug_only": -118.7246017006203,
+      "component_totals": {
+        "far_approach": 2.7748184279082557,
+        "far_regress_penalty": 0.10329673632282432,
+        "far_quality_penalty": -122.54907655902207,
+        "near_stability": 0.0,
+        "proximity_bonus": 0.0,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -15.5
+      },
+      "final_obs": [
+        -0.5078617334365845,
+        0.06291147321462631,
+        0.2718915045261383,
+        -0.7797663807868958,
+        -0.05238623917102814,
+        -5.853173732757568,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep029",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep029.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep029_components.json",
+      "episode_length": 82,
+      "candidate_return": -150.05054286456044,
+      "env_return_recorded_for_debug_only": -120.48100713978425,
+      "component_totals": {
+        "far_approach": 2.854878013266232,
+        "far_regress_penalty": 0.2650478558192665,
+        "far_quality_penalty": -130.67046873364598,
+        "near_stability": 0.0,
+        "proximity_bonus": 0.0,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -17.5
+      },
+      "final_obs": [
+        -0.5197416543960571,
+        0.003841719590127468,
+        -1.0978715419769287,
+        -1.1272891759872437,
+        0.18950985372066498,
+        5.597168922424316,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep030",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep030.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep030_components.json",
+      "episode_length": 54,
+      "candidate_return": -32.01696372404122,
+      "env_return_recorded_for_debug_only": -93.13051926079721,
+      "component_totals": {
+        "far_approach": 2.6938327064097347,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -66.11101658921689,
+        "near_stability": 1.8594782901927829,
+        "proximity_bonus": 8.540741868573175,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": 0.0
+      },
+      "final_obs": [
+        -0.27125293016433716,
+        -0.036624375730752945,
+        -0.013015037402510643,
+        0.000494860578328371,
+        -0.056750956922769547,
+        -3.841733757781185e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep031",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep031.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep031_components.json",
+      "episode_length": 89,
+      "candidate_return": -99.12994397918877,
+      "env_return_recorded_for_debug_only": -132.32240328336135,
+      "component_totals": {
+        "far_approach": 2.930104675807927,
+        "far_regress_penalty": 0.3961477955054349,
+        "far_quality_penalty": -85.82355076866224,
+        "near_stability": 0.0,
+        "proximity_bonus": 5.367354318160093,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -17.0
+      },
+      "final_obs": [
+        0.3632469177246094,
+        -0.08557590842247009,
+        1.0290881395339966,
+        -0.9100075960159302,
+        0.004290908575057983,
+        -5.869633674621582,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep032",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep032.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep032_components.json",
+      "episode_length": 86,
+      "candidate_return": -157.5093560909378,
+      "env_return_recorded_for_debug_only": -128.81623435164548,
+      "component_totals": {
+        "far_approach": 2.6490863537558322,
+        "far_regress_penalty": 0.46014599699815917,
+        "far_quality_penalty": -139.61858844169183,
+        "near_stability": 0.0,
+        "proximity_bonus": 0.0,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -21.0
+      },
+      "final_obs": [
+        0.6254755258560181,
+        -0.06017223745584488,
+        0.803611159324646,
+        -0.03648550435900688,
+        0.11077898740768433,
+        1.2418843507766724,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep033",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep033.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep033_components.json",
+      "episode_length": 69,
+      "candidate_return": -63.037417434353536,
+      "env_return_recorded_for_debug_only": -132.24135253127073,
+      "component_totals": {
+        "far_approach": 2.6892163344775852,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -62.469651767780306,
+        "near_stability": 0.0,
+        "proximity_bonus": 9.743017998949158,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -8.0
+      },
+      "final_obs": [
+        0.24111919105052948,
+        -0.042146649211645126,
+        0.5103720426559448,
+        -0.862790048122406,
+        -0.020882613956928253,
+        -6.451811790466309,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep034",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep034.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep034_components.json",
+      "episode_length": 74,
+      "candidate_return": -40.90529527566922,
+      "env_return_recorded_for_debug_only": -116.7960112914291,
+      "component_totals": {
+        "far_approach": 2.6780827428784946,
+        "far_regress_penalty": 0.01634679258261107,
+        "far_quality_penalty": -49.5073806848377,
+        "near_stability": 1.999386965101266,
+        "proximity_bonus": 15.908268908606098,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -10.0
+      },
+      "final_obs": [
+        -0.08998098224401474,
+        -0.042820099741220474,
+        -4.947107257180505e-08,
+        -4.311884893581919e-08,
+        0.0003064248594455421,
+        2.2394161192096362e-07,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep035",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep035.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep035_components.json",
+      "episode_length": 70,
+      "candidate_return": -20.06085910892594,
+      "env_return_recorded_for_debug_only": -122.88682103780329,
+      "component_totals": {
+        "far_approach": 2.6885154325933907,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -51.2251507450128,
+        "near_stability": 1.9070022035566883,
+        "proximity_bonus": 14.0687739999368,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -8.5
+      },
+      "final_obs": [
+        0.11861477047204971,
+        -0.042813804000616074,
+        0.0462205745279789,
+        4.839860956451503e-09,
+        0.0002783188538160175,
+        5.401510634328588e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep036",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep036.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep036_components.json",
+      "episode_length": 52,
+      "candidate_return": -74.50378919502084,
+      "env_return_recorded_for_debug_only": -97.71008179565389,
+      "component_totals": {
+        "far_approach": 2.6702859928795712,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -76.1487004570663,
+        "near_stability": 0.0,
+        "proximity_bonus": 3.974625269165894,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": 0.0
+      },
+      "final_obs": [
+        -0.3501541018486023,
+        0.03854406997561455,
+        0.2614285349845886,
+        -0.8249955773353577,
+        -0.03846257925033569,
+        -6.0666704177856445,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep037",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep037.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep037_components.json",
+      "episode_length": 65,
+      "candidate_return": -7.24780032925106,
+      "env_return_recorded_for_debug_only": -118.31158920688821,
+      "component_totals": {
+        "far_approach": 2.636301881636294,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -43.85490119957831,
+        "near_stability": 1.9994387970738892,
+        "proximity_bonus": 16.471360191617066,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -5.5
+      },
+      "final_obs": [
+        -0.04910697788000107,
+        -0.042779434472322464,
+        -9.879707249638159e-06,
+        2.7610804309574632e-08,
+        0.00027069414500147104,
+        -1.0640651737503504e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep038",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep038.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep038_components.json",
+      "episode_length": 87,
+      "candidate_return": -54.87973980293635,
+      "env_return_recorded_for_debug_only": -103.12032968120523,
+      "component_totals": {
+        "far_approach": 2.974118109542538,
+        "far_regress_penalty": 0.358039912137893,
+        "far_quality_penalty": -54.79476561082993,
+        "near_stability": 0.0,
+        "proximity_bonus": 14.582867786213104,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -16.0
+      },
+      "final_obs": [
+        0.06519518047571182,
+        -0.04263191297650337,
+        0.1849159300327301,
+        -1.2041282653808594,
+        0.002390550449490547,
+        -6.464719295501709,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep039",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep039.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep039_components.json",
+      "episode_length": 79,
+      "candidate_return": -17.7211733693717,
+      "env_return_recorded_for_debug_only": -108.01012848105489,
+      "component_totals": {
+        "far_approach": 2.792030443422291,
+        "far_regress_penalty": 0.10302797355023263,
+        "far_quality_penalty": -47.259886559448205,
+        "near_stability": 1.9997929708166282,
+        "proximity_bonus": 16.14386180228735,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -12.5
+      },
+      "final_obs": [
+        -0.04446811601519585,
+        -0.04278208315372467,
+        1.2690690027739038e-06,
+        1.3137722021383524e-08,
+        0.00010223238496109843,
+        -1.697084428542439e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep040",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep040.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep040_components.json",
+      "episode_length": 69,
+      "candidate_return": -62.63419899308211,
+      "env_return_recorded_for_debug_only": -125.1425222936385,
+      "component_totals": {
+        "far_approach": 2.7012813009409733,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -63.52524022284342,
+        "near_stability": 0.0,
+        "proximity_bonus": 8.689759928820354,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -8.5
+      },
+      "final_obs": [
+        0.24232502281665802,
+        0.0004894948215223849,
+        -0.3741622269153595,
+        -1.0310083627700806,
+        0.4185587167739868,
+        6.024465560913086,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep041",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep041.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep041_components.json",
+      "episode_length": 64,
+      "candidate_return": -18.66448552379699,
+      "env_return_recorded_for_debug_only": -127.39012817258424,
+      "component_totals": {
+        "far_approach": 2.6612985531593853,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -49.59846094896784,
+        "near_stability": 1.7670495383338682,
+        "proximity_bonus": 14.005627333677591,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -5.5
+      },
+      "final_obs": [
+        0.11250867694616318,
+        -0.04281659424304962,
+        0.11617934703826904,
+        -2.155943512605063e-08,
+        0.0002958622353617102,
+        -4.4204165305927745e-07,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep042",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep042.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep042_components.json",
+      "episode_length": 71,
+      "candidate_return": -59.65371821207472,
+      "env_return_recorded_for_debug_only": -126.14645083465447,
+      "component_totals": {
+        "far_approach": 2.6984238854252265,
+        "far_regress_penalty": 0.0028032796709631658,
+        "far_quality_penalty": -62.15367649355903,
+        "near_stability": 0.0,
+        "proximity_bonus": 10.798731116388153,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -9.0
+      },
+      "final_obs": [
+        -0.2020178735256195,
+        -0.031636931002140045,
+        0.15783022344112396,
+        -1.0190374851226807,
+        -0.09748805314302444,
+        -6.374698162078857,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep043",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep043.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep043_components.json",
+      "episode_length": 85,
+      "candidate_return": -68.34125442271113,
+      "env_return_recorded_for_debug_only": -118.59521404475024,
+      "component_totals": {
+        "far_approach": 2.910649489849022,
+        "far_regress_penalty": 0.26216553365743356,
+        "far_quality_penalty": -71.02698444388807,
+        "near_stability": 0.37896621227264404,
+        "proximity_bonus": 11.133948785397823,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -15.0
+      },
+      "final_obs": [
+        -0.2144988477230072,
+        -0.045138563960790634,
+        -0.5601464509963989,
+        -0.10147418081760406,
+        0.148896262049675,
+        2.567814588546753,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep044",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep044.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep044_components.json",
+      "episode_length": 63,
+      "candidate_return": -0.9445796474330805,
+      "env_return_recorded_for_debug_only": -111.78601100929802,
+      "component_totals": {
+        "far_approach": 2.6309932493214028,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -39.101752087425666,
+        "near_stability": 1.9998978813944015,
+        "proximity_bonus": 17.02628130927679,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -4.5
+      },
+      "final_obs": [
+        -0.0011773109436035156,
+        -0.04274817928671837,
+        6.164355592815085e-13,
+        -4.1488779642731566e-13,
+        5.1059301767963916e-05,
+        -4.684226097284583e-12,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep045",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep045.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep045_components.json",
+      "episode_length": 64,
+      "candidate_return": -3.2100615092278346,
+      "env_return_recorded_for_debug_only": -110.28325256804771,
+      "component_totals": {
+        "far_approach": 2.6529936828480047,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -40.53473712410778,
+        "near_stability": 1.3128476403653622,
+        "proximity_bonus": 17.35883429166657,
+        "leg_bonus": 6.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -5.0
+      },
+      "final_obs": [
+        0.013366985134780407,
+        -0.04036523401737213,
+        0.20436009764671326,
+        0.11075763404369354,
+        -0.028458448126912117,
+        -0.591508686542511,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep046",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep046.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep046_components.json",
+      "episode_length": 64,
+      "candidate_return": -24.597417087070415,
+      "env_return_recorded_for_debug_only": -109.8905652585253,
+      "component_totals": {
+        "far_approach": 2.6649511356551536,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -39.89679193088318,
+        "near_stability": 1.999850094097619,
+        "proximity_bonus": 17.634573614059995,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -5.0
+      },
+      "final_obs": [
+        0.002796077635139227,
+        -0.042750898748636246,
+        1.1672541688767524e-07,
+        -4.9225645781802996e-09,
+        -7.483130320906639e-05,
+        -5.280061827761529e-07,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep047",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep047.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep047_components.json",
+      "episode_length": 57,
+      "candidate_return": -5.514852816659225,
+      "env_return_recorded_for_debug_only": -107.16576072121558,
+      "component_totals": {
+        "far_approach": 2.6418285577605456,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -42.24680166481994,
+        "near_stability": 1.9996693152659346,
+        "proximity_bonus": 15.590450975134221,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 15.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": -1.5
+      },
+      "final_obs": [
+        -0.03429060056805611,
+        -0.04276670515537262,
+        9.9652466833966e-11,
+        -4.379647755570204e-10,
+        0.00016534182941541076,
+        -6.345964032039575e-11,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep048",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep048.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep048_components.json",
+      "episode_length": 51,
+      "candidate_return": -48.79075230278387,
+      "env_return_recorded_for_debug_only": -96.3863973923563,
+      "component_totals": {
+        "far_approach": 2.603640432375698,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -62.4284348404035,
+        "near_stability": 0.0,
+        "proximity_bonus": 8.034042105243955,
+        "leg_bonus": 3.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": 0.0,
+        "low_progress_penalty": 0.0
+      },
+      "final_obs": [
+        -0.25548940896987915,
+        -0.005795457400381565,
+        0.08374926447868347,
+        -0.9998693466186523,
+        -0.10688648372888565,
+        -6.599516868591309,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "trajectory_id": "final_ep049",
+      "trajectory_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/trajectory_logs/final_ep049.json",
+      "component_path": "outputs/ase_mtage_lunarlander_v4/round7/full_training/component_logs/final_ep049_components.json",
+      "episode_length": 65,
+      "candidate_return": -77.74869925456558,
+      "env_return_recorded_for_debug_only": -116.87720653610518,
+      "component_totals": {
+        "far_approach": 2.6905037292864855,
+        "far_regress_penalty": 0.0,
+        "far_quality_penalty": -73.90438948571682,
+        "near_stability": 0.0,
+        "proximity_bonus": 5.465186501864735,
+        "leg_bonus": 0.0,
+        "safe_landing_bonus": 0.0,
+        "crash_penalty": -5.0,
+        "low_progress_penalty": -7.0
+      },
+      "final_obs": [
+        -0.3012598156929016,
+        0.04263633117079735,
+        0.317870169878006,
+        -0.8531797528266907,
+        -0.08180509507656097,
+        -5.950108528137207,
+        0.0,
+        1.0
+      ]
+    }
+  ],
+  "note": "env_return is recorded only for debugging and must not be used as official reward feedback."
+}

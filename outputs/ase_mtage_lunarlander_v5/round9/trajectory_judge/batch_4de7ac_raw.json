@@ -1,0 +1,32 @@
+{
+  "id": "53cb3041-5fde-42af-93c1-df496541a504",
+  "object": "chat.completion",
+  "created": 1780296861,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep020\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep021\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep022\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep023\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep024\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep025\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep026\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep027\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep028\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep029\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given a batch of 10 trajectory evidence cards (final_ep020 to final_ep029). All trajectories are from the same source (round9 candidate1). All episodes are length 1000, truncated, not terminated. They all have some approach progress (distance improvement) but no leg contact (contact_ratio_last20=0) and no near-stage stability or landing quality bonuses. The final distances to target are around 1.1 to 1.6, meaning they are still far from the landing pad (initial distances ~1.4). The final speeds are low but not extremely low, and angles are small. However, there is no leg contact, meaning the lander never made contact with the ground. According to the task goal, safe landing requires both legs in contact, low speeds, small angle, and within landing pad area. None of these trajectories have leg contact, so they cannot be success_like. They show some progress (distance improvement up to 0.33) but are still far from pad and have no ground contact. Since they are not terminated (no crash), and truncated due to time limit, they represent partial progress but not success. The trajectory features show that the lander is still hovering or flying. They have low speed but no legs contact, so they are not stable landings. They all have approach progress reward components positive, but no landing quality components. The gated_timeout_penalty is -0.5 for many, but not all. \n\nGiven these observations, these are not early_failure because they lasted the full episode. They are not low_progress_survival because they show some progress (distance improvement). They have partial progress but do not achieve landing. They are not ambiguous because the evidence is consistent: no leg contact, truncated, some progress. So all should be labeled partial_progress and use_for_tage_pair true.\n\nBut check if any could be considered low_progress_survival? The distance improvement ranges from 0.035 to 0.33. The initial distances are all around 1.4, final distances around 1.0-1.6. So improvement is modest but exists. The episode length is max, so survival but not early. I think partial_progress is appropriate.\n\nAlso check rule: \"Do not treat long episode length alone as success_like.\" Yes. Also \"Do not treat high progress with unstable terminal state as success_like.\" Not applicable. \"Do not treat final leg contact as sufficient.\" Not applicable. So all partial_progress.\n\nThus, all 10 trajectories: partial_progress, use_for_tage_pair true.\n\nNow output JSON array."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7556,
+    "completion_tokens": 930,
+    "total_tokens": 8486,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 547
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5508
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

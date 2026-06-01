@@ -1,0 +1,85 @@
+{
+  "round": 1,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "overall_judgment": "parent_reward_provides_usable_memory_but_needs_evolution",
+  "failure_summary": "The reward produces partial progress but no success trajectories; the stability penalty discourages partial progress from converting into terminal stability, resulting in negative average returns.",
+  "memory_interpretation": {
+    "coverage_type": "failure_plus_partial_progress",
+    "decision_level": "weak_pairwise_selection",
+    "usable_preference_level": "weak_pairwise",
+    "main_known_failures": [
+      "early_failure",
+      "low_progress_survival"
+    ],
+    "main_useful_patterns": [
+      "partial_progress trajectories show approach progress but suffer from large stability penalties that offset gains",
+      "approach_progress component favors partial_progress over early_failure"
+    ],
+    "uncertainties": [
+      "No high-confidence success_like trajectories exist",
+      "Partial progress should not be treated as task success",
+      "Stability penalty impact may be too aggressive in the near stage"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "approach_progress",
+      "verdict": "keep",
+      "evidence": "Component summary shows higher mean for partial_progress (6.64) than failure (5.15), indicating it correctly favors progress."
+    },
+    {
+      "component": "stability_penalty",
+      "verdict": "restructure",
+      "evidence": "It assigns negative reward to partial_progress (mean -1.07) but zero to failures, penalizing the very trajectories that need to transition to safe landing. The penalty should be restructured into a positive reward for stability to encourage terminal success."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "keep",
+      "evidence": "Mean leg_bonus is near zero for both groups; minor impact but potentially useful when combined with better stability signal."
+    },
+    {
+      "component": "safe_landing_bonus",
+      "verdict": "keep",
+      "evidence": "Not triggered for any trajectory; leave for occasional success, but threshold may be too strict."
+    },
+    {
+      "component": "crash_penalty",
+      "verdict": "keep",
+      "evidence": "Applies uniformly to both failure and partial_progress (mean -10.0); fine as a terminal penalty."
+    },
+    {
+      "component": "timeout_penalty",
+      "verdict": "keep",
+      "evidence": "Not triggered in memories; keep as safety net."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like"
+    ],
+    "required_changes": [
+      "restructure stability_penalty into a positive stability reward that increases when near pad and velocities/angles are low",
+      "gate stability reward to gradually apply as progress increases",
+      "preserve approach_progress as the core progress signal",
+      "add a gentle terminal stability bonus that is easier to achieve than the strict safe_landing_bonus"
+    ],
+    "preserve_components": [
+      "approach_progress"
+    ],
+    "remove_or_gate_components": [
+      "stability_penalty"
+    ]
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Hard rollback is handled by RollbackManager; current memory contains weak but usable partial-progress evidence and the reward function is functional."
+  },
+  "self_evaluation_lesson": "The stability penalty must be transformed into a reward signal that positively reinforces stable behavior near the pad, rather than punishing partial progress. This will help convert partial_progress into success-like outcomes.",
+  "agent_mode": "llm_analyzer"
+}

@@ -1,0 +1,68 @@
+"""Proxy reward candidate."""
+
+import math
+import numpy as np
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Unpack observation
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = state[4]
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # ---------- Per-step components ----------
+    # Constant survival cost (discourages hovering)
+    survival_cost = -0.1
+
+    # Distance reward: positive when close to landing pad (0,0)
+    dist = math.sqrt(x * x + y * y)
+    max_dist = 2.12  # approx sqrt(2 * 1.5^2)
+    distance_reward = 0.2 * (1.0 - dist / max_dist)  # 0 far, 0.2 on pad
+
+    # Speed penalty: penalize both horizontal and vertical speed
+    speed_penalty = -0.05 * (abs(vx) + abs(vy))  # max -0.5
+
+    # Angle penalty: penalize deviation from upright
+    angle_penalty = -0.02 * abs(angle)  # max ~ -0.063
+
+    # Fuel penalty: small cost for engine usage
+    fuel_penalty = -0.001 * (m_power + abs(s_power))
+
+    # Landing bonus: only when both legs are on the pad area
+    on_pad = (left_leg == 1.0 and right_leg == 1.0 and
+              abs(x) < 0.3 and abs(y) < 0.3)
+    landing_bonus = 0.3 if on_pad else 0.0
+
+    # ---------- Terminal bonus ----------
+    if terminated:
+        success = (
+            left_leg == 1.0 and right_leg == 1.0 and
+            abs(x) < 0.3 and abs(angle) < 0.2 and
+            abs(vx) < 0.5 and abs(vy) < 0.5
+        )
+        terminal_bonus = 200.0 if success else -20.0
+        outcome_val = 1.0 if success else -1.0
+    else:
+        terminal_bonus = 0.0
+        outcome_val = 0.0
+
+    # ---------- Total reward ----------
+    total = (survival_cost + distance_reward + speed_penalty +
+             angle_penalty + fuel_penalty + landing_bonus + terminal_bonus)
+
+    # ---------- Component dictionary ----------
+    components = {
+        "survival_cost": survival_cost,
+        "distance_reward": distance_reward,
+        "speed_penalty": speed_penalty,
+        "angle_penalty": angle_penalty,
+        "fuel_penalty": fuel_penalty,
+        "landing_bonus": landing_bonus,
+        "terminal_bonus": terminal_bonus,
+        "_outcome": outcome_val,
+    }
+
+    return float(total), components

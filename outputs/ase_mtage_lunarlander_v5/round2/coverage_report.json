@@ -1,0 +1,53 @@
+{
+  "num_trajectories": 100,
+  "num_labeled_non_ambiguous": 100,
+  "num_use_for_tage_pair": 100,
+  "label_counts": {
+    "early_failure": 44,
+    "partial_progress": 24,
+    "low_progress_survival": 32
+  },
+  "labeled_label_counts": {
+    "early_failure": 44,
+    "partial_progress": 24,
+    "low_progress_survival": 32
+  },
+  "preference_role_counts": {
+    "negative_reference": 76,
+    "mid_reference": 24
+  },
+  "dynamic_min_count_per_label": 3,
+  "nontrivial_labels": [
+    "early_failure",
+    "low_progress_survival",
+    "partial_progress"
+  ],
+  "label_margin": {
+    "is_margin_sufficient": false,
+    "positive_label_group": "partial_progress",
+    "num_failure_cards": 76,
+    "num_positive_cards": 24,
+    "failure_progress_mean": -1.561327860373274,
+    "positive_progress_mean": 0.9036052666630802,
+    "progress_gap": 2.464933127036354,
+    "failure_stability_proxy_mean": -2.2050789867011282,
+    "positive_stability_proxy_mean": -2.836368991999461,
+    "stability_gap": -0.6312900052983328,
+    "thresholds": {
+      "progress_gap_min": 0.05,
+      "stability_gap_min": -0.05
+    }
+  },
+  "coverage_type": "failure_plus_weak_or_noisy_partial",
+  "decision_level": "failure_filter_only",
+  "can_build_preference_pairs": false,
+  "allowed_preference_relations": [],
+  "allowed_decision": "Use Memory-TAGE only to avoid known failure modes; do not claim progress preference.",
+  "forbidden_assumptions": [
+    "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists.",
+    "Do not divide memory into low/mid/high by quantile; memory coverage is not balanced enough.",
+    "Do not treat positive/partial labels as reliable progress evidence because label-margin check is insufficient."
+  ],
+  "suggested_search_mode": "failure_avoidance_until_partial_margin_improves",
+  "phase": "error_aware_memory_coverage"
+}

@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep021",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.1772 indicates significant progress toward pad",
+    "final_speed=1.0451 is high, especially vertical speed 0.9770",
+    "final_angle_abs=0.3232 rad (18 degrees) is not stable",
+    "contact_ratio_last20=0.15 suggests no stable landing",
+    "reward components: positive approach_progress but negative angle_stability, no landing_bonus"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

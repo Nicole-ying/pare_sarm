@@ -1,0 +1,32 @@
+{
+  "id": "5660ee41-6230-432a-a2f2-7fc32aa43483",
+  "object": "chat.completion",
+  "created": 1780239159,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep020\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep021\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep022\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep023\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep024\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep025\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep026\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep027\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep028\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep029\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We need to classify each trajectory based on the evidence cards. The task is LunarLander-v2: land safely on landing pad. We have features like final distance, speed, angle, leg contact, termination reason, etc. All trajectories terminated (not truncated), so they ended due to crash/danger/sleep. Let's list key evidence for each:\n\nAll have terminated=true, truncated=false. So they ended due to environment terminal event (crash, out-of-bounds, sleep). No success (both legs contact and stable) from data: contact_ratio_last20 is 0.0 for most, except final_ep026 and final_ep028 have 0.15 (some contact but not both legs consistently? Actually contact_ratio_last20 is proportion of steps with both legs contact; 0.15 means 3 out of 20 steps had both legs contact). But final leg contact booleans not given directly; we only have contact_ratio_last20. Final angle abs is >2.6 in all cases (large tilt), final speed >0.5, some high horizontal speed. So no success_like because no stable landing with both legs contact and low speed/tilt.\n\nBut we need to assign labels: early_failure, low_progress_survival, partial_progress, ambiguous. For early_failure: episode short (like <20? but all are 55-102 steps, not extremely short). But also progress: distance_improvement is positive (min distance less than initial). For early_failure, should have very little progress. Here all have >0.7 improvement. So unlikely early_failure.\n\nLow_progress_survival: episode lasts but shows little task progress. But here progress improvement is good (0.7 to 1.07). So not low_progress_survival.\n\nAmbiguous: if evidence insufficient or conflicting. Here we have clear evidence of termination but not success. Are any ambiguous? Possibly if termination reason unclear? But all terminated, and we can infer likely crash or out-of-bounds from high speed/tilt/no leg contact. So not truly ambiguous.\n\nPartial_progress: trajectory shows real progress but does not reach stable success. That fits all: they approached the pad (min distance around 0.3-0.7), but final state is unstable (no both legs contact, large angle, high speed). So these are classic partial_progress.\n\nBut need to check specific cases: final_ep026 and final_ep028 have contact_ratio_last20=0.15, meaning some both-legs contact in last 20 steps, but final angle abs >4, so still not stable. So partial_progress.\n\nWhat about terminal_reward from component totals: all have -5 for terminal_reward (candidate reward). That is separate from env return. We should ignore candidate return and env return.\n\nSo all 10 trajectories are partial_progress. But check rule: \"Do not treat high approach progress with unstable final speed, large tilt, or lack of leg contact as success_like.\" Yes.\n\nThus all get coarse_label=\"partial_progress\" and use_for_tage_pair=true because not ambiguous.\n\nBut wait: final_ep020 has final_angle_abs=3.52, final_speed=1.67, horizontal speed 1.61, no leg contact. partial_progress.\n\nSimilarly all others.\n\nSo output JSON array of 10 entries.\n\nOne more: ensure no ambiguous. All have clear evidence of progress but not success. So okay.\n\nNow produce JSON."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7207,
+    "completion_tokens": 1115,
+    "total_tokens": 8322,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 732
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5159
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

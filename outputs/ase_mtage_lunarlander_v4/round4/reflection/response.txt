@@ -1,0 +1,36 @@
+{
+  "round": 4,
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "selected_candidate_id": "round4_candidate0_component_recomposition",
+  "mutation_family": "component_recomposition",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available_and_success_like_low",
+    "main_failure_remaining": "terminal_reward_misassignment_causes_survival_exploitation",
+    "main_success_signal": "approach_progress_and_near_stability_favor_success_like_trajectories"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "terminal_reward component assigned high positive reward (failure_mean=10.0) to early_failure trajectories, encouraging exploitation of survival rather than safe landing.",
+    "repair_attempt": "Replaced terminal_reward with safe_landing_bonus and crash_penalty components to reward only safe landings (both legs contact, low speed, small angle) and penalize crashes.",
+    "outcome_after": "Candidate shows high failure avoidance (0.988), but no success_like preference pairs exist (decision_level=no_decision) due to low success_like count (21/360) in training set."
+  },
+  "lesson": "Terminal_reward must be restructured to avoid rewarding crashes, but without sufficient success_like trajectories, success depends on making safe landing conditions stringent enough to convert partial_progress into success_like behavior; component_recomposition can help but requires careful threshold tuning.",
+  "future_guidance": [
+    "Preserve approach_progress, proximity_bonus, near_stability, leg_bonus, low_progress_timeout components.",
+    "Ensure safe_landing_bonus conditions are stringent to avoid rewarding non-landing terminations.",
+    "Avoid global survival bonus without progress gating.",
+    "Consider recalibrating approach_progress to better discriminate partial_progress from early_failure.",
+    "Monitor training to verify that survival exploitation decreases and safe landing rate increases."
+  ],
+  "archive_update": {
+    "add_to_elite_archive": false,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round4_candidate0_component_recomposition",
+    "reason": "Selected candidate not yet evaluated for long training; elite archive best is round3_candidate1_progress_conditioned with 10 success_like trajectories."
+  },
+  "uncertainties": [
+    "Low success_like count (21/360) relative to partial_progress (316/360); no preference pairs possible.",
+    "Decision level remains no_decision; cannot build strong selection signals.",
+    "Terminal_reward anomaly may be fixed in candidate, but training outcome not yet confirmed.",
+    "Episode length saturation (mean ~999/1000) in parent may distort true progress measures."
+  ]
+}

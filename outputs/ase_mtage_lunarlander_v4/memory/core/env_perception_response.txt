@@ -1,0 +1,66 @@
+{
+  "env_name": "LunarLander-v2",
+  "task_goal": "land safely on the landing pad using observable state evidence, without using the official reward",
+  "official_reward_visible": false,
+  "observation_schema": [
+    {"index": 0, "name": "x_position", "meaning": "horizontal position relative to the landing pad center", "used_for_labeling": true},
+    {"index": 1, "name": "y_position", "meaning": "vertical position (height) relative to the landing pad", "used_for_labeling": true},
+    {"index": 2, "name": "x_velocity", "meaning": "linear velocity along x-axis", "used_for_labeling": true},
+    {"index": 3, "name": "y_velocity", "meaning": "linear velocity along y-axis", "used_for_labeling": true},
+    {"index": 4, "name": "angle", "meaning": "angle of the lander from vertical (radians)", "used_for_labeling": true},
+    {"index": 5, "name": "angular_velocity", "meaning": "angular velocity (radians/second)", "used_for_labeling": true},
+    {"index": 6, "name": "left_leg_contact", "meaning": "boolean: whether the left leg is in contact with the ground", "used_for_labeling": true},
+    {"index": 7, "name": "right_leg_contact", "meaning": "boolean: whether the right leg is in contact with the ground", "used_for_labeling": true}
+  ],
+  "action_schema": [
+    {"id": 0, "meaning": "do nothing"},
+    {"id": 1, "meaning": "fire left orientation engine"},
+    {"id": 2, "meaning": "fire main engine"},
+    {"id": 3, "meaning": "fire right orientation engine"}
+  ],
+  "termination_signals": [
+    "terminated: indicates an environment terminal event: either the lander crashed (body contact with moon), the lander exited the viewport (x coordinate > 1), or the lander entered a sleep state (no movement, no collision)",
+    "truncated: indicates a time-limit cutoff (max_episode_steps=1000) or wrapper-dependent truncation"
+  ],
+  "available_info_keys": [],
+  "trajectory_features_to_extract": [
+    "episode_length",
+    "terminated_flag",
+    "truncated_flag",
+    "initial_x_position",
+    "initial_y_position",
+    "final_x_position",
+    "final_y_position",
+    "final_x_velocity",
+    "final_y_velocity",
+    "final_angle_abs",
+    "final_angular_velocity_abs",
+    "final_left_leg_contact",
+    "final_right_leg_contact",
+    "distance_to_landing_pad_initial",
+    "distance_to_landing_pad_final",
+    "distance_improvement",
+    "final_speed",
+    "minimum_distance_to_landing_pad",
+    "proportion_of_steps_with_both_legs_contact",
+    "smoothness_of_approach"
+  ],
+  "coarse_outcome_labels": [
+    "early_failure",
+    "low_progress_survival",
+    "partial_progress",
+    "success_like",
+    "ambiguous"
+  ],
+  "labeling_cautions": [
+    "Do not use or infer the official environment reward.",
+    "Do not treat episode length alone as success_like.",
+    "Do not treat high approach progress with unstable final speed, large tilt, or lack of leg contact as success_like.",
+    "Verify that termination is due to explicit task completion (landing safely) rather than crash or out-of-bounds.",
+    "Use the two leg contact booleans as primary indicators of safe landing (both legs in contact).",
+    "Consider final angle and angular velocity to ensure stability at landing.",
+    "Do not treat a landing with high horizontal velocity or significant tilt as success.",
+    "Label as ambiguous if termination reason is unclear (e.g., time limit reached with partial progress)."
+  ],
+  "unknowns": []
+}

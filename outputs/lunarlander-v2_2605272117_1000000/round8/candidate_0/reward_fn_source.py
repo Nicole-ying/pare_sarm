@@ -1,0 +1,69 @@
+"""Proxy reward candidate."""
+
+import math
+import numpy as np
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Unpack observation
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = abs(state[4])
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # Distance to landing pad (normalized coordinates)
+    dist = (x**2 + y**2) ** 0.5
+
+    # ---- Per-step components ----
+    # 1. Survival penalty (constant per step)
+    survival_penalty = -0.05
+
+    # 2. Distance penalty: penalise being far from pad
+    distance_penalty = -0.3 * min(dist, 2.12)  # range [-0.636, 0]
+
+    # 3. Speed penalty: penalise high horizontal + vertical speed
+    combined_speed = abs(vx) + abs(vy)
+    speed_penalty = -0.1 * min(combined_speed, 5.0)  # range [-0.5, 0]
+
+    # 4. Angle penalty: penalise deviation from upright
+    angle_penalty = -0.02 * min(angle, 3.14)  # range [-0.0628, 0]
+
+    # 5. Fuel penalty: discourage unnecessary thrusting
+    fuel_penalty = -0.005 * (abs(m_power) + abs(s_power))  # range [-0.01, 0]
+
+    per_step = survival_penalty + distance_penalty + speed_penalty + angle_penalty + fuel_penalty
+
+    # ---- Terminal bonus ----
+    if terminated:
+        # Success: both legs grounded, near pad, upright, low speed
+        success = (
+            left_leg == 1.0 and right_leg == 1.0 and
+            abs(x) < 0.3 and angle < 0.2 and
+            abs(vx) < 0.5 and abs(vy) < 0.5
+        )
+        if success:
+            terminal_bonus = 200.0
+            outcome_val = 1.0
+        else:
+            terminal_bonus = -50.0
+            outcome_val = -1.0
+    else:
+        terminal_bonus = 0.0
+        outcome_val = 0.0
+
+    total = per_step + terminal_bonus
+
+    # ---- Component dictionary ----
+    components = {
+        "survival_penalty": survival_penalty,
+        "distance_penalty": distance_penalty,
+        "speed_penalty": speed_penalty,
+        "angle_penalty": angle_penalty,
+        "fuel_penalty": fuel_penalty,
+        "terminal_bonus": terminal_bonus,
+        "_outcome": outcome_val,
+    }
+
+    return float(total), components

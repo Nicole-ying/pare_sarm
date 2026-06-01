@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep006",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.82
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=0.907 indicates significant approach progress",
+    "final_speed=1.102 is high and indicates unstable landing",
+    "contact_ratio_last20=0.1 shows both legs rarely in contact near end",
+    "crash_penalty=-8 suggests a crash occurred",
+    "final_distance_to_target=0.511 shows the lander is not at the pad"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

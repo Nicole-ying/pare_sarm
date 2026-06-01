@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep016",
+  "final_label": {
+    "coarse_label": "early_failure",
+    "detail_label": "early_crash",
+    "confidence": 0.95
+  },
+  "agree_with_rule": false,
+  "evidence_used": [
+    "crash_penalty_total=-8.0 indicates a crash occurred",
+    "final_speed=1.635 is very high, consistent with crash",
+    "episode terminated at length 59 out of 1000, early termination",
+    "contact_ratio_last20=0.15, legs not consistently contacting",
+    "final_distance_to_target=0.3625 is not near pad"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "negative_reference",
+  "do_not_use_reason": ""
+}

@@ -1,0 +1,32 @@
+{
+  "id": "d2ab7fc9-75a7-4db2-bf55-23ffd1bf3cbe",
+  "object": "chat.completion",
+  "created": 1780291598,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep030\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep031\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep032\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep033\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep034\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep035\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep036\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep037\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep038\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep039\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards from round 2 of LunarLander-v2 task. All trajectories have:\n- episode length = 1000 (max steps), truncated=true, terminated=false. So they all timed out.\n- All have zero leg contact in last 20% steps (contact_ratio_last20 = 0.0). So no landing.\n- All have high distance improvement (around 0.82 to 0.87) but final distance to target is around 0.54 to 0.60, meaning they are still at some distance from pad (not zero).\n- Final speeds: vertical speed abs is small (0.003-0.025), horizontal speed abs varies (0.007 to 0.08). So they are hovering but not on pad.\n- Final angle abs small (0.003 to 0.049 rad), angular velocity abs not given but likely small.\n- No leg contact. So they never landed.\n\nLabeling cautions: success_like requires both legs contact, near-zero velocities, small angle, within pad area. None satisfy that. They have no leg contact, so can't be success_like.\nThey show high progress (distance improvement) but no landing. They are not early failure because they lasted full episode. They are not low_progress_survival because they did make significant progress (improvement >0.8). But they are not partial_progress? They show real progress but not success. Since they hovered near pad but didn't land, and timed out, that matches partial_progress: trajectory shows real progress but does not reach stable success. Also they have good stability (low speeds, small angle) but no contact. So I think partial_progress is appropriate.\n\nNone are ambiguous because evidence is consistent: all truncated, no leg contact, good progress but no landing. So use_for_tage_pair = true for all.\n\nThus for each trajectory, label: partial_progress, use_for_tage_pair: true."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7537,
+    "completion_tokens": 794,
+    "total_tokens": 8331,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 411
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5489
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

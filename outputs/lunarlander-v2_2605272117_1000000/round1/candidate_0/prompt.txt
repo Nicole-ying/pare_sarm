@@ -1,0 +1,227 @@
+You are a Reward Function Repair Expert. You receive a diagnosis report identifying
+specific problems in a reward function, and you must fix them.
+
+## Your Working Method
+
+### Step 1: Understand the Root Cause
+Read the diagnosis carefully. Do NOT just treat symptoms (e.g., "reduce coefficient").
+Ask yourself: WHY is this component misaligned? Is it:
+- Measuring the wrong thing?
+- Using the wrong sign?
+- Dominating other signals?
+- Missing a key dimension?
+- Conceptually broken?
+
+### Step 2: Plan Your Fix
+Based on the root cause, decide on a strategy.
+You are free to choose ANY approach — adjust coefficients, restructure components,
+split conflated terms, switch per-step rewards to terminal bonuses, introduce
+stage-conditional logic, or rewrite from scratch.
+
+### Step 3: Generate the Code
+Write the complete, runnable Python function. Follow these rules:
+- Preserve the EXACT function signature: def compute_reward(...)
+- Return (float, dict) where dict has 3-6 named components + "_outcome"
+- All per-step components should be within 50x magnitude of each other
+- Terminal bonuses can be larger (up to 500x per-step)
+- Compute total BEFORE adding _outcome
+- progress_fn(obs) is available if you need task progress for gating
+
+### Step 4: Self-Verify
+Before finalizing, mentally check:
+- Did I fix the root cause, not just the symptom?
+- If I were the RL agent, could I still exploit this reward?
+- Are all component magnitudes balanced?
+- Does the terminal bonus handle both success and failure?
+
+Output ONLY the complete Python code block. No explanations outside the code.
+
+---
+
+## Task Description
+### Task Objective
+The agent must control a lunar lander to safely land on a designated landing pad at coordinates (0,0) in the environment’s internal coordinate system. The lander starts at the top center of the viewport with a random initial impulse.
+
+### Success Criteria
+- The episode is considered a solution if the cumulative reward is **at least 200 points**.
+- A safe landing occurs when the lander touches down on the pad with both legs in contact with the ground and the lander comes to rest (awake flag becomes False).
+
+### Failure Conditions
+The episode terminates immediately if any of the following occur:
+1. **Crash**: Any part of the lander body touches the ground (detected via contact listener).
+2. **Out of bounds**: The lander’s normalized x-coordinate (`state[0]`) exceeds ±1.0 (i.e., leaves the viewport horizontally).
+3. **Not awake**: The lander body enters a sleep state (Box2D awake flag becomes False). This happens when the lander comes to rest, either on the pad or off it.
+
+### Observation Space
+The observation is an 8‑dimensional vector. Dimensions and their raw meanings:
+
+| Index | Raw Quantity | Normalization | Range (low..high) | Unit |
+|-------|--------------|---------------|-------------------|------|
+| 0 | Horizontal position (x) | `(pos.x - center) / (half_viewport_width)` | -1.5 … 1.5 | – |
+| 1 | Vertical position (y) | `(pos.y - (helipad_y+LEG_DOWN/SCALE)) / (half_viewport_height)` | -1.5 … 1.5 | – |
+| 2 | Horizontal velocity (vx) | `vel.x * (half_viewport_width/SCALE) / FPS` | -5.0 … 5.0 | – |
+| 3 | Vertical velocity (vy) | `vel.y * (half_viewport_height/SCALE) / FPS` | -5.0 … 5.0 | – |
+| 4 | Angle | `self.lander.angle` (radians) | -π … π | radians |
+| 5 | Angular velocity | `20.0 * self.lander.angularVelocity / FPS` | -5.0 … 5.0 | – |
+| 6 | Left leg ground contact | 1.0 if contact, else 0.0 | 0 … 1 | bool |
+| 7 | Right leg ground contact | 1.0 if contact, else 0.0 | 0 … 1 | bool |
+
+*Note:* The raw physical values can be recovered by applying the inverse scale factors given in the environment notes (x:10, y:6.666, vx:5, vy:7.5, angular velocity:2.5).
+
+### Action Space
+Two variants are available:
+- **Discrete** (`Discrete(4)`):
+  - 0: Do nothing
+  - 1: Fire left orientation engine
+  - 2: Fire main engine
+  - 3: Fire right orientation engine
+- **Continuous** (`Box(-1, +1, (2,), dtype=np.float32)`):
+  - `action[0]` = main engine throttle: `<0` off, `0…1` maps to 50%–100% power.
+  - `action[1]` = lateral boosters: `<-0.5` fires left, `>0.5` fires right, throttle scales 50%–100%; values in `[-0.5, 0.5]` are off.
+
+### Key Dynamics
+- **Gravity**: Default -10.0, can be set between -12 and 0.
+- **Wind & turbulence** (optional): Simulated via `tanh(sin(…)+sin(…))`. Wind applies a horizontal force; turbulence applies torque.
+- **Engine impulses**: Applied at an offset from the center of mass, creating torque. The side engine offset changes with lander orientation (a known “bug”).
+- **Legs**: Two spring‑loaded legs. Ground contact g
+
+## Diagnosis Report
+**Root Cause:** The proximity component has negative progress correlation (-0.396), rewarding the agent for being near the landing pad without guiding safe descent, while the fuel penalty (-0.217) discourages necessary engine use. The large negative landing bonus (-100 for failure) creates a strong incentive to terminate early and avoid accumulating further penalties. These combined effects cause the agent to crash quickly to minimize negative reward.
+**Escalation Level:** structural
+
+### Per-Component Verdicts
+  proximity: reduce — Negative progress correlation (-0.396) indicates it is misaligned with task progress; current shape rewards proximity regardless of landing readiness, leading to early death.
+  error_penalty: keep — Positive progress correlation (+0.216) and active; encourages controlled velocity and orientation.
+  leg_contact: keep — Positive progress correlation (+0.290) and strong negative failure correlation (-0.623); correctly incentivizes landing on legs.
+  fuel_penalty: reduce — Negative progress correlation (-0.217) penalizes engine use needed for stabilization, contributing to premature crashes.
+  landing_bonus: reconsider — Progress correlation near zero (+0.059); large swing between +100 and -100 creates a strong terminal signal but insufficient intermediate guidance, leading to early termination avoidance.
+
+## Past Attempts & Lessons
+## Cross-Round Behavior History
+
+| Round | Health | Final Len | Pattern | Diagnosis (abbreviated) |
+|-------|--------|-----------|---------|------------------------|
+| 0 | 66 | 69 | crashing | 5 components: 5 active, 2 aligned with progress, 0 misaligned, health=66/100 |
+
+**Pattern interpretation:**
+- 'hovering' = agent survives near max steps without completing task (per-step reward farming)
+- 'crashing' = agent terminates very early (penalties dominate, learns to die fast)
+- 'moderate' = in between, not clearly good or bad
+
+## Previous Diagnosis Summaries
+  Round 0 (health=66.4): Round 0: winner health=66
+
+## Available Progress Function
+You may call `progress_fn(obs)` to get a task progress estimate in [0, 1].
+This is useful for stage-conditional logic. It is pre-defined and available.
+
+```python
+def progress_fn(obs):
+    """
+    Measures task progress from observation alone.
+    Returns a float in [0, 1] that increases monotonically as the lander
+    approaches a safe landing on the pad.
+    """
+    # Normalized position (ideal is (0,0) when on pad)
+    x = obs[0]
+    y = obs[1]
+    # Angle (ideal is 0 radians, upright)
+    angle = abs(obs[4])
+    # Leg contacts (both should be 1 when landed)
+    leg_contact = (obs[6] + obs[7]) / 2.0
+
+    # Distance in the normalized coordinate system (max possible ~2.12)
+    dist = (x**2 + y**2) ** 0.5
+    max_dist = 2.12  # sqrt(2 * 1.5^2)
+
+    # Progress based on position: 1 when at origin, 0 at max distance
+    pos_progress = 1.0 - dist / max_dist
+
+    # Penalty for large angle (scaled so 180° gives ~0.3 penalty)
+    angle_penalty = angle / (2 * 3.14159)  # max penalty ~0.5
+    angle_progress = 1.0 - angle_penalty
+
+    # Combine: position (60%), angle (20%), leg contact (20%)
+    progress = 0.6 * pos_progress + 0.2 * angle_progress + 0.2 * leg_contact
+
+    # Clip to [0, 1]
+    return max(0.0, min(1.0, progress))
+```
+
+## Current Reward Code (TO FIX)
+```python
+"""LLM-generated reward function.
+"""
+
+import math
+import numpy as np
+
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Extract observation components
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = state[4]
+    angvel = state[5]
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # 1. Proximity to landing pad (Gaussian peak at (0,0))
+    dist_sq = x*x + y*y
+    proximity = 10.0 * math.exp(-5.0 * dist_sq)
+
+    # 2. Combined penalty for velocity and orientation errors
+    speed_err = 0.5 * (vx*vx + vy*vy)
+    angle_err = 1.0 * (angle*angle + angvel*angvel)
+    error_penalty = -(speed_err + angle_err)
+
+    # 3. Reward for leg contact
+    leg_contact = 2.0 * (left_leg + right_leg)
+
+    # 4. Penalty for firing engines (fuel cost)
+    fuel_penalty = -2.0 * m_power - 1.0 * abs(s_power)
+
+    # 5. Terminal bonus (large positive for safe landing, large negative for failure)
+    # Define safe landing: both legs contact, near pad, upright
+    safe = (terminated and
+            left_leg == 1.0 and right_leg == 1.0 and
+            abs(x) < 0.1 and abs(y) < 0.1 and
+            abs(angle) < 0.1)
+    if terminated:
+        landing_bonus = 100.0 if safe else -100.0
+    else:
+        landing_bonus = 0.0
+
+    # Sum all components
+    total = proximity + error_penalty + leg_contact + fuel_penalty + landing_bonus
+
+    # Build component dictionary with outcome for diagnosis
+    components = {
+        "proximity": proximity,
+        "error_penalty": error_penalty,
+        "leg_contact": leg_contact,
+        "fuel_penalty": fuel_penalty,
+        "landing_bonus": landing_bonus,
+        "_outcome": 1.0 if safe else (-1.0 if terminated else 0.0)
+    }
+
+    return float(total), components
+
+```
+
+---
+
+## Your Turn
+
+Analyze the root cause. Plan your repair strategy. Generate the fixed code.
+
+**Function signature (MUST preserve exactly):**
+```python
+def compute_reward(state, m_power, s_power, terminated):
+    ...
+    return float(total), components
+```
+
+Output ONLY the complete Python code block. No markdown, no explanations.

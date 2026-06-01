@@ -1,0 +1,32 @@
+{
+  "round": 0,
+  "parent_reward_id": null,
+  "selected_candidate_id": "round0_candidate2_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "no success-like trajectories, ambiguous trajectories present",
+    "main_success_signal": "partial progress trajectories observed"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "initial state: no reward function trajectory memory",
+    "repair_attempt": "bootstrap progress-conditioned reward candidate",
+    "outcome_after": "partial progress trajectories available, but no success-like trajectories yet"
+  },
+  "lesson": "Bootstrapping with progress-conditioned reward function generates partial progress trajectories without success-like behavior, indicating that further refinement near the goal is needed.",
+  "future_guidance": [
+    "preserve progress-conditioned reward component",
+    "target near-goal stability to convert partial progress into success-like trajectories",
+    "avoid introducing survival-only bonuses without progress gating"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": false,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round0_candidate2_progress_conditioned",
+    "reason": "bootstrap round: selected candidate is first parent for next round, no elite yet"
+  },
+  "uncertainties": [
+    "Success-level trajectory preference cannot be constructed from available labels; partial progress may not translate to success.",
+    "No trajectory judgment from TAGE yet; confidence in progress-conditioned component is limited."
+  ]
+}

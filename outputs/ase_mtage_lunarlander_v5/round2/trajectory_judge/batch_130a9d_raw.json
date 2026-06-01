@@ -1,0 +1,32 @@
+{
+  "id": "8d3f23c6-02e5-41fe-86c1-51b9c33af214",
+  "object": "chat.completion",
+  "created": 1780291576,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep000\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep001\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep002\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep003\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep004\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep005\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep006\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep007\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep008\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep009\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards for LunarLander-v2. All trajectories have length 1000, truncated (not terminated). They all show significant approach progress (distance improvement ~0.8-0.9) but no leg contact (contact_ratio_last20=0.0, final_leg_contacts_sum not given but from features we see contact_ratio_last20=0.0, so no leg contact). The final states have low speeds (final_speed < 0.1, vertical_speed_abs small, horizontal_speed_abs small, angle_abs small). However, the key criterion for success_like requires both legs in contact. Since no leg contact, and the trajectory is truncated (timeout), it cannot be success_like. The trajectories show good approach and near-zero speeds but lack landing. This suggests \"partial_progress\" because they made real progress (approached pad, stabilized) but did not achieve safe landing (no leg contact). They are not early failure (episode lasted full length) nor low_progress_survival (significant distance improvement). They are not ambiguous because evidence is consistent: no leg contact due to timeout. So label all as partial_progress with use_for_tage_pair=true.\n\nCheck hard rules: no conflict, not using official reward, not treating long length as success, not treating high approach with unstable final speed (here speed is low but no landing). So partial_progress is appropriate.\n\nThus output array of 10 objects."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7537,
+    "completion_tokens": 692,
+    "total_tokens": 8229,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 309
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5489
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

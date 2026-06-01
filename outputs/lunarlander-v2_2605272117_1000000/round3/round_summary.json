@@ -1,0 +1,84 @@
+{
+  "round": 3,
+  "success": true,
+  "winner_health": {
+    "overall_health": 48.7,
+    "components": [
+      {
+        "name": "survival_penalty",
+        "mean": -0.5,
+        "std": 0.0,
+        "share": 0.147,
+        "active": true,
+        "progress_corr": 0.0,
+        "failure_corr": 0.0,
+        "health": 0.3741,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=+0.00)"
+      },
+      {
+        "name": "distance_penalty",
+        "mean": -2.211999,
+        "std": 0.383145,
+        "share": 0.648,
+        "active": true,
+        "progress_corr": 0.2521,
+        "failure_corr": 0.1897,
+        "health": 0.5914,
+        "verdict": "reduce",
+        "reason": "dominates reward (65% share)"
+      },
+      {
+        "name": "speed_penalty",
+        "mean": -0.231198,
+        "std": 0.065258,
+        "share": 0.068,
+        "active": true,
+        "progress_corr": -0.2269,
+        "failure_corr": 0.0414,
+        "health": 0.557,
+        "verdict": "reduce",
+        "reason": "misaligned with progress (P=-0.23)"
+      },
+      {
+        "name": "angle_penalty",
+        "mean": -0.231852,
+        "std": 0.151218,
+        "share": 0.068,
+        "active": true,
+        "progress_corr": -0.0482,
+        "failure_corr": -0.5013,
+        "health": 0.6199,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=-0.05)"
+      },
+      {
+        "name": "fuel_penalty",
+        "mean": -0.000742,
+        "std": 5.2e-05,
+        "share": 0.0,
+        "active": false,
+        "progress_corr": 0.0019,
+        "failure_corr": 0.0005,
+        "health": 0.1756,
+        "verdict": "remove",
+        "reason": "fuel_penalty is inactive (|mean| ≈ 0) — remove or rescale"
+      },
+      {
+        "name": "terminal_bonus",
+        "mean": 0.236656,
+        "std": 1.285265,
+        "share": 0.069,
+        "active": true,
+        "progress_corr": 0.0358,
+        "failure_corr": 0.1835,
+        "health": 0.6028,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=+0.04)"
+      }
+    ],
+    "summary": "6 components: 5 active, 1 aligned with progress, 1 misaligned, health=49/100",
+    "verdict": "ok"
+  },
+  "stopped": false
+}

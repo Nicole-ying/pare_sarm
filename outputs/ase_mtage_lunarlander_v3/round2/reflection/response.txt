@@ -1,0 +1,35 @@
+{
+  "round": 2,
+  "parent_reward_id": "round1_candidate0_progress_conditioned",
+  "selected_candidate_id": "round2_candidate1_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "regression_from_partial_progress",
+    "main_failure_remaining": "over-penalization of partial_progress trajectories causes policy collapse and regression to early_failure",
+    "main_success_signal": "progress_signal_positive_but_overwhelmed_by_penalties"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "penalty overload: early_speed_penalty, late_stability, flight_stability, terminal_penalty severely penalize partial_progress, blocking success",
+    "repair_attempt": "restructured components: replaced continuous early_speed_penalty with high_speed_penalty (likely gated), replaced late_stability with separate low_alt_stability_bonus and low_alt_stability_penalty, removed flight_stability, kept early_approach, leg_bonus, terminal_bonus, terminal_penalty",
+    "outcome_after": "regression: preference consistency only 0.25 (350/1400 pairs satisfied), heavy failure avoidance (mean reward on failure -14.85), training return dropped significantly (-37.79 vs elite -33.95), leading to rollback"
+  },
+  "lesson": "Over-penalizing failure trajectories can cause policy collapse even if failure avoidance improves; progress-conditioned gating must be carefully balanced to ensure partial progress trajectories receive non-negative net reward and maintain weak preference consistency.",
+  "future_guidance": [
+    "preserve early_approach and progress gating, but ensure penalty components are mild enough to allow partial progress trajectories to have non-negative net reward",
+    "avoid over-aggressive failure penalization without positive incentives for good behavior",
+    "redesign stability components with a mixture of positive and negative signals, but ensure the net effect on partial progress is not detrimental",
+    "consider using a controlled scaling factor rather than structural removal of components; test sensitivity of training performance to penalty magnitudes",
+    "monitor training return closely and set conservative thresholds for rollback"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": false,
+    "rollback_triggered": true,
+    "next_parent_reward_id": "round0_candidate2_progress_conditioned",
+    "reason": "Selected candidate score is significantly below elite; rollback to best reward by training return."
+  },
+  "uncertainties": [
+    "No success_like trajectories exist, so success-level preferences cannot be formed",
+    "Unclear whether the specific changes (high_speed_penalty, low_alt_stability split) directly caused regression or if other factors (e.g., coefficient choices) are responsible",
+    "Exact mechanism of terminal_penalty's effect on partial_progress remains uncertain; may require further investigation"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "id": "099592dc-aaee-4a50-a45e-af5c48780ed1",
+  "object": "chat.completion",
+  "created": 1780226356,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "import math\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except (TypeError, ValueError):\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    x_pos = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0\n    y_pos = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0\n    x_vel = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0\n    y_vel = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0\n    angle = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0\n    ang_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0\n    left_leg = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0\n    right_leg = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0\n\n    x_curr = _safe_float(obs[0]) if len(obs) > 0 else 0.0\n    y_curr = _safe_float(obs[1]) if len(obs) > 1 else 0.0\n\n    curr_distance = math.sqrt(x_curr * x_curr + y_curr * y_curr)\n    next_distance = math.sqrt(x_pos * x_pos + y_pos * y_pos)\n\n    near_pad = 1.0 if (y_pos < 0.15 and abs(x_pos) < 0.2) else 0.0\n    high_alt = 1.0 if y_pos > 0.5 else 0.0\n    low_alt = 1.0 - high_alt\n\n    progress = curr_distance - next_distance\n\n    early_approach = high_alt * max(progress, 0.0) * 5.0\n\n    # Softened early speed penalty: only penalize excessive vertical speed\n    early_speed_penalty = high_alt * (-max(y_vel - 0.5, 0.0) * 0.2)\n\n    # Reduced late stability coefficients\n    late_stability = low_alt * (\n        -abs(x_vel) * 1.0\n        -abs(angle) * 2.0\n        -abs(ang_vel) * 1.0\n    )\n\n    both_legs = 1.0 if (left_leg > 0.5 and right_leg > 0.5) else 0.0\n    leg_bonus = near_pad * both_legs * 10.0\n\n    # Adjusted terminal penalty: less severe for partial progress\n    terminal_penalty = 0.0\n    terminal_bonus = 0.0\n    if terminated:\n        crashed = 1.0 if (left_leg < 0.5 or right_leg < 0.5) else 0.0\n        if crashed or abs(y_vel) > 1.0 or abs(angle) > 0.6:\n            terminal_penalty = -10.0\n        else:\n            # More attainable terminal bonus: reward both legs contact near pad with moderate velocity\n            velocity_ok = 1.0 - min(abs(y_vel) * 0.5, 1.0)\n            angle_ok = 1.0 - min(abs(angle) * 1.0, 1.0)\n            terminal_bonus = 15.0 * near_pad * both_legs * velocity_ok * angle_ok\n    elif truncated:\n        if next_distance > 0.3:\n            terminal_penalty = -3.0\n\n    # Reduced flight stability penalty\n    flight_stability = -abs(angle) * 0.5 - abs(ang_vel) * 0.5\n\n    components = {\n        \"early_approach\": early_approach,\n        \"early_speed_penalty\": early_speed_penalty,\n        \"late_stability\": late_stability,\n        \"leg_bonus\": leg_bonus,\n        \"terminal_penalty\": terminal_penalty,\n        \"terminal_bonus\": terminal_bonus,\n        \"flight_stability\": flight_stability,\n    }\n\n    total_reward = early_approach + early_speed_penalty + late_stability + leg_bonus + terminal_penalty + terminal_bonus + flight_stability\n    return float(total_reward), components",
+        "reasoning_content": "We need to generate a local_repair mutation based on the Analyzer self-evaluation. The parent reward code is provided. The analyzer says to keep early_approach and leg_bonus, and to remove or gate early_speed_penalty, late_stability, flight_stability. Also restructure terminal_penalty and terminal_bonus. But since this is local_repair, we should make targeted edits, not full rewrite. So we'll adjust the problematic components: reduce their magnitude or gate them more tightly. For example, we can lower coefficients for early_speed_penalty, late_stability, flight_stability, or add conditions so they don't penalize partial_progress trajectories. Also adjust terminal_penalty to be less severe for partial progress, and make terminal_bonus more attainable.\n\nWe'll keep the overall structure similar. We'll modify:\n\n- early_speed_penalty: reduce from -0.5 to -0.1, or gate it only when y_vel is very high (e.g., > 1.0)\n- late_stability: reduce coefficients: -abs(x_vel)*1.0, -abs(angle)*2.0, -abs(ang_vel)*1.0 (was 2,5,2)\n- flight_stability: reduce from -2,-1 to -0.5,-0.5\n- terminal_penalty: adjust condition; maybe only penalize if y_vel > 1.0 or angle > 0.8, and reduce magnitude to -5 or -3. Also penalize truncation less.\n- terminal_bonus: make it more attainable by lowering thresholds: e.g., reward if both legs contact, near pad, regardless of angle/velocity? But careful not to reward crashes. Maybe add a bonus for near-pad both legs contact without stringent velocity condition.\n\nAlso ensure we don't add global survival bonus. We'll keep early_approach same. leg_bonus same.\n\nWe'll produce code with these edits."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 6264,
+    "completion_tokens": 1500,
+    "total_tokens": 7764,
+    "prompt_tokens_details": {
+      "cached_tokens": 4352
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 423
+    },
+    "prompt_cache_hit_tokens": 4352,
+    "prompt_cache_miss_tokens": 1912
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

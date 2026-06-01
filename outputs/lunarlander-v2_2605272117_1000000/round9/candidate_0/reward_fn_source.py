@@ -1,0 +1,65 @@
+"""Proxy reward candidate."""
+
+import math
+import numpy as np
+
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Unpack observation
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = abs(state[4])                  # absolute angle in radians
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # Progress estimate (external function, range [0,1])
+    progress = progress_fn(state)
+
+    # ---- Per‑step components ----
+    # Small constant to stay alive; not enough to incentivise hovering
+    alive_bonus = 0.1
+
+    # Strong progress‑based reward – dominates near the pad
+    progress_reward = 5.0 * progress
+
+    # Penalty for high speed (quadratic in normalised velocity)
+    # vx, vy ~ [-5,5] → squared sum up to 50 → coefficient 0.05 gives max -2.5
+    speed_penalty = -0.05 * (vx * vx + vy * vy)
+
+    # Penalty for large tilt angle (angle in [0, π], max penalty ~ -1.57)
+    angle_penalty = -0.5 * angle
+
+    # Small bonus when both legs are in contact (encourages stable ground contact)
+    leg_bonus = 0.2 if (left_leg == 1.0 and right_leg == 1.0) else 0.0
+
+    per_step = alive_bonus + progress_reward + speed_penalty + angle_penalty + leg_bonus
+
+    # ---- Terminal bonus ----
+    if terminated:
+        # Success conditions: both legs on pad, close to (0,0), upright, low speed
+        success = (
+            left_leg == 1.0 and right_leg == 1.0 and
+            abs(x) < 0.3 and angle < 0.2 and
+            abs(vx) < 0.5 and abs(vy) < 0.5
+        )
+        terminal_bonus = 200.0 if success else -100.0
+        outcome_val = 1.0 if success else -1.0
+    else:
+        terminal_bonus = 0.0
+        outcome_val = 0.0
+
+    total = per_step + terminal_bonus
+
+    components = {
+        "alive_bonus": alive_bonus,
+        "progress_reward": progress_reward,
+        "speed_penalty": speed_penalty,
+        "angle_penalty": angle_penalty,
+        "leg_bonus": leg_bonus,
+        "terminal_bonus": terminal_bonus,
+        "_outcome": outcome_val,
+    }
+
+    return float(total), components

@@ -1,0 +1,22 @@
+{
+  "trajectory_id": "final_ep022",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_crash",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.156 indicates significant approach progress",
+    "min_distance_to_target=0.244 shows the lander got relatively close to pad",
+    "crash_penalty=-8.0 indicates the lander crashed before landing",
+    "terminated=true and length=74 confirm early termination due to crash",
+    "final_horizontal_speed_abs=0.503 suggests high horizontal speed at crash",
+    "contact_ratio_last20=0.15 indicates low leg contact, inconsistent with stable landing"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

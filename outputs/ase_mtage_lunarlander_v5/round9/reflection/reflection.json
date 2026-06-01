@@ -1,0 +1,35 @@
+{
+  "round": 9,
+  "parent_reward_id": "round8_candidate2_local_repair",
+  "selected_candidate_id": "round9_candidate1_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "failure_plus_partial_progress",
+    "main_failure_remaining": "no success_like trajectories; terminal bonuses (safe_landing_bonus, intermediate_safe_bonus) still have near-zero firing rates",
+    "main_success_signal": "partial_progress generation maintained at 286 out of 430 trajectories; approach_progress and near_stage_stability remain discriminative"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "terminal bonuses ineffective; gated_timeout_penalty penalized partial_progress more than failures",
+    "repair_attempt": "restructured terminal bonuses with progressive thresholds; gated gated_timeout_penalty to negligible progress only",
+    "outcome_after": "partial_progress still dominates; terminal bonuses still not firing significantly (component alignment shows low consistency); gated_timeout_penalty still has low preference consistency (0.251)"
+  },
+  "lesson": "After 9 rounds, cumulative lesson: approach_progress and near_stage_stability are essential for partial_progress, but terminal bonuses require structural progressive shaping to bridge to success_like; gated_timeout_penalty must be strictly gated to negligible progress only.",
+  "future_guidance": [
+    "preserve approach_progress and near_stage_stability",
+    "restructure terminal bonuses with progressive, continuous thresholds that fire for promising states",
+    "gate gated_timeout_penalty only to trajectories with delta_dist <= 0 and curr_dist > 0.5",
+    "avoid global survival bonus without progress gating"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": false,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round9_candidate1_progress_conditioned",
+    "reason": "Selected candidate continues as parent; already in elite archive; not clearly elite but usable for weak pairwise evolution"
+  },
+  "uncertainties": [
+    "No success_like trajectories exist, so success-level preferences cannot be constructed",
+    "Terminal bonus components have near-zero firing rates, making alignment uncertain",
+    "gated_timeout_penalty still shows low pairwise consistency, may still penalize partial_progress trajectories"
+  ],
+  "agent_mode": "llm_reflector"
+}

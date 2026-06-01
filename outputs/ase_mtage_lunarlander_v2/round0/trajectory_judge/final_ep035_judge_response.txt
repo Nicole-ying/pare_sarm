@@ -1,0 +1,27 @@
+{
+  "trajectory_id": "final_ep035",
+  "final_label": {
+    "coarse_label": "success_like",
+    "detail_label": "stable_landing",
+    "confidence": 0.85
+  },
+  "agree_with_rule": false,
+  "evidence_used": [
+    "final_speed=3.69e-08, extremely low, indicating stable resting",
+    "final_vertical_speed_abs=1.82e-08, negligible vertical velocity",
+    "final_horizontal_speed_abs=3.21e-08, negligible horizontal velocity",
+    "final_angle_abs=0.00247 rad, very small angle, near upright",
+    "final_distance_to_target=0.0568, very close to landing pad (origin)",
+    "distance_improvement=1.353, large approach progress",
+    "landing_bonus total=10.0, suggests reward condition for both legs contact and pad proximity was met",
+    "crash_penalty=0.0, no crash occurred",
+    "contact_ratio_last20=0.1 indicates sporadic leg contact but landing bonus implies eventual stable contact"
+  ],
+  "conflict_warnings": [
+    "contact_ratio_last20 is low (0.1), but landing bonus and final stillness support success; low ratio may be due to late landing"
+  ],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "positive_reference",
+  "do_not_use_reason": ""
+}

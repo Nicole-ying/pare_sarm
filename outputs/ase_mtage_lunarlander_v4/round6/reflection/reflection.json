@@ -1,0 +1,37 @@
+{
+  "round": 6,
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "selected_candidate_id": "round6_candidate2_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "approach_progress still over-rewards early_failure trajectories, and terminal_reward can assign positive reward to unsafe landings",
+    "main_success_signal": "progress-conditioned gating preserves partial_progress; proximity_bonus, near_stability, leg_bonus strongly favor positive trajectories"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "approach_progress had insufficient margin between partial_progress and early_failure; terminal_reward rewarded unsafe landings; overall reward drove training return decline in round 5",
+    "repair_attempt": "restructured approach_progress to increase margin between partial_progress and early_failure; replaced terminal_reward with crash_penalty and safe_landing_bonus with stringent conditions; preserved progress-conditioned gating and other positive components",
+    "outcome_after": "failure avoidance improved (mean failure reward reduced to -31.83), but training return dropped sharply (-84.79); no success-like trajectories emerged; structural adjustments partially effective but insufficient to produce success behavior"
+  },
+  "lesson": "Approach_progress must be structurally recalibrated to increase margin between partial_progress and early_failure, and terminal reward must be replaced with separate crash penalty and safe landing bonus with stringent conditions. Progress-conditioned gating and proximity/stability components should be preserved. Further iterations should monitor label consistency and avoid treating partial_progress as success_like.",
+  "future_guidance": [
+    "preserve progress-conditioned gating and components that favor partial_progress (proximity_bonus, near_stability, leg_bonus, low_progress_timeout)",
+    "restructure approach_progress with stronger scaling or quality adjustment to widen margin between partial_progress and early_failure",
+    "replace terminal_reward with separate crash_penalty (sufficiently negative) and safe_landing_bonus (stringent conditions)",
+    "avoid global survival bonus without progress gating",
+    "do not treat partial_progress as success_like; do not construct success_like preference pairs based on low-confidence labels",
+    "monitor label consistency between coverage and judgment summary"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round6_candidate2_progress_conditioned",
+    "reason": "Selected candidate is usable (progress signals preserved) but not yet clearly elite; added to archive for preservation and future reference"
+  },
+  "uncertainties": [
+    "No high-confidence success_like trajectories exist; label margins insufficient for preference construction",
+    "Possible label mismatch between coverage and judgment summary",
+    "Approach_progress component's failure-rewarding behavior is inferred from component means and archival lessons, not directly from tage preference pairs"
+  ],
+  "agent_mode": "llm_reflector"
+}

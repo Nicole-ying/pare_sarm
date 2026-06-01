@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep040",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.75
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.178 indicates significant approach progress",
+    "final_speed=0.771 is high for stable landing",
+    "final_angle_abs=0.115 is small but not critical alone",
+    "contact_ratio_last20=0.1 suggests insufficient leg contact for safe landing",
+    "no final_legs_contact_both available; landing pad proximity (final_distance=0.228) supports approach but not stable touchdown"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

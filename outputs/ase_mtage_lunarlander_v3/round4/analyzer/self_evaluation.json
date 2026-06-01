@@ -1,0 +1,95 @@
+{
+  "round": 4,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "overall_judgment": "parent_reward_provides_usable_memory_but_needs_evolution",
+  "failure_summary": "The parent reward generates partial_progress and early_failure trajectories, but its components systematically penalize partial_progress trajectories more than early_failure in critical components like speed penalty, late stability, and flight stability, preventing the conversion of partial progress into success-like behavior.",
+  "memory_interpretation": {
+    "coverage_type": "failure_plus_partial_progress",
+    "decision_level": "weak_pairwise_selection",
+    "usable_preference_level": "weak_pairwise",
+    "main_known_failures": [
+      "early_failure (50 trajectories)",
+      "low_progress_survival (1 trajectory)"
+    ],
+    "main_useful_patterns": [
+      "partial_progress trajectories (74) show distance improvement but are penalized heavily",
+      "leg_bonus component provides positive reward to some partial_progress trajectories"
+    ],
+    "uncertainties": [
+      "No success-like trajectories exist, so success-level preferences cannot be formed",
+      "The exact effect of terminal_penalty on partial_progress trajectories is unclear",
+      "Ambiguous trajectories from judgment summary (28/50) suggest the parent reward may not produce clear separation in all cases"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "early_approach",
+      "verdict": "keep",
+      "evidence": "Component summary shows similar mean values for failure and positive trajectories, and this component rewards progress toward the pad at high altitude, which aligns with the desired behavior."
+    },
+    {
+      "component": "early_speed_penalty",
+      "verdict": "remove_or_gate",
+      "evidence": "Positive_mean (-17.21) is much more negative than failure_mean (-8.35), indicating it penalizes partial_progress more than early_failure. This component is gated by high altitude, but still overly penalizes progress."
+    },
+    {
+      "component": "late_stability",
+      "verdict": "remove_or_gate",
+      "evidence": "Positive_mean (-21.33) is much more negative than failure_mean (-10.92), indicating strong over-penalization of partial_progress trajectories at low altitude. This is detrimental to converting partial progress into success."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "keep",
+      "evidence": "Positive_mean (0.81) is positive and zero for failures, rewarding both-leg contact near pad, which is a positive signal."
+    },
+    {
+      "component": "terminal_penalty",
+      "verdict": "restructure",
+      "evidence": "Positive_mean (-9.05) is more negative than failure_mean (-4.90), indicating partial_progress trajectories are penalized more at termination. The penalty structure should be adjusted to not over-penalize near-success terminations."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "restructure",
+      "evidence": "Both means are zero, indicating no trajectory achieved a successful landing. The bonus should be made more attainable to encourage success-like behavior."
+    },
+    {
+      "component": "flight_stability",
+      "verdict": "remove_or_gate",
+      "evidence": "Positive_mean (-6.41) is much more negative than failure_mean (-1.40), penalizing partial_progress during flight. This discourages stable approach and should be gated or softened."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like",
+      "do not remove all penalizing components (they are needed to avoid early failure)"
+    ],
+    "required_changes": [
+      "gate dense positive rewards by progress stage and avoid over-penalizing partial_progress",
+      "reduce penalties on partial_progress trajectories by softening early_speed_penalty, late_stability, and flight_stability",
+      "add a new positive reward component for near-landing states (both legs contact, low velocity, near-upright angle) to encourage completion",
+      "restructure terminal_penalty to be less severe for partial-progress terminations (e.g., soft penalty for timeout)",
+      "make terminal_bonus more attainable by reducing required angle/velocity thresholds and rewarding proximity to pad with legs contact"
+    ],
+    "preserve_components": [
+      "early_approach",
+      "leg_bonus"
+    ],
+    "remove_or_gate_components": [
+      "early_speed_penalty",
+      "late_stability",
+      "flight_stability"
+    ]
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Training return trend is improving (best -5.57 in round 3) and no regression has occurred. Rollback not required."
+  },
+  "self_evaluation_lesson": "Partial progress trajectories exist but are over-penalized by stability and speed penalties; must restructure gating to allow non-negative net reward for partial progress and add positive near-landing signals to convert ambiguous/survival trajectories into success-like behavior.",
+  "agent_mode": "llm_analyzer"
+}

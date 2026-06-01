@@ -1,0 +1,16 @@
+{
+  "candidate_id": "round0_candidate2_progress_conditioned",
+  "round": 0,
+  "mutation_family": "progress_conditioned",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": null,
+  "mutation_intent_used": {},
+  "coverage_type_used": null,
+  "intended_fix": [
+    "condition reward by progress or stability stage",
+    "reduce low-progress reward hacking"
+  ],
+  "expected_effect": "Handle stage-dependent task conflicts and discourage low-progress survival.",
+  "risk": "Stage gates may be imperfect before trajectory memory is available.",
+  "official_reward_used": false
+}

@@ -1,0 +1,65 @@
+{
+  "round": 1,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "overall_judgment": "parent_reward_provides_usable_but_limited_evidence",
+  "failure_summary": "The parent reward generates only partial_progress trajectories; no success-like outcomes are observed. Many trajectories remain ambiguous. The reward heavily penalizes terminal states (average terminal_penalty -11.25) without providing a reliable terminal bonus, which may discourage the policy from attempting safe landings. The late_stability and flight_stability components also impose significant negative rewards, possibly making stable landing behavior costly.",
+  "memory_interpretation": {
+    "coverage_type": "ambiguous",
+    "decision_level": "no_decision",
+    "usable_preference_level": "none",
+    "main_known_failures": ["no_success_like", "ambiguous_trajectories"],
+    "main_useful_patterns": ["partial_progress trajectories demonstrate some approach and distance improvement", "Progress-conditioned architecture appears to encourage movement toward pad"],
+    "uncertainties": ["No failure or success-like labels available for contrast", "Partial progress labels may not reliably indicate good trajectory quality", "Label margin insufficient; cannot trust partial progress as strong preference evidence"]
+  },
+  "component_diagnosis": [
+    {
+      "component": "early_approach",
+      "verdict": "keep",
+      "evidence": "Component shows positive mean on partial_progress trajectories (4.23) and aligns with progress-conditioned approach. No failure reference suggests it is not harmful."
+    },
+    {
+      "component": "early_speed_penalty",
+      "verdict": "unknown",
+      "evidence": "Mean is -20.64 on partial_progress, but without failure reference cannot determine if appropriate. May be too harsh."
+    },
+    {
+      "component": "late_stability",
+      "verdict": "restructure",
+      "evidence": "Mean -23.99; this is a large penalty that may discourage stable behavior near ground. Consider gating or reducing weight."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "keep",
+      "evidence": "Mean is 0.71, rarely triggered; but it rewards proper landing contact. Keep but consider making it easier to obtain."
+    },
+    {
+      "component": "terminal_penalty",
+      "verdict": "restructure",
+      "evidence": "Mean -11.25, applied on most terminations. This may penalize attempts to land. Consider restricting to clear crashes only."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "remove_or_gate",
+      "evidence": "Mean 0.0, never triggered. The current conditions (near_pad, both legs, etc.) are likely too strict. Either gate with more lenient criteria or remove if not working."
+    },
+    {
+      "component": "flight_stability",
+      "verdict": "restructure",
+      "evidence": "Mean -7.38; similar to late_stability, large penalty. Consider reducing weight or gating by altitude."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "local_repair",
+    "forbidden_changes": ["do not use official reward", "do not add dense alive bonus without progress gating", "do not only scale all coefficients", "do not treat partial_progress as success_like"],
+    "required_changes": ["Make terminal bonus more attainable by relaxing landing criteria (e.g., require y<0.15, low velocity, near upright, but not necessarily both legs initially)", "Reduce or gate terminal_penalty to only apply on clear crash (high velocity or large angle)", "Reduce magnitude of late_stability and flight_stability penalties to avoid discouraging landing attempts", "Ensure early_approach and leg_bonus are preserved"],
+    "preserve_components": ["early_approach", "leg_bonus"],
+    "remove_or_gate_components": ["terminal_bonus", "terminal_penalty"]
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Round 0 bootstrap provided initial progress; no clear regression. Memory is weak but not useless. Proceed with structural mutations."
+  },
+  "self_evaluation_lesson": "Without failure or success contrasts, diagnosis is cautious. Focus on enabling terminal success by reducing penalty dominance and increasing reward clarity for near-landing states. Avoid coefficient-only changes; require structural adjustments to terminal and stability components."
+}

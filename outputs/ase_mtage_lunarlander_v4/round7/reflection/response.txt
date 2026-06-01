@@ -1,0 +1,35 @@
+{
+  "round": 7,
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "selected_candidate_id": "round7_candidate1_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_abundant_and_failure_penalized_but_success_low_confidence",
+    "main_failure_remaining": "insufficient_high_confidence_success_like_trajectories",
+    "main_success_signal": "failure_reward_reduced_to_near_zero"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "early_failure trajectories over-rewarded by approach_progress and terminal_reward",
+    "repair_attempt": "restructured approach_progress to penalize early failures and removed terminal_reward, retained progress-conditioned gating",
+    "outcome_after": "early failure reward drastically reduced (mean -0.80) but success_like trajectories remain low confidence and ambiguous trajectories dominate"
+  },
+  "lesson": "Restructuring approach_progress to assign heavy penalties to early failures effectively eliminates reward leakage to failures, but the reward function still lacks explicit encouragement for stable landings and leg contact, leading to many ambiguous trajectories and preventing high-confidence success_like behaviors.",
+  "future_guidance": [
+    "Preserve the failure-penalizing structure of approach_progress",
+    "Add components that reward stable landings and leg contact, e.g., higher near_stability reward on landing or a landing completion bonus",
+    "Avoid using broad survival bonuses without progress gating",
+    "Prefer conservative selection until high-confidence success_like trajectories appear",
+    "Resolve labeling inconsistency between coverage report and trajectory judgment summary"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": false,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round7_candidate1_progress_conditioned",
+    "reason": "Selected candidate reduces failure reward but does not produce high-confidence success_like trajectories; not yet clearly elite."
+  },
+  "uncertainties": [
+    "Coverage report indicates 33 success_like trajectories but trajectory judgment summary shows 0 success_like; labeling inconsistency.",
+    "Success_like trajectories not high-confidence; preference construction forbidden.",
+    "Component_summary includes components not in parent code, complicating diagnosis."
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "trajectory_id": "final_ep025",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.341 indicates strong approach progress",
+    "min_distance_to_target=0.0426 shows lander got very close to landing pad",
+    "final_speed=2.63e-6 and final_angle_abs=0.000124 indicate stable velocity and angle near the pad",
+    "contact_ratio_last20=0.1 suggests both legs were only in contact for 2 of the last 20 steps, indicating unstable landing",
+    "reward component landing_bonus=10.0 suggests landing event was detected, but instability prevents full success"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

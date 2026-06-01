@@ -1,0 +1,82 @@
+{
+  "round": 7,
+  "parent_reward_id": "round5_candidate1_component_recomposition",
+  "overall_judgment": "parent reward achieves high training return and weak preference separation, but low_alt_stability over-rewards low_progress_survival and terminal_penalty misaligns, preventing conversion of partial progress into success-like behavior",
+  "failure_summary": "low_progress_survival persists because low_alt_stability gives excessive positive reward to low-altitude survival without requiring proper landing, and terminal_penalty disproportionately penalizes partial_progress terminations, reducing their relative advantage over low_progress_survival",
+  "memory_interpretation": {
+    "coverage_type": "failure_plus_partial_progress",
+    "decision_level": "weak_pairwise_selection",
+    "usable_preference_level": "weak_pairwise",
+    "main_known_failures": [
+      "early_failure",
+      "low_progress_survival"
+    ],
+    "main_useful_patterns": [
+      "partial_progress shows approach progress and stability over failure trajectories"
+    ],
+    "uncertainties": [
+      "No high-confidence success_like trajectories exist",
+      "Partial_progress should not be treated as task success",
+      "The exact contribution of low_alt_stability to low_progress_survival is not isolated"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "early_approach",
+      "verdict": "keep",
+      "evidence": "Component summary shows higher mean for positive (4.17) than failure (2.90), aligning with partial_progress preferences."
+    },
+    {
+      "component": "low_alt_stability",
+      "verdict": "restructure",
+      "evidence": "Component summary shows very high mean for only 39 out of 136 positives, but also nonzero for failures; over-rewards low-altitude survival, likely inflating low_progress_survival. From lessons, it is not sufficiently discriminative and may cause regression."
+    },
+    {
+      "component": "leg_bonus",
+      "verdict": "keep",
+      "evidence": "Component summary shows mean 0 for failures and 1.99 for positives; strongly aligned with better trajectories."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "keep",
+      "evidence": "Component summary shows mean 0 for failures and 0.87 for positives; aligned with partial_progress."
+    },
+    {
+      "component": "terminal_penalty",
+      "verdict": "restructure",
+      "evidence": "Component summary shows positive mean more negative (-6.41) than failure mean (-3.63), indicating misalignment: partial_progress trajectories receive higher penalty than failures, reducing their relative preference advantage."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like"
+    ],
+    "required_changes": [
+      "Redesign low_alt_stability to reward stable low-altitude approach only when near the pad and properly oriented, not just low altitude",
+      "Restructure terminal_penalty to penalize severe crashes more than near-landing failures, or convert to a terminal progress bonus to better align with partial_progress",
+      "Preserve early_approach, leg_bonus, and terminal_bonus components",
+      "Ensure net reward on partial_progress trajectories is higher than on low_progress_survival",
+      "Avoid aggressive penalization that over-penalizes partial_progress trajectories"
+    ],
+    "preserve_components": [
+      "early_approach",
+      "leg_bonus",
+      "terminal_bonus"
+    ],
+    "remove_or_gate_components": [
+      "low_alt_stability",
+      "terminal_penalty"
+    ]
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Parent is the current best by training return; round6 mutation was a regression, so we continue from the promising parent to refine components rather than rollback."
+  },
+  "self_evaluation_lesson": "Low_alt_stability must be tightly gated to avoid over-rewarding low_progress_survival; terminal_penalty must be restructured to align with partial_progress preferences; overall goal is to convert partial_progress into success-like behavior without losing progress gains."
+}

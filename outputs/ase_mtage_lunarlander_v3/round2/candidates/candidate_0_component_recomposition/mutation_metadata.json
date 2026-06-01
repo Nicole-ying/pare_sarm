@@ -1,0 +1,45 @@
+{
+  "candidate_id": "round2_candidate0_component_recomposition",
+  "round": 2,
+  "mutation_family": "component_recomposition",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round1_candidate0_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not scale all coefficients uniformly without structural change",
+      "do not treat partial_progress as success_like"
+    ],
+    "required_changes": [
+      "restructure early_speed_penalty to be mild or conditional on excessive vertical speed (e.g., threshold of 0.8) to avoid strong penalty on normal descent",
+      "redesign late_stability to include a positive reward for good stability (low velocity, upright angle) rather than only negative penalty; reduce penalty coefficients significantly",
+      "remove or gate flight_stability to avoid double penalty on angle/angular velocity",
+      "reduce terminal_penalty magnitude or make it more discriminative (e.g., only severe crash conditions yield large penalty)",
+      "strengthen leg_bonus by adding a velocity condition (e.g., bonus when both legs contact and vertical speed < 0.5 and angle < 0.2) to encourage stable landing",
+      "ensure that the total net reward for good partial_progress trajectories becomes non-negative to allow policy to explore more successful behavior"
+    ],
+    "preserve_components": [
+      "early_approach",
+      "progress conditioning (high_alt/low_alt gating)",
+      "leg_bonus (but with addition of low-velocity condition)",
+      "terminal_bonus"
+    ],
+    "remove_or_gate_components": [
+      "flight_stability (remove or gate with debug flag)",
+      "early_speed_penalty (gate by high vertical speed threshold)",
+      "late_stability (replace with balanced positive/negative component)"
+    ]
+  },
+  "coverage_type_used": "failure_plus_partial_progress",
+  "intended_fix": [
+    "use delta/progress-style components",
+    "avoid pure survival reward",
+    "recompose components flagged by analyzer"
+  ],
+  "expected_effect": "Separate progress, stability, and terminal terms based on analyzer intent.",
+  "risk": "Delta terms may be noisy if the progress proxy is imperfect.",
+  "official_reward_used": false
+}

@@ -1,0 +1,25 @@
+{
+  "trajectory_id": "final_ep002",
+  "final_label": {
+    "coarse_label": "success_like",
+    "detail_label": "stable_landing",
+    "confidence": 0.95
+  },
+  "agree_with_rule": false,
+  "evidence_used": [
+    "final_distance_to_target=0.0918 close to pad",
+    "final_speed=1.66e-7 (essentially zero)",
+    "final_angle_abs=0.00077 (very small)",
+    "distance_improvement=1.322 significant approach progress",
+    "candidate reward component landing_bonus=10.0 indicates landing event",
+    "no crash penalty or timeout penalty",
+    "terminated at short episode length 74"
+  ],
+  "conflict_warnings": [
+    "contact_ratio_last20=0.1 suggests limited leg contact in last steps, but final state and landing bonus imply successful landing"
+  ],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "positive_reference",
+  "do_not_use_reason": ""
+}

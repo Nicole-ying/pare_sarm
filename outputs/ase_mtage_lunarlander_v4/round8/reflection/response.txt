@@ -1,0 +1,37 @@
+{
+  "round": 8,
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "selected_candidate_id": "round8_candidate1_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available_with_inconsistency",
+    "main_failure_remaining": "early_failure over-reward and no high-confidence success-like trajectories",
+    "main_success_signal": "partial_progress abundant but not advancing to success-like"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "persistent over-reward of early_failure trajectories and inability to generate success-like behavior",
+    "repair_attempt": "continued progress-conditioned refinements without component recomposition",
+    "outcome_after": "early_failure remains, no success-like trajectories achieved"
+  },
+  "lesson": "Progress-conditioned refinements alone are insufficient to overcome structural component deficiencies; component recomposition targeting approach_progress and terminal_reward is required to reduce early_failure over-reward and enable success-like trajectories.",
+  "future_guidance": [
+    "restructure approach_progress to strongly penalize early_failure (e.g., negative bias when progress is small or speed/angle are large) to widen margin between partial_progress and early_failure",
+    "replace terminal_reward with separate crash_penalty (sufficiently negative) and safe_landing_bonus (stringent conditions: both legs, very low speed, small angle, sustained leg contact)",
+    "preserve progress-conditioned gating structure and components: proximity_bonus, near_stability, leg_bonus, low_progress_timeout",
+    "maintain conservative mutation until clear preference pairs can be constructed",
+    "do not treat partial_progress as success_like",
+    "avoid global survival bonus without progress gating",
+    "do not use official reward"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round8_candidate1_progress_conditioned",
+    "reason": "Selected candidate is added to elite archive as the latest valid continuation, though it does not outperform the best elite candidate."
+  },
+  "uncertainties": [
+    "Low success_like count (33) in coverage but 0 in trajectory judgment summary indicates label inconsistency",
+    "No preference pairs can be constructed due to decision_level no_decision",
+    "Approach_progress component alignment uncertain due to lack of preference pairs"
+  ]
+}

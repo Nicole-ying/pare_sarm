@@ -1,0 +1,32 @@
+{
+  "id": "2b1d86a7-ca39-40c8-be98-5ecaabb0c511",
+  "object": "chat.completion",
+  "created": 1780294553,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep040\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep041\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep042\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep043\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep044\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep045\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep046\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep047\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep048\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep049\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards (final_ep040 to final_ep049). All have episode length 1000, truncated=true (not terminated). The final distance to target is around 0.6, initial distance around 1.4, so distance improvement is about 0.8. Final speeds are low (vertical speed abs <0.03, horizontal speed abs <0.05, total speed <0.06). Angles are small (<0.06 rad). However, contact_ratio_last20 = 0.0 for all, meaning no leg contact in the last 20% of steps. The reward component totals show all leg_contact_bonus=0, safe_landing_bonus=0. So despite low speeds and small angles, they never had leg contact. According to the labeling cautions: \"Safe landing requires both legs in contact, low vertical speed, low horizontal speed, small angle and angular velocity, and lander not going out of viewport.\" Since there is no leg contact, these cannot be success_like. They show good progress (distance improvement ~0.8) and low final speeds, but no contact. Also, the episode was truncated after 1000 steps, not terminated. So the lander was still hovering or not touching the ground. That indicates partial progress: they approached the pad but didn't land (no leg contact). So I'd label them as \"partial_progress\". None are early_failure because they lasted full length and had improvement. They are not low_progress_survival because progress is substantial. They are not ambiguous because evidence is consistent: good approach, no contact, low speeds. So use_for_tage_pair=true.\n\nThus for all 10, coarse_label = \"partial_progress\", use_for_tage_pair = true.\n\nReturn JSON array."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7727,
+    "completion_tokens": 762,
+    "total_tokens": 8489,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 379
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5679
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

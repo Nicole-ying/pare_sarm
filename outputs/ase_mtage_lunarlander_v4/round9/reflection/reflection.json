@@ -1,0 +1,38 @@
+{
+  "round": 9,
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "selected_candidate_id": "round9_candidate1_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available_but_early_failure_dominant",
+    "main_failure_remaining": "approach_progress still over-rewards early_failure trajectories; terminal_reward still misassigns positive reward to unsafe landings",
+    "main_success_signal": "partial_progress trajectories remain abundant with distance improvement; proximity_bonus, near_stability, leg_bonus, low_progress_timeout continue to favor positives"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "approach_progress over-rewarded early_failure; terminal_reward misassigned positive to unsafe landings",
+    "repair_attempt": "Continued progress-conditioned mutation with heavy penalization of failures (failure avoidance score 0.9546, mean reward on failure -49.35)",
+    "outcome_after": "Early_failure still dominant in trajectory judgment (27/50 vs 20 partial_progress), no success_like trajectories; structural deficiencies remain unaddressed"
+  },
+  "lesson": "Progress-conditioned refinements alone are insufficient to overcome structural component deficiencies. Component recomposition is required: restructure approach_progress to penalize early_failure and replace terminal_reward with separate crash_penalty and safe_landing_bonus.",
+  "future_guidance": [
+    "restructure approach_progress to strongly penalize early_failure trajectories (e.g., negative baseline or quality-based scaling)",
+    "replace terminal_reward with crash_penalty (sufficiently negative) for unsafe terminations and safe_landing_bonus (positive under stringent conditions)",
+    "preserve proximity_bonus, near_stability, leg_bonus, low_progress_timeout",
+    "preserve progress-conditioned gating (far/near stages)",
+    "do not construct success_like preference pairs; no high-confidence success_like trajectories exist",
+    "do not treat partial_progress as success_like"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round9_candidate1_progress_conditioned",
+    "reason": "Selected candidate added to elite archive due to high failure avoidance score; serves as next parent despite structural issues"
+  },
+  "uncertainties": [
+    "No high-confidence success_like trajectories exist; preference construction forbidden",
+    "Label inconsistency: coverage reports 33 success_like, trajectory judgment summary shows 0 in 50 samples",
+    "Training return spike (760) in round 6 is likely an artifact, not genuine success",
+    "Component_summary includes components not in parent code, making diagnosis noisy"
+  ],
+  "agent_mode": "llm_reflector"
+}

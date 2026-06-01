@@ -1,0 +1,91 @@
+{
+  "round": 1,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "overall_judgment": "parent_reward_generated_partial_progress_but_no_success_like_trajectories",
+  "failure_summary": "The parent reward produced 42 partial-progress trajectories but 3 early failures and 5 ambiguous; no success-like trajectories were achieved.",
+  "memory_interpretation": {
+    "coverage_type": "partial_or_success_only",
+    "decision_level": "no_decision",
+    "usable_preference_level": "none",
+    "main_known_failures": [
+      "early_failure"
+    ],
+    "main_useful_patterns": [
+      "partial_progress trajectories show distance improvement but no terminal stability to achieve success-like landing"
+    ],
+    "uncertainties": [
+      "No high-confidence success_like trajectories exist",
+      "Only 3 early_failure trajectories, insufficient to build strong failure avoidance evidence",
+      "5 ambiguous trajectories may indicate reward function uncertainty",
+      "Memory coverage does not support preference pair construction"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "approach_progress",
+      "verdict": "keep",
+      "evidence": "Mean approach_progress for partial_progress (4.97) is slightly higher than for early_failure (4.83), showing weak preference for partial progress; no evidence of over-rewarding failures."
+    },
+    {
+      "component": "velocity_control",
+      "verdict": "keep",
+      "evidence": "Positive mean for partial_progress (0.27) vs zero for early_failure; this component rewards controlled vertical speed, consistent with partial progress."
+    },
+    {
+      "component": "angle_stability",
+      "verdict": "keep",
+      "evidence": "Less negative mean for partial_progress (-0.47) vs early_failure (-0.73), rewarding smaller angle; beneficial."
+    },
+    {
+      "component": "landing_bonus",
+      "verdict": "keep",
+      "evidence": "Only applies to partial_progress trajectories (mean 1.43), never to early_failure; incentivizes safe landing conditions."
+    },
+    {
+      "component": "crash_penalty",
+      "verdict": "keep",
+      "evidence": "Mean -5.33 for early_failure vs -2.00 for partial_progress; penalizes crashes and high-speed terminations appropriately."
+    },
+    {
+      "component": "timeout_penalty",
+      "verdict": "keep",
+      "evidence": "Zero mean for both groups; no evidence of harmful effect."
+    },
+    {
+      "component": "survival_bonus",
+      "verdict": "keep",
+      "evidence": "Very small positive mean for both groups (0.63 vs 0.70); negligible and not harmful."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "local_repair",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not treat partial_progress as success_like",
+      "do not only scale all coefficients",
+      "do not remove progress-conditioned structure"
+    ],
+    "required_changes": [
+      "strengthen near-goal landing incentives cautiously",
+      "monitor ambiguous trajectories to avoid reward hacking"
+    ],
+    "preserve_components": [
+      "approach_progress",
+      "velocity_control",
+      "angle_stability",
+      "landing_bonus",
+      "crash_penalty",
+      "timeout_penalty",
+      "survival_bonus"
+    ],
+    "remove_or_gate_components": []
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Hard rollback is handled by RollbackManager; current memory contains partial progress evidence with no clear regression."
+  },
+  "self_evaluation_lesson": "Decision level is 'no_decision' due to insufficient failure references and no success-like trajectories; all mutations should be conservative, preserving progress-conditioned approach while cautiously strengthening near-goal incentives.",
+  "agent_mode": "llm_analyzer"
+}

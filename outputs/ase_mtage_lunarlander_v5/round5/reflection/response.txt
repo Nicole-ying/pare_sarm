@@ -1,0 +1,36 @@
+{
+  "round": 5,
+  "parent_reward_id": "round2_candidate0_component_recomposition",
+  "selected_candidate_id": "round5_candidate0_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "no_success_like_trajectories",
+    "main_success_signal": "partial_progress count increased to 141 in memory and 31 in training, early_failure eliminated"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "partial_progress regression (from 50 to 17) and emergence of ambiguous trajectories due to aggressive local_repair in round4",
+    "repair_attempt": "progress_conditioned mutation preserving approach_progress and near_stage_stability while gating crash_penalty, stability_penalty, terminal_failure_penalty, and timeout_penalty",
+    "outcome_after": "partial_progress count recovered to 31, low_progress_survival increased to 19, no early_failure; still no success_like trajectories"
+  },
+  "lesson": "Progress-conditioned mutation that preserves core components like approach_progress can restore partial_progress after disruption, but converting partial_progress into success_like behavior requires explicit terminal condition rewards beyond intermediate progress signals.",
+  "future_guidance": [
+    "preserve approach_progress component as primary driver of partial_progress",
+    "avoid simultaneous removal or gating of multiple components; make incremental changes",
+    "strengthen or add terminal success condition rewards with progressive relaxation or shaping",
+    "investigate and improve consistency of mid_approach_progress and mid_stability components",
+    "do not treat partial_progress as success_like in preference construction",
+    "consider curriculum learning to gradually tighten success criteria"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round5_candidate0_progress_conditioned",
+    "reason": "Selected candidate improved partial_progress recovery and was added to elite archive; no rollback conditions met."
+  },
+  "uncertainties": [
+    "No success_like trajectories exist, so success-level preference cannot be constructed",
+    "Decision level is weak_pairwise_selection; all conclusions are tentative and may not generalize",
+    "Component alignment for mid_approach_progress and mid_stability is weak (0.13), indicating possible misalignment with trajectory quality"
+  ]
+}

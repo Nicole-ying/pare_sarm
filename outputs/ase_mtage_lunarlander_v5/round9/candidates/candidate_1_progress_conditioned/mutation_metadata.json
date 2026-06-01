@@ -1,0 +1,41 @@
+{
+  "candidate_id": "round9_candidate1_progress_conditioned",
+  "round": 9,
+  "mutation_family": "progress_conditioned",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round8_candidate2_local_repair",
+  "mutation_intent_used": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not treat partial_progress as success_like",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not remove approach_progress or near_stage_stability"
+    ],
+    "required_changes": [
+      "restructure terminal bonuses (safe_landing_bonus, intermediate_safe_bonus) with progressive, continuous thresholds that become more stringent as the lander approaches the pad",
+      "restructure gated_timeout_penalty to only penalize trajectories with negligible progress (delta_dist <= 0 and curr_dist > 0.5)",
+      "ensure new terminal bonus components have nonzero firing rates and positive alignment with partial_progress > failure preferences"
+    ],
+    "preserve_components": [
+      "approach_progress",
+      "near_stage_stability",
+      "leg_contact_bonus"
+    ],
+    "remove_or_gate_components": [
+      "gated_timeout_penalty",
+      "gated_failure_penalty"
+    ],
+    "remove_or_gate_components_notes": "gated_timeout_penalty should be gated to negligible progress only; gated_failure_penalty can be removed if ineffective"
+  },
+  "coverage_type_used": "failure_plus_partial_progress",
+  "intended_fix": [
+    "condition reward by progress or stability stage",
+    "reduce low-progress reward hacking"
+  ],
+  "expected_effect": "Handle stage-dependent task conflicts and discourage low-progress survival.",
+  "risk": "Stage gates may be imperfect before trajectory memory is available.",
+  "official_reward_used": false
+}

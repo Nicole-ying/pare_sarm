@@ -1,0 +1,42 @@
+{
+  "candidate_id": "round7_candidate2_local_repair",
+  "round": 7,
+  "mutation_family": "local_repair",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like",
+      "do not construct success_like preference pairs based on low-confidence labels"
+    ],
+    "required_changes": [
+      "restructure approach_progress to strongly penalize early_failure (e.g., add negative bias when progress is small or when speed/angle are large); ensure margin between partial_progress and early_failure is widened",
+      "replace terminal_reward with separate crash_penalty (sufficiently negative, e.g., -10 or more) and safe_landing_bonus (stringent conditions: both legs, very low speed, small angle, leg contact sustained)",
+      "preserve progress-conditioned gating and components: proximity_bonus, near_stability, leg_bonus, low_progress_timeout"
+    ],
+    "preserve_components": [
+      "progress-conditioned gating (far_stage/near_stage)",
+      "proximity_bonus",
+      "near_stability",
+      "leg_bonus",
+      "low_progress_timeout",
+      "approach_progress (restructured)"
+    ],
+    "remove_or_gate_components": [
+      "terminal_reward"
+    ]
+  },
+  "coverage_type_used": "partial_or_success_only",
+  "intended_fix": [
+    "make a conservative reward with clear components",
+    "use analyzer context to gate known failure patterns"
+  ],
+  "expected_effect": "Provide a simple, interpretable baseline candidate that reacts to known failures.",
+  "risk": "May be too weak for difficult tasks.",
+  "official_reward_used": false
+}

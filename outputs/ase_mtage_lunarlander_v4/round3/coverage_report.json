@@ -1,0 +1,52 @@
+{
+  "num_trajectories": 360,
+  "num_labeled_non_ambiguous": 360,
+  "num_use_for_tage_pair": 360,
+  "label_counts": {
+    "partial_progress": 316,
+    "early_failure": 20,
+    "success_like": 21,
+    "low_progress_survival": 3
+  },
+  "labeled_label_counts": {
+    "partial_progress": 316,
+    "early_failure": 20,
+    "success_like": 21,
+    "low_progress_survival": 3
+  },
+  "preference_role_counts": {
+    "mid_reference": 316,
+    "negative_reference": 23,
+    "positive_reference": 21
+  },
+  "dynamic_min_count_per_label": 54,
+  "nontrivial_labels": [
+    "partial_progress"
+  ],
+  "label_margin": {
+    "is_margin_sufficient": true,
+    "positive_label_group": "success_like",
+    "num_failure_cards": 23,
+    "num_positive_cards": 21,
+    "failure_progress_mean": 0.4540761593162658,
+    "positive_progress_mean": 1.1245157212442307,
+    "progress_gap": 0.6704395619279648,
+    "failure_stability_proxy_mean": -2.1723996609596448,
+    "positive_stability_proxy_mean": 0.7340470777783992,
+    "stability_gap": 2.906446738738044,
+    "thresholds": {
+      "progress_gap_min": 0.05,
+      "stability_gap_min": -0.05
+    }
+  },
+  "coverage_type": "partial_or_success_only",
+  "decision_level": "no_decision",
+  "can_build_preference_pairs": false,
+  "allowed_preference_relations": [],
+  "allowed_decision": "Do not use Memory-TAGE as a strong selector; prefer conservative/elite-preserving mutation.",
+  "forbidden_assumptions": [
+    "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists."
+  ],
+  "suggested_search_mode": "preserve_progress_and_explore_failures",
+  "phase": "error_aware_memory_coverage"
+}

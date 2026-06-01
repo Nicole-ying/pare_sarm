@@ -1,0 +1,72 @@
+{
+  "round": 5,
+  "success": true,
+  "winner_health": {
+    "overall_health": 50.9,
+    "components": [
+      {
+        "name": "proximity",
+        "mean": 0.696128,
+        "std": 0.078697,
+        "share": 0.361,
+        "active": true,
+        "progress_corr": 0.1226,
+        "failure_corr": 0.0123,
+        "health": 0.6463,
+        "verdict": "keep",
+        "reason": "proximity is healthy"
+      },
+      {
+        "name": "speed_penalty",
+        "mean": -0.340678,
+        "std": 0.092962,
+        "share": 0.176,
+        "active": true,
+        "progress_corr": -0.0897,
+        "failure_corr": -0.0488,
+        "health": 0.6161,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=-0.09)"
+      },
+      {
+        "name": "leg_bonus",
+        "mean": 0.003155,
+        "std": 0.005457,
+        "share": 0.002,
+        "active": false,
+        "progress_corr": 0.3448,
+        "failure_corr": 0.2437,
+        "health": 0.2591,
+        "verdict": "remove",
+        "reason": "leg_bonus is inactive (|mean| ≈ 0) — remove or rescale"
+      },
+      {
+        "name": "fuel_penalty",
+        "mean": -0.07885,
+        "std": 0.005213,
+        "share": 0.041,
+        "active": true,
+        "progress_corr": 0.0107,
+        "failure_corr": 0.0047,
+        "health": 0.3757,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=+0.01)"
+      },
+      {
+        "name": "terminal_bonus",
+        "mean": -0.811953,
+        "std": 0.465149,
+        "share": 0.421,
+        "active": true,
+        "progress_corr": -0.0293,
+        "failure_corr": -0.9251,
+        "health": 0.6478,
+        "verdict": "reconsider",
+        "reason": "no progress signal (P=-0.03)"
+      }
+    ],
+    "summary": "5 components: 4 active, 1 aligned with progress, 0 misaligned, health=51/100",
+    "verdict": "ok"
+  },
+  "stopped": false
+}

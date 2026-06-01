@@ -1,0 +1,17 @@
+{
+  "candidate_id": "round0_candidate1_component_recomposition",
+  "round": 0,
+  "mutation_family": "component_recomposition",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": null,
+  "mutation_intent_used": {},
+  "coverage_type_used": null,
+  "intended_fix": [
+    "use delta/progress-style components",
+    "avoid pure survival reward",
+    "recompose components flagged by analyzer"
+  ],
+  "expected_effect": "Separate progress, stability, and terminal terms based on analyzer intent.",
+  "risk": "Delta terms may be noisy if the progress proxy is imperfect.",
+  "official_reward_used": false
+}

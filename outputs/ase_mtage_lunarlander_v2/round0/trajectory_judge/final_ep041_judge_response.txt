@@ -1,0 +1,25 @@
+{
+  "trajectory_id": "final_ep041",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.75
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.284 indicates real approach progress",
+    "min_distance_to_target=0.116 indicates close approach to pad",
+    "final_speed_magnitude ~ 0 indicates near-zero velocity",
+    "final_angle_abs=0.000323 indicates near-zero tilt",
+    "contact_ratio_last20=0.1 indicates legs not consistently in contact (only 2 out of last 20 steps had contact)",
+    "episode length=68 is short, consistent with early termination"
+  ],
+  "conflict_warnings": [
+    "contact_ratio_last20 is 0.1, conflicting with near-zero speed and angle which suggest stable state; possible early termination without full landing",
+    "final leg contact flags not directly available, so landing condition uncertain"
+  ],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

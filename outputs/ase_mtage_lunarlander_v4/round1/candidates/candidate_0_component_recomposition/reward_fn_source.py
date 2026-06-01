@@ -1,0 +1,103 @@
+import math
+
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    # Extract observations
+    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0
+    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0
+    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0
+    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0
+    vx1 = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0
+    vy1 = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0
+    angle1 = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0
+    angvel1 = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0
+    left_leg1 = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0
+    right_leg1 = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0
+
+    # Distances to landing pad (origin)
+    prev_dist = math.sqrt(x0 * x0 + y0 * y0)
+    next_dist = math.sqrt(x1 * x1 + y1 * y1)
+    delta = prev_dist - next_dist  # positive = moving closer
+
+    # Stage thresholds
+    FAR_THRESHOLD = 0.35
+    near_stage = 1.0 if next_dist < FAR_THRESHOLD else 0.0
+    far_stage = 1.0 - near_stage
+
+    # ---- 1. Controlled progress (far stage) ----
+    # Reward progress only if the lander is reasonably stable (not crashing).
+    stable_approach = (
+        abs(angle1) < 0.4
+        and abs(vx1) < 0.8
+        and vy1 > -0.8  # not falling too fast
+    )
+    # Also avoid rewarding progress when already at pad or negative delta (moving away).
+    raw_progress = delta
+    controlled_progress = far_stage * raw_progress * stable_approach
+
+    # ---- 2. Near-stage encouragement ----
+    # Reward being close, having small angle, low speeds, and both legs contact.
+    near_bonus = 0.0
+    if near_stage:
+        # Reward small angle and low speeds
+        angle_quality = max(0.0, 1.0 - 2.0 * abs(angle1))  # 1 at angle=0, 0 at 0.5
+        speed_quality = max(0.0, 1.0 - 2.0 * (abs(vx1) + abs(vy1)))  # 1 at 0, 0 at 0.5
+        legs_contact = 1.0 if (left_leg1 > 0.5 and right_leg1 > 0.5) else 0.0
+        near_bonus = 1.0 + 3.0 * angle_quality + 2.0 * speed_quality + 5.0 * legs_contact
+        # Cap to avoid extreme values
+        near_bonus = max(0.0, min(10.0, near_bonus))
+
+    # ---- 3. Terminal handling ----
+    crash_penalty = 0.0
+    success_bonus = 0.0
+    if terminated:
+        # Heuristics for clear crash: high vertical speed, large angle, high horizontal speed, or no leg contact with ground.
+        is_crash = (
+            abs(vy1) > 1.0
+            or abs(angle1) > 0.5
+            or abs(vx1) > 1.0
+            or (next_dist < 0.5 and not (left_leg1 > 0.5 and right_leg1 > 0.5))
+        )
+        # Heuristics for safe landing: both legs contact, moderate speeds, small angle.
+        is_safe = (
+            left_leg1 > 0.5
+            and right_leg1 > 0.5
+            and abs(vy1) < 0.5
+            and abs(vx1) < 0.5
+            and abs(angle1) < 0.2
+        )
+        if is_crash and not is_safe:
+            crash_penalty = -5.0
+        elif is_safe:
+            success_bonus = 12.0
+        # else ambiguous termination -> no penalty/bonus
+
+    # ---- 4. Timeout penalty ----
+    timeout_penalty = -0.5 if truncated and next_dist > 0.5 else 0.0
+
+    components = {
+        "controlled_progress": controlled_progress,
+        "near_stage_encouragement": near_bonus,
+        "crash_penalty": crash_penalty,
+        "success_bonus": success_bonus,
+        "timeout_penalty": timeout_penalty,
+    }
+
+    total_reward = (
+        4.0 * controlled_progress
+        + 1.0 * near_bonus
+        + crash_penalty
+        + success_bonus
+        + timeout_penalty
+    )
+    return float(total_reward), components

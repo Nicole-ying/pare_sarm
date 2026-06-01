@@ -1,0 +1,114 @@
+{
+  "env_name": "LunarLander-v2",
+  "task_goal": "land safely on the landing pad using observable state evidence, without using the official reward",
+  "official_reward_visible": false,
+  "observation_schema": [
+    {
+      "index": 0,
+      "name": "x_position",
+      "meaning": "horizontal position relative to the landing pad (0 at center)",
+      "used_for_labeling": true
+    },
+    {
+      "index": 1,
+      "name": "y_position",
+      "meaning": "vertical position (height) relative to the landing pad",
+      "used_for_labeling": true
+    },
+    {
+      "index": 2,
+      "name": "x_velocity",
+      "meaning": "horizontal velocity",
+      "used_for_labeling": true
+    },
+    {
+      "index": 3,
+      "name": "y_velocity",
+      "meaning": "vertical velocity",
+      "used_for_labeling": true
+    },
+    {
+      "index": 4,
+      "name": "angle",
+      "meaning": "angle of the lander in radians",
+      "used_for_labeling": true
+    },
+    {
+      "index": 5,
+      "name": "angular_velocity",
+      "meaning": "angular velocity in radians per second",
+      "used_for_labeling": true
+    },
+    {
+      "index": 6,
+      "name": "leg_left_contact",
+      "meaning": "boolean indicating whether the left leg is in contact with ground (0 or 1)",
+      "used_for_labeling": true
+    },
+    {
+      "index": 7,
+      "name": "leg_right_contact",
+      "meaning": "boolean indicating whether the right leg is in contact with ground (0 or 1)",
+      "used_for_labeling": true
+    }
+  ],
+  "action_schema": [
+    {
+      "id": 0,
+      "meaning": "do nothing (no engine fire)"
+    },
+    {
+      "id": 1,
+      "meaning": "fire left orientation engine"
+    },
+    {
+      "id": 2,
+      "meaning": "fire main engine"
+    },
+    {
+      "id": 3,
+      "meaning": "fire right orientation engine"
+    }
+  ],
+  "termination_signals": [
+    "terminated: lander crashes (body contact with moon), lander goes outside viewport (x coordinate > 1 or < -1? actually description says x coordinate greater than 1), or lander is not awake (body comes to rest and does not move or collide)",
+    "truncated: episode length reaches max_episode_steps (1000) or due to time limit wrapper"
+  ],
+  "available_info_keys": [],
+  "trajectory_features_to_extract": [
+    "episode_length",
+    "terminated",
+    "truncated",
+    "initial_x_position",
+    "initial_y_position",
+    "final_x_position",
+    "final_y_position",
+    "final_x_velocity",
+    "final_y_velocity",
+    "final_angle_abs",
+    "final_angular_velocity_abs",
+    "final_leg_contacts_sum (0,1,2)",
+    "distance_to_pad_initial",
+    "distance_to_pad_final",
+    "distance_improvement (initial - final)",
+    "proportion_of_steps_with_leg_contact_in_last_10%",
+    "proportion_of_steps_with_low_vertical_speed_in_last_20%",
+    "energy_used_approximation (steps with engine fire weighted)"
+  ],
+  "coarse_outcome_labels": [
+    "early_failure",
+    "low_progress_survival",
+    "partial_progress",
+    "success_like",
+    "ambiguous"
+  ],
+  "labeling_cautions": [
+    "Do not use or infer the official environment reward.",
+    "Do not treat long episode length alone as success_like.",
+    "Do not treat high approach progress with unstable final speed as success_like.",
+    "Do not treat final leg contact as sufficient for safe landing; the lander must have low speed and be stable (near zero velocity and angular velocity).",
+    "Safe landing requires both legs in contact, low vertical speed (<0.5?), low horizontal speed, small angle and angular velocity, and lander not going out of viewport.",
+    "A success_like outcome should be based on observable final state that matches a safe landing: both legs contact, near-zero velocities, small angle, and within the landing pad area."
+  ],
+  "unknowns": []
+}

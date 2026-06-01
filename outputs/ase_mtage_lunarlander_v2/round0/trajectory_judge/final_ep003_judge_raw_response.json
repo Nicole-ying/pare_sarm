@@ -1,0 +1,32 @@
+{
+  "id": "09a212c4-5e76-487d-b8d4-1ae9aef2421f",
+  "object": "chat.completion",
+  "created": 1780041516,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\n  \"trajectory_id\": \"final_ep003\",\n  \"final_label\": {\n    \"coarse_label\": \"partial_progress\",\n    \"detail_label\": \"approach_unstable\",\n    \"confidence\": 0.75\n  },\n  \"agree_with_rule\": true,\n  \"evidence_used\": [\n    \"distance_improvement=0.763 indicates real approach progress\",\n    \"final_distance_to_target=0.659 is still not extremely close to pad\",\n    \"final_speed=0.857 is too high for stable landing\",\n    \"final_angle_abs=0.162 indicates moderate tilt\",\n    \"contact_ratio_last20=0.1 suggests infrequent leg contact, no stable landing\"\n  ],\n  \"conflict_warnings\": [],\n  \"use_for_memory\": true,\n  \"use_for_tage_pair\": true,\n  \"allowed_preference_role\": \"mid_reference\",\n  \"do_not_use_reason\": \"\"\n}",
+        "reasoning_content": "We are given the input. We need to produce a final judgment. Let's analyze the trajectory evidence card.\n\nTrajectory ID: final_ep003\nEpisode length: 89, terminated true, truncated false.\nFeatures:\n- initial_distance_to_target: 1.42199916\n- min_distance_to_target: 0.652798367\n- final_distance_to_target: 0.65901336\n- distance_improvement: 0.7629858\n- final_speed: 0.8567476\n- final_vertical_speed_abs: 0.853538\n- final_horizontal_speed_abs: 0.074089\n- final_angle_abs: 0.16157\n- contact_ratio_last20: 0.1\n- progress_improvement: 0.7629858\n\nReward component totals: approach_progress=4.09, velocity_control=0.0, angle_stability=-0.545, landing_bonus=0.0, crash_penalty=0.0, timeout=0.0, survival_bonus=0.88.\n\nRule label: partial_progress with evidence \"approached target but final_speed=0.857 is high\".\n\nWe need to decide the final coarse label. Since we are a guarded judge, we must follow the labeling cautions: Do not treat high approach progress with unstable final speed or large angle as success_like. Both legs must be in contact and near pad for safe landing. Here, final_legs_contact_both is not explicitly in features, but we have contact_ratio_last20=0.1, meaning only 10% of last 20 steps had both legs contact? Actually contact_ratio_last20 likely means fraction of steps in last 20 where both legs were in contact? It's ambiguous but indicates low contact. So no evidence of stable landing.\n\nAlso, final_distance_to_target is 0.659, which is not very close. The landing pad is at (0,0). The final_x_position and final_y_position are not given in features, but we have initial and final distances. The distance improvement is 0.76, so initial distance was 1.42, final 0.66. That is progress but not extremely close.\n\nFinal speed 0.857 is high, angle 0.162 rad (~9.3 degrees). So the lander is approaching with significant speed.\n\nThus, this is partial progress: real progress but not stable success. The rule label agrees. So we should output partial_progress with detail_label approach_unstable.\n\nConfidence: we have clear evidence of progress but also high speed and low contact ratio. So moderate confidence, say 0.75.\n\nAgree with rule: true.\n\nEvidence used: list of numeric evidence.\n\nConflict warnings: none.\n\nUse for memory: true, use for TAGE pair: true, allowed_preference_role: mid_reference (since partial_progress maps to mid_reference).\n\nDo not use reason: empty.\n\nNow construct JSON."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3482,
+    "completion_tokens": 843,
+    "total_tokens": 4325,
+    "prompt_tokens_details": {
+      "cached_tokens": 3456
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 637
+    },
+    "prompt_cache_hit_tokens": 3456,
+    "prompt_cache_miss_tokens": 26
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

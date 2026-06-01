@@ -1,0 +1,32 @@
+{
+  "id": "0abc4f56-1e56-465e-b5d5-c8fb3ae3a085",
+  "object": "chat.completion",
+  "created": 1780296321,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep040\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep041\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep042\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep043\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep044\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep045\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep046\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep047\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep048\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep049\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards (final_ep040 through final_ep049). All trajectories have episode length 1000 and are truncated (max episode steps). So they all last the full episode length without terminating early. The features show:\n\n- All have high distance improvement (~0.9) and approach progress component totals around 4-5.\n- But final distance to target is around 0.5, meaning they are hovering above the landing pad? They are not on the ground because contact_ratio_last20 is 0.0 for all. So no leg contact.\n- Final speeds vary but are generally low (vertical speed abs ~0.01-0.04, horizontal speed abs ~0.001-0.06). But they are not zero, and importantly, there is no leg contact at all. The safe landing condition requires both legs in contact, low speeds, small angle, and within landing pad area. Here, the lander is still in the air (distance ~0.5 from pad) with no ground contact. So not a successful landing.\n\nGiven the task goal is to land safely on the landing pad. These trajectories show approach progress (they moved closer to the pad) but never actually landed. They spent the entire episode (1000 steps) hovering near the pad? The reward component totals show no near_stage_stability, leg_contact_bonus, intermediate_safe_bonus, or safe_landing_bonus. So no landing achieved.\n\nThus, these trajectories represent partial progress: they got close to the pad but did not achieve a safe landing. They are not early failure because they lasted the full episode. They are not low_progress_survival because they made significant progress (distance improvement ~0.9). They are not success_like because no legs contact and final state is not stable on ground. They are not ambiguous because evidence is clear: they approached but didn't land.\n\nSo each trajectory should be labeled \"partial_progress\" with use_for_tage_pair true, as they are clear classifications.\n\nBut wait: Check if there are any conflicts? No. All cards show consistent pattern. So output accordingly.\n\nAlso note: For final_ep040, there is a gated_timeout_penalty of -0.5, but that doesn't change classification.\n\nThus, generate JSON array with 10 entries.\n\nSchema: array of objects with trajectory_id, coarse_label, use_for_tage_pair.\n\nMake sure to use the exact trajectory_id as given.\n\nSo output:\n\n[\n  {\n    \"trajectory_id\": \"final_ep040\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep041\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  ...\n] up to final_ep049.\n\nBut the prompt says: \"Do not mark a trajectory as success_like if final stability evidence is missing.\" Here, evidence is missing leg contact and stability on ground. So definitely not success_like.\n\nAlso note: For final_ep044, final speed is 0.0589, which is higher but still low. But no legs contact.\n\nThus, all partial_progress.\n\nLet's verify final_ep046: final_speed 0.00725, very low, but still no leg contact. So hovering very steadily above pad but not landed.\n\nThus, all partial_progress.\n\nSo output the JSON."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7716,
+    "completion_tokens": 1116,
+    "total_tokens": 8832,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 733
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5668
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

@@ -1,0 +1,32 @@
+{
+  "id": "f1c7b034-81ec-4a09-b560-c093ff9d25a8",
+  "object": "chat.completion",
+  "created": 1780294478,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep020\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep021\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep022\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep023\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep024\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep025\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep026\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep027\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep028\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep029\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards (final_ep020 to final_ep029). All trajectories have episode length 1000, terminated false, truncated true. They all show significant distance improvement (0.73 to 0.82), final distance to target around 0.6-0.67, final speeds low (0.02-0.08), final vertical speed abs very low (0.001-0.04), final horizontal speed abs variable (0.0003 to 0.08), final angle abs very small (0.005 to 0.04), final angular velocity abs? Not directly given but final angle abs given, and we have no final angular velocity abs explicitly? Actually features include final_angle_abs but not final_angular_velocity_abs. But we have final_angle_abs which is small. Also contact_ratio_last20 is 0.0 for all, meaning no leg contact in last 20% of steps. That is a key indicator: no leg contact at all. According to labeling cautions: \"Safe landing requires both legs in contact, low vertical speed (<0.5?), low horizontal speed, small angle and angular velocity, and lander not going out of viewport.\" Since contact_ratio_last20 is 0, they never achieved leg contact. So they cannot be success_like. Also they are not early_failure because they lasted full episode. They show substantial progress (distance improvement ~0.7-0.8) but no landing. So they are partial_progress. They are not low_progress_survival because progress is significant. They are not ambiguous because evidence is clear. Also note: reward component totals show only approach_progress positive, near_stage_stability and leg_contact_bonus zero, safe_landing_bonus zero. Consistent with partial progress. So for all 10, coarse_label should be \"partial_progress\", use_for_tage_pair true.\n\nBut wait: There is a subtlety: Some trajectories have final distance around 0.6, which is not near zero. They did not reach landing pad. So definitely not success_like. So all are partial_progress.\n\nThus output array with 10 objects.\n\nFinal output."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7732,
+    "completion_tokens": 848,
+    "total_tokens": 8580,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 465
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5684
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

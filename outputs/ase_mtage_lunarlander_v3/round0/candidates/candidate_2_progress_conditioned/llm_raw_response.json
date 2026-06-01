@@ -1,0 +1,32 @@
+{
+  "id": "27ded20c-476f-4f2a-920f-a953092a5938",
+  "object": "chat.completion",
+  "created": 1780223997,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "```python\nimport math\n\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except (TypeError, ValueError):\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    # Extract next_obs components\n    x_pos = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0\n    y_pos = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0\n    x_vel = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0\n    y_vel = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0\n    angle = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0\n    ang_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0\n    left_leg = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0\n    right_leg = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0\n\n    # Also extract current obs for progress if needed\n    x_curr = _safe_float(obs[0]) if len(obs) > 0 else 0.0\n    y_curr = _safe_float(obs[1]) if len(obs) > 1 else 0.0\n\n    # Distance from landing pad (pad is at x=0, y=0)\n    curr_distance = math.sqrt(x_curr * x_curr + y_curr * y_curr)\n    next_distance = math.sqrt(x_pos * x_pos + y_pos * y_pos)\n\n    # Stage determination: near the pad (within 0.15 of ground, small horizontal offset)\n    near_pad = 1.0 if (y_pos < 0.15 and abs(x_pos) < 0.2) else 0.0\n    # Also consider altitude high vs low\n    high_alt = 1.0 if y_pos > 0.5 else 0.0\n    low_alt = 1.0 - high_alt\n\n    # Progress components\n    progress = curr_distance - next_distance  # positive for moving toward pad\n\n    # Early stage (high altitude): reward approach and gentle descent\n    # Use max(0, progress) to avoid penalizing overshoot slightly\n    early_approach = high_alt * max(progress, 0.0) * 5.0\n    # Penalize high vertical speed when high (to encourage controlled descent)\n    early_speed_penalty = high_alt * (-abs(y_vel) * 0.5)\n\n    # Late stage (low altitude): reward stability and leg contact\n    # Reward low speed and upright orientation\n    late_stability = low_alt * (\n        -abs(x_vel) * 2.0  # horizontal velocity penalty\n        -abs(angle) * 5.0  # angle penalty (radians)\n        -abs(ang_vel) * 2.0  # angular velocity penalty\n    )\n    # Leg contact bonus: only if both legs contact near pad\n    both_legs = 1.0 if (left_leg > 0.5 and right_leg > 0.5) else 0.0\n    leg_bonus = near_pad * both_legs * 10.0\n\n    # Terminal evaluation based on termination/truncation\n    terminal_penalty = 0.0\n    terminal_bonus = 0.0\n    if terminated:\n        # Check for crash: high velocity or large angle at ground contact\n        # If legs are not both contacting, likely a crash\n        crashed = 1.0 if (left_leg < 0.5 or right_leg < 0.5) else 0.0\n        # Also possible side crash or high impact\n        if crashed or abs(y_vel) > 0.8 or abs(angle) > 0.4:\n            terminal_penalty = -15.0\n        else:\n            # Successful landing (both legs, near upright, low velocity)\n            terminal_bonus = 20.0 * near_pad * both_legs * (1.0 - abs(angle) * 2.0) * (1.0 - abs(y_vel) * 2.0)\n            # Also if not near pad but still landed? unlikely to be good\n    elif truncated:\n        # Timeout: penalize if not near pad\n        if next_distance > 0.3:\n            terminal_penalty = -5.0\n\n    # Stability during flight: penalize excessive angular velocity and angle\n    flight_stability = -abs(angle) * 2.0 - abs(ang_vel) * 1.0\n\n    # Component dictionary\n    components = {\n        \"early_approach\": early_approach,\n        \"early_speed_penalty\": early_speed_penalty,\n        \"late_stability\": late_stability,\n        \"leg_bonus\": leg_bonus,\n        \"terminal_penalty\": terminal_penalty,\n        \"terminal_bonus\": terminal_bonus,\n        \"flight_stability\": flight_stability,\n    }\n\n    total_reward = early_approach + early_speed_penalty + late_stability + leg_bonus + terminal_penalty + terminal_bonus + flight_stability\n    return float(total_reward), components\n```",
+        "reasoning_content": "We need to generate a progress-conditioned reward function for LunarLander-v2. The mutation family requires stage gates, early vs late reward, stability near terminal regions, and no low-progress survival. The parent code is empty, so we start fresh. Use observable state from obs: positions, velocities, angle, angular velocity, leg contacts. Define stages based on distance to pad and maybe altitude. Early: reward approach and reducing velocity roughly. Late: reward precise landing, stability, leg contact. Must not use official reward. Use safe float. Return total_reward and components dictionary.\n\nOutput code only."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3142,
+    "completion_tokens": 1398,
+    "total_tokens": 4540,
+    "prompt_tokens_details": {
+      "cached_tokens": 3072
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 123
+    },
+    "prompt_cache_hit_tokens": 3072,
+    "prompt_cache_miss_tokens": 70
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

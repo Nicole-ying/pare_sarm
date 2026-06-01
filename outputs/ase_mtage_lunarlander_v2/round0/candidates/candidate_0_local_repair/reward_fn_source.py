@@ -1,0 +1,76 @@
+import math
+
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    # Extract observations
+    x = _safe_float(obs[0]) if len(obs) > 0 else 0.0
+    y = _safe_float(obs[1]) if len(obs) > 1 else 0.0
+    vx = _safe_float(obs[2]) if len(obs) > 2 else 0.0
+    vy = _safe_float(obs[3]) if len(obs) > 3 else 0.0
+    angle = _safe_float(obs[4]) if len(obs) > 4 else 0.0
+    angular_vel = _safe_float(obs[5]) if len(obs) > 5 else 0.0
+    leg1 = _safe_float(obs[6]) if len(obs) > 6 else 0.0
+    leg2 = _safe_float(obs[7]) if len(obs) > 7 else 0.0
+
+    # Next state for progress
+    next_x = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0
+    next_y = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0
+    next_vx = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0
+    next_vy = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0
+    next_angle = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0
+    next_angular_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0
+    next_leg1 = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0
+    next_leg2 = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0
+
+    # Distance to pad (0,0)
+    prev_dist = math.sqrt(x * x + y * y)
+    curr_dist = math.sqrt(next_x * next_x + next_y * next_y)
+    progress = prev_dist - curr_dist  # positive if moving toward pad
+
+    # Speed magnitude and angle at current state
+    speed = math.sqrt(next_vx * next_vx + next_vy * next_vy)
+    abs_angle = abs(next_angle)
+
+    # Leg contact bonus: both legs on ground and near pad
+    both_legs_contact = (next_leg1 > 0.5 and next_leg2 > 0.5)
+    near_pad = curr_dist < 0.3
+
+    # Components
+    approach_reward = 5.0 * progress  # encourage moving toward pad
+    speed_penalty = -0.1 * speed  # mild speed penalty
+    angle_penalty = -0.5 * abs_angle  # penalty for tilting
+    leg_bonus = 2.0 if (both_legs_contact and near_pad) else 0.0  # bonus for safe landing posture
+    crash_penalty = -10.0 if terminated and (abs(next_vx) > 1.0 or abs(next_vy) > 1.0 or abs(next_x) > 1.0) else 0.0
+    out_of_bounds_penalty = -5.0 if abs(next_x) > 1.0 else 0.0
+
+    # Terminal success bonus
+    success_bonus = 0.0
+    if terminated and not truncated:
+        if both_legs_contact and near_pad and speed < 1.0 and abs_angle < 0.5:
+            success_bonus = 10.0
+        else:
+            success_bonus = -5.0  # bad termination
+
+    components = {
+        "approach_reward": approach_reward,
+        "speed_penalty": speed_penalty,
+        "angle_penalty": angle_penalty,
+        "leg_bonus": leg_bonus,
+        "crash_penalty": crash_penalty,
+        "out_of_bounds_penalty": out_of_bounds_penalty,
+        "success_bonus": success_bonus
+    }
+
+    total_reward = (approach_reward + speed_penalty + angle_penalty + leg_bonus
+                    + crash_penalty + out_of_bounds_penalty + success_bonus)
+    return float(total_reward), components

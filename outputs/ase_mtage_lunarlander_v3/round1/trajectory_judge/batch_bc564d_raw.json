@@ -1,0 +1,32 @@
+{
+  "id": "da06733d-fd15-40d7-a442-68387a19e2ea",
+  "object": "chat.completion",
+  "created": 1780224737,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep040\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep041\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep042\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep043\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep044\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep045\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep046\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep047\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep048\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep049\",\n    \"coarse_label\": \"early_failure\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards for the LunarLander-v2 task. The task goal is to land safely on the landing pad. We need to classify each trajectory into a coarse label: early_failure, low_progress_survival, partial_progress, success_like, or ambiguous. Also set use_for_tage_pair true unless ambiguous.\n\nKey observations from the cards: All trajectories have terminated=true, truncated=false. All have negative distance improvement (distance increased, so moving away from target). All have zero contact ratio last20, meaning no leg contact at the end. All have final speeds around 2, with high horizontal speed relative to vertical. Angles are non-zero (0.4 to 0.7 rad). No leg contact (both left and right leg contact likely 0). So trajectories end with the lander moving horizontally away from the pad, with some angular tilt, and no landing.\n\nThis looks like a crash or out-of-bounds scenario. Since terminated true, and given the environment terminates on crash or going outside viewport. The high horizontal speed and increasing distance from pad suggest the lander went out of bounds or crashed sideways. Episode lengths vary (87 to 186), but none are very long. Progress improvement is negative (worsening). That indicates the lander never got closer to the pad; it moved away.\n\nGiven this evidence, these are clearly failures. But are they \"early_failure\" or \"low_progress_survival\"? They are not early because they last 87-186 steps (not extremely short). But they also show low progress (negative improvement). \"low_progress_survival\" implies episode lasts but little task progress. \"early_failure\" implies ends early with little useful progress. Heuristics: early_failure is usually very short episodes. Here lengths are moderate (87-186 out of 1000), not extremely short. However, they are still relatively short compared to max steps. But they show no progress at all. I'd lean towards \"low_progress_survival\" because they survive for a while but fail to make progress. But also they end in termination (likely crash or out-of-bounds). The label \"low_progress_survival\" might be more appropriate for episodes that are truncated (time limit) but have little progress. Here they are terminated, meaning the environment ended due to crash or out-of-bounds. That might be better as \"early_failure\" if they ended early due to crash. But length 87-186 is not extremely early; it's some progress? Actually, they moved away, so no progress. Possibly \"early_failure\" is for very short episodes (like <50 steps). Let's check the task manifest: \"early_failure: episode ends early with little useful progress.\" That matches: they end early (not truncated at 1000) and have little useful progress (negative improvement). \"low_progress_survival: episode lasts but shows little task progress.\" That might be for episodes that last the full time but don't progress. Since these are terminated early, not full duration, \"early_failure\" seems more fitting. But \"low_progress_survival\" could also apply if the episode lasts many steps but no progress. Here they last 87-186, which is not extremely early, but still early compared to 1000. I need to consider the typical duration for lunar lander. Usually a successful landing might be around 100-200 steps. So 87-186 could be a typical episode length for a failed landing that goes out of bounds quickly. I think \"early_failure\" might be too harsh given the length is not extremely short. But the description \"with little useful progress\" is true. There is also \"partial_progress\" which requires real progress, but here progress is negative, so not.\n\nGiven all trajectories look similar: no leg contact, high horizontal speed, increasing distance, termination. I'll classify all as \"early_failure\" since they end early and have no useful progress. But to be safe, I could call some \"ambiguous\"? However, evidence is clear: they failed. So not ambiguous.\n\nCheck specific ones: final_ep040: length 112, final speed 2.0, horizontal speed 2.0, vertical small, angle 0.66 rad, contact 0, distance increased. Clearly failure. So early_failure.\n\nSimilarly all others.\n\nThus for all, coarse_label = \"early_failure\", use_for_tage_pair = true.\n\nBut wait: rule says \"Do not treat long episode length alone as success_like.\" That doesn't apply here. All clear.\n\nThus output array with 10 entries.\n\nMake sure to output only JSON array.\n\nLet me construct JSON."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7670,
+    "completion_tokens": 1364,
+    "total_tokens": 9034,
+    "prompt_tokens_details": {
+      "cached_tokens": 1920
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 981
+    },
+    "prompt_cache_hit_tokens": 1920,
+    "prompt_cache_miss_tokens": 5750
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

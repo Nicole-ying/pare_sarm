@@ -1,0 +1,37 @@
+{
+  "round": 2,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "selected_candidate_id": "round2_candidate1_progress_conditioned",
+  "mutation_family": "progress_conditioned",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available_but_ambiguous",
+    "main_failure_remaining": "no_success_like_trajectory_with_high_confidence_and_insufficient_label_margin",
+    "main_success_signal": "training_return_improved_and_one_success_like_appeared_but_memory_weak"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "declining_training_return_from_-18_to_-63,_no_success_like,_ambiguous_dominance",
+    "repair_attempt": "restructured_terminal_penalty_and_stability_near_to_reduce_overpenalization_of_partial_progress,_preserved_progress_conditioning",
+    "outcome_after": "training_return_partially_recovered_to_-33,_one_success_like_emerged,_but_label_margins_remain_insufficient_and_ambiguity_persists"
+  },
+  "lesson": "Partial progress signals remain unreliable due to tiny label margins; conservative use of memory is required even when training return improves slightly.",
+  "future_guidance": [
+    "continue to preserve progress conditioning and approach_progress",
+    "strengthen terminal_bonus to be achievable with moderate speeds and both legs contact",
+    "restructure terminal_penalty to clearly separate crash from safe landing and ambiguous termination",
+    "avoid constructing preference pairs from weak memory until high-confidence success_like trajectories exist",
+    "consider rollback to best elite if training return declines again"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": false,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round2_candidate1_progress_conditioned",
+    "reason": "Selected candidate improved training return and produced first success-like trajectory but still has insufficient label margins and lower static score than best elite; not added to elite archive."
+  },
+  "uncertainties": [
+    "Label margin is insufficient (progress gap 0.017 vs threshold 0.05) to treat partial_progress as reliable signal",
+    "No high-confidence success-like trajectories for preference construction",
+    "Ambiguous trajectories dominate, weak memory coverage",
+    "Success-like count from trajectory judgment (1) may be noise"
+  ],
+  "agent_mode": "llm_reflector"
+}

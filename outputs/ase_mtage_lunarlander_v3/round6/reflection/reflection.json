@@ -1,0 +1,38 @@
+{
+  "round": 6,
+  "parent_reward_id": "round5_candidate1_component_recomposition",
+  "selected_candidate_id": "round6_candidate1_component_recomposition",
+  "mutation_family": "component_recomposition",
+  "observed_outcome": {
+    "coarse_result": "regression_to_low_progress_survival",
+    "main_failure_remaining": "low_progress_survival dominates (40/50 trajectories) and no success-like behavior",
+    "main_success_signal": "partial_progress exists but reduced to 10 trajectories"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "low_progress_survival already present (14 in round5) and terminal alignment insufficient; training return was high (+439) but low_progress_survival increased",
+    "repair_attempt": "component_recomposition aimed to strengthen near-landing positive reward and terminal alignment, but introduced components (hovering_penalty, leg_bonus, low_alt_stability, terminal_bonus) that over-reward low_progress_survival trajectories",
+    "outcome_after": "low_progress_survival became dominant (40/50), partial_progress decreased to 10, training return dropped to 6.26, and many components show poor alignment (hovering_penalty 0.058, leg_bonus 0.103, low_alt_stability 0.269, terminal_bonus 0.047)"
+  },
+  "lesson": "Component recomposition without careful alignment can cause reward to favor low_progress_survival over partial_progress, leading to regression; future mutations must ensure that new components do not inadvertently reward low-quality trajectories and that the overall preference ordering remains correct.",
+  "future_guidance": [
+    "Preserve early_approach and step_progress components as they show high alignment (0.99 each).",
+    "Investigate low_progress_survival trajectories to distinguish features from partial_progress and design components that penalize them.",
+    "Avoid or redesign components with low preference consistency: hovering_penalty, leg_bonus (current form), low_alt_stability, terminal_bonus may over-reward low-quality.",
+    "Strengthen terminal_bonus or terminal_penalty to favor partial_progress over low_progress_survival.",
+    "Consider rollback to round5 elite if further regression occurs.",
+    "Continue to avoid global survival bonuses without progress gating."
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round6_candidate1_component_recomposition",
+    "reason": "Candidate added to archive despite regression because it is still used as parent for next round; training return dropped but no rollback triggered."
+  },
+  "uncertainties": [
+    "No success-like trajectories exist, so success-level preferences cannot be constructed.",
+    "Low_progress_survival trajectories are now the majority; their characteristics and how to differentiate from partial_progress are uncertain.",
+    "The dramatic drop in training return from +439 to +6 may indicate reward over-inflation in previous elite or mismatch; exact cause of regression (component misalignment vs. scaling) is not isolated.",
+    "Component alignment for several new components is low, but the precise contribution of each to the regression is uncertain."
+  ],
+  "agent_mode": "llm_reflector"
+}

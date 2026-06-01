@@ -1,0 +1,92 @@
+{
+  "round": 6,
+  "parent_reward_id": "round2_candidate0_component_recomposition",
+  "overall_judgment": "parent_reward_provides_consistent_partial_progress_but_fails_to_bridge_to_success_like_due_to_overly_strict_terminal_conditions_and_counterproductive_penalties",
+  "failure_summary": "The parent reward generates reliable partial_progress trajectories (50 in memory, 31 in training) but never converts any to success_like. The safe_landing_bonus almost never fires due to overly strict conditions. Penalties like timeout_penalty and terminal_failure_penalty actually penalize partial_progress more than failures, discouraging the policy from reaching stable landing states. Training return dropped from -0.31 (round2) to -1.94 (round5), and episode length is maxed at 1000, indicating survival hacking without progress toward safe landing.",
+  "memory_interpretation": {
+    "coverage_type": "failure_plus_partial_progress",
+    "decision_level": "weak_pairwise_selection",
+    "usable_preference_level": "weak_pairwise",
+    "main_known_failures": [
+      "no_success_like_trajectories",
+      "timeout_penalty_overpenalizes_partial_progress",
+      "terminal_failure_penalty_overpenalizes_partial_progress",
+      "safe_landing_bonus_never_fires"
+    ],
+    "main_useful_patterns": [
+      "approach_progress strongly favors partial_progress over failures",
+      "near_stage_stability very strongly favors partial_progress",
+      "leg_contact_bonus weakly favors partial_progress"
+    ],
+    "uncertainties": [
+      "No high-confidence success_like trajectories exist to guide success-oriented mutations",
+      "Weak pairwise evidence may not generalize to success behavior",
+      "Training return decrease may be from stochasticity, but the pattern across rounds suggests reward misalignment"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "approach_progress",
+      "verdict": "keep",
+      "evidence": "Component summary shows failure_mean=2.28, positive_mean=4.94, strongly favoring partial_progress. Consistent across rounds."
+    },
+    {
+      "component": "near_stage_stability",
+      "verdict": "keep",
+      "evidence": "Failure_mean=0.011, positive_mean=70.99, very strong positive alignment. Preserve as is."
+    },
+    {
+      "component": "leg_contact_bonus",
+      "verdict": "keep",
+      "evidence": "Failure_mean=0.0, positive_mean=0.093, weak but positive. Useful as mild incentive."
+    },
+    {
+      "component": "safe_landing_bonus",
+      "verdict": "restructure",
+      "evidence": "Failure_mean=0.0, positive_mean=0.0866. The bonus almost never fires because conditions (abs(vy)<0.1, abs(vx)<0.1, etc.) are too strict. Needs relaxation or progressive shaping to actually reward terminal stability."
+    },
+    {
+      "component": "terminal_failure_penalty",
+      "verdict": "remove_or_gate",
+      "evidence": "Component summary shows failure_mean=0.0, positive_mean=-0.3378. Penalizes partial_progress more than failures, which is counterproductive. Should be gated to only apply to early_failure or removed entirely."
+    },
+    {
+      "component": "timeout_penalty",
+      "verdict": "remove_or_gate",
+      "evidence": "Component summary shows failure_mean=-1.81, positive_mean=-2.60, penalizing partial_progress more than failures. Current code applies -5.0 when truncated and far from pad. This discourages long episodes that are making progress. Should be gated or removed to avoid penalizing partial_progress."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "local_repair",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not remove approach_progress or near_stage_stability",
+      "do not simultaneously remove multiple components; change incrementally",
+      "do not treat partial_progress as success_like"
+    ],
+    "required_changes": [
+      "relax safe_landing_bonus conditions to provide intermediate terminal rewards (e.g., graduated thresholds)",
+      "gate timeount_penalty to only apply when no or minimal progress was made, or remove it entirely",
+      "gate terminal_failure_penalty to only apply to early failures, not partial_progress",
+      "preserve approach_progress, near_stage_stability, leg_contact_bonus as they drive partial_progress"
+    ],
+    "preserve_components": [
+      "approach_progress",
+      "near_stage_stability",
+      "leg_contact_bonus"
+    ],
+    "remove_or_gate_components": [
+      "terminal_failure_penalty",
+      "timeout_penalty"
+    ]
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Hard rollback is handled by RollbackManager; current memory contains weak but usable partial-progress evidence, and no rollback conditions are met. Consider using round2 elite as parent if further mutations degrade performance."
+  },
+  "self_evaluation_lesson": "To bridge from partial_progress to success_like, terminal condition rewards must be loosened incrementally, and penalties that hurt partial_progress must be removed or gated. The existing core components (approach_progress, near_stage_stability) should be preserved. Any changes should be tested individually to avoid disrupting the partial_progress generation capability.",
+  "agent_mode": "llm_analyzer"
+}

@@ -1,0 +1,18 @@
+{
+  "round": 2,
+  "rollback_triggered": true,
+  "current_reward_id": "round2_candidate1_progress_conditioned",
+  "rollback_target_reward_id": "round0_candidate2_progress_conditioned",
+  "next_parent_reward_id": "round0_candidate2_progress_conditioned",
+  "next_parent_reward_path": "outputs/ase_mtage_lunarlander_v3/memory/elite_rewards/round0_candidate2_progress_conditioned.py",
+  "hard_conditions": {
+    "selected_score": 0.3981248041712434,
+    "best_elite_score": 0.9,
+    "best_training_return": -37.786968559668054,
+    "score_drop_threshold": 0.3,
+    "score_drop_triggered": true,
+    "no_selected_candidate": false
+  },
+  "reason": "Selected candidate score is significantly below elite; rollback to best reward by training return.",
+  "phase": "phase_6_rollback"
+}

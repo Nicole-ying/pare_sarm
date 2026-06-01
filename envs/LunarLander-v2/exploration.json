@@ -1,0 +1,118 @@
+{
+  "zero_action": {
+    "n_episodes": 10,
+    "mean_length": 71.4,
+    "min_length": 57,
+    "max_length": 89,
+    "early_deaths": 10,
+    "death_rate": 1.0,
+    "termination_reasons": {
+      "terminated": 10
+    },
+    "gravity_hypothesis": "strong"
+  },
+  "env_id": "LunarLander-v2",
+  "spaces": {
+    "observation": {
+      "shape": [
+        8
+      ],
+      "low": -5.0,
+      "high": 5.0
+    },
+    "action": {
+      "type": "Discrete",
+      "shape": [],
+      "n": 4
+    }
+  },
+  "obs_dim": 8,
+  "episode_length_stats": {
+    "mean": 95.67,
+    "std": 23.33,
+    "min": 56,
+    "max": 158
+  },
+  "termination_summary": {
+    "terminated": {
+      "count": 30,
+      "fraction": 1.0
+    }
+  },
+  "info_keys": {},
+  "obs_dim_stats": [
+    {
+      "dim": 0,
+      "space_low": -1.5,
+      "space_high": 1.5,
+      "mean": 0.051345,
+      "std": 0.296156,
+      "sample_min": -1.014068,
+      "sample_max": 1.011963
+    },
+    {
+      "dim": 1,
+      "space_low": -1.5,
+      "space_high": 1.5,
+      "mean": 0.952027,
+      "std": 0.481199,
+      "sample_min": -0.26775,
+      "sample_max": 1.608509
+    },
+    {
+      "dim": 2,
+      "space_low": -5.0,
+      "space_high": 5.0,
+      "mean": 0.08523,
+      "std": 0.638302,
+      "sample_min": -1.839192,
+      "sample_max": 2.273234
+    },
+    {
+      "dim": 3,
+      "space_low": -5.0,
+      "space_high": 5.0,
+      "mean": -0.648952,
+      "std": 0.476888,
+      "sample_min": -1.93974,
+      "sample_max": 0.497079
+    },
+    {
+      "dim": 4,
+      "space_low": -3.141593,
+      "space_high": 3.141593,
+      "mean": 0.060824,
+      "std": 0.575734,
+      "sample_min": -1.727544,
+      "sample_max": 3.280743
+    },
+    {
+      "dim": 5,
+      "space_low": -5.0,
+      "space_high": 5.0,
+      "mean": 0.053678,
+      "std": 0.545114,
+      "sample_min": -6.137633,
+      "sample_max": 5.065858
+    },
+    {
+      "dim": 6,
+      "space_low": -0.0,
+      "space_high": 1.0,
+      "mean": 0.02,
+      "std": 0.14,
+      "sample_min": 0.0,
+      "sample_max": 1.0
+    },
+    {
+      "dim": 7,
+      "space_low": -0.0,
+      "space_high": 1.0,
+      "mean": 0.01931,
+      "std": 0.137613,
+      "sample_min": 0.0,
+      "sample_max": 1.0
+    }
+  ],
+  "max_episode_steps": 1000
+}

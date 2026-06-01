@@ -1,0 +1,24 @@
+{
+  "trajectory_id": "final_ep024",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_crash",
+    "confidence": 0.72
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.339 indicates substantial approach progress",
+    "min_distance_to_target=0.067 shows the lander reached very close to the pad",
+    "final_speed=7.28e-05 is extremely low, stable dynamics",
+    "final_angle_abs=0.00098 is near zero, indicating good orientation",
+    "contact_ratio_last20=0.1 indicates only 10% of last 20 steps had both legs contacting",
+    "crash_penalty=-8.0 from candidate reward suggests a crash event occurred"
+  ],
+  "conflict_warnings": [
+    "contact_ratio_last20=0.1 suggests limited leg contact during final phase, conflicting with strong approach progress and stable final dynamics; crash_penalty indicates a crash may have occurred near the pad"
+  ],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

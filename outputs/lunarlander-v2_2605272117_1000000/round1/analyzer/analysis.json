@@ -1,0 +1,32 @@
+{
+  "diagnosis": "The proximity component has negative progress correlation (-0.396), rewarding the agent for being near the landing pad without guiding safe descent, while the fuel penalty (-0.217) discourages necessary engine use. The large negative landing bonus (-100 for failure) creates a strong incentive to terminate early and avoid accumulating further penalties. These combined effects cause the agent to crash quickly to minimize negative reward.",
+  "escalation_level": "structural",
+  "component_verdicts": [
+    {
+      "component": "proximity",
+      "verdict": "reduce",
+      "reason": "Negative progress correlation (-0.396) indicates it is misaligned with task progress; current shape rewards proximity regardless of landing readiness, leading to early death."
+    },
+    {
+      "component": "error_penalty",
+      "verdict": "keep",
+      "reason": "Positive progress correlation (+0.216) and active; encourages controlled velocity and orientation."
+    },
+    {
+      "component": "leg_contact",
+      "verdict": "keep",
+      "reason": "Positive progress correlation (+0.290) and strong negative failure correlation (-0.623); correctly incentivizes landing on legs."
+    },
+    {
+      "component": "fuel_penalty",
+      "verdict": "reduce",
+      "reason": "Negative progress correlation (-0.217) penalizes engine use needed for stabilization, contributing to premature crashes."
+    },
+    {
+      "component": "landing_bonus",
+      "verdict": "reconsider",
+      "reason": "Progress correlation near zero (+0.059); large swing between +100 and -100 creates a strong terminal signal but insufficient intermediate guidance, leading to early termination avoidance."
+    }
+  ],
+  "pipeline_action": "continue"
+}

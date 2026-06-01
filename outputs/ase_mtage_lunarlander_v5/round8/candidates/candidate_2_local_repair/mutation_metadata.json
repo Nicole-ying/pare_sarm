@@ -1,0 +1,53 @@
+{
+  "candidate_id": "round8_candidate2_local_repair",
+  "round": 8,
+  "mutation_family": "local_repair",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round6_candidate1_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not only scale all coefficients",
+      "do not add global survival bonus without progress gating",
+      "do not treat noisy partial_progress as success_like",
+      "do not use local_repair when training is declining or lessons repeat"
+    ],
+    "required_changes": [
+      "explicitly avoid known failures: early_failure, low_progress_survival",
+      "preserve useful patterns: partial_progress trajectories exist and should be preserved or improved; TRAINING TREND WARNING: mean returns declining: [-4.629808684701914, -3.5808512721411407, -0.31125703256694004, 166.0559504379101, 20.93371329551888, -1.9433229388047928, 3.5274976761155123, 0.5124704769900237]; structural mutation is required, do NOT use local_repair",
+      "gate or remove components: crash_penalty, gated_timeout_penalty, low_progress_survival_gate, stability_penalty, terminal_failure_penalty, timeout_penalty, ungated_contact_bonus, ungated_survival_bonus",
+      "preserve or strengthen components: approach_progress, far_approach_progress, leg_bonus, leg_contact_bonus, near_stage_stability, progress_delta, safe_landing_bonus, terminal_failure_penalty",
+      "structural refactoring required: training evidence shows local_repair is insufficient"
+    ],
+    "preserve_components": [
+      "approach_progress",
+      "far_approach_progress",
+      "leg_bonus",
+      "leg_contact_bonus",
+      "near_stage_stability",
+      "progress_delta",
+      "safe_landing_bonus",
+      "terminal_failure_penalty"
+    ],
+    "remove_or_gate_components": [
+      "crash_penalty",
+      "gated_timeout_penalty",
+      "low_progress_survival_gate",
+      "stability_penalty",
+      "terminal_failure_penalty",
+      "timeout_penalty",
+      "ungated_contact_bonus",
+      "ungated_survival_bonus"
+    ]
+  },
+  "coverage_type_used": "failure_plus_partial_progress",
+  "intended_fix": [
+    "make a conservative reward with clear components",
+    "use analyzer context to gate known failure patterns"
+  ],
+  "expected_effect": "Provide a simple, interpretable baseline candidate that reacts to known failures.",
+  "risk": "May be too weak for difficult tasks.",
+  "official_reward_used": false
+}

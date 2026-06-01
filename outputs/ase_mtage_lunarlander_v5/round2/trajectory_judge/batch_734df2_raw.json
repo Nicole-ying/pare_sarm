@@ -1,0 +1,32 @@
+{
+  "id": "54543aa6-2c9f-4444-a1a8-03383e803840",
+  "object": "chat.completion",
+  "created": 1780291613,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep040\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep041\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep042\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep043\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep044\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep045\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep046\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep047\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep048\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep049\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given a batch of 10 trajectory evidence cards. All trajectories are from the same candidate reward function (round2_candidate0_component_recomposition). All episodes are of length 1000, truncated (not terminated), so they did not crash, but they timed out. The features show significant distance improvement (all around 0.8-0.86), but the final speed is moderate (0.02-0.07), final vertical speed is low, horizontal speed is moderate, angle is small, but crucially contact_ratio_last20 is 0.0 for all, meaning no leg contact in the last 20% of steps. Also, final distance to target is around 0.55-0.62, not close to zero. The lander is still in the air at the end (truncated, not terminated). They made progress but didn't land.\n\nThus, none of these are success_like because they never made contact with the landing pad (no leg contact). They show partial progress (approached but didn't land). They are not early failure because they lasted full length. They are not low_progress_survival because progress is significant. They are not ambiguous because all evidence consistently shows truncated episodes with no landing, good approach progress but no final landing.\n\nSo all should be labeled \"partial_progress\" with use_for_tage_pair=true, since the classification is clear.\n\nLet's produce the JSON array."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7539,
+    "completion_tokens": 680,
+    "total_tokens": 8219,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 297
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5491
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

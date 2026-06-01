@@ -1,0 +1,19 @@
+{
+  "round": 8,
+  "rollback_triggered": false,
+  "current_reward_id": "round8_candidate1_progress_conditioned",
+  "rollback_target_reward_id": null,
+  "next_parent_reward_id": "round8_candidate1_progress_conditioned",
+  "next_parent_reward_path": "outputs/ase_mtage_lunarlander_v4/round8/candidates/candidate_1_progress_conditioned/reward_fn_source.py",
+  "hard_conditions": {
+    "selected_score": 0.6750122208468067,
+    "best_elite_score": 0.7232181772818118,
+    "best_training_return": 6.035687296987295,
+    "score_drop_threshold": 0.2,
+    "base_threshold": 0.3,
+    "score_drop_triggered": false,
+    "no_selected_candidate": false
+  },
+  "reason": "Rollback conditions not met (threshold=0.20); continue with selected candidate.",
+  "phase": "phase_6_rollback"
+}

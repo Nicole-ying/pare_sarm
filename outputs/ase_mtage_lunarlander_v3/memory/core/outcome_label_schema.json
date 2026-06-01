@@ -1,0 +1,17 @@
+{
+  "coarse_outcome_labels": [
+    "early_failure",
+    "low_progress_survival",
+    "partial_progress",
+    "success_like",
+    "ambiguous"
+  ],
+  "label_definitions": {
+    "early_failure": "Episode ends early with little useful progress.",
+    "low_progress_survival": "Episode lasts but shows little task progress.",
+    "partial_progress": "Trajectory shows real progress but does not reach stable success.",
+    "success_like": "Trajectory strongly matches the task goal according to observable evidence.",
+    "ambiguous": "Evidence is insufficient or conflicting."
+  },
+  "official_reward_visible": false
+}

@@ -1,0 +1,32 @@
+{
+  "id": "cdc5abdf-0a2c-4259-875b-cc385fcb8578",
+  "object": "chat.completion",
+  "created": 1780042520,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\n  \"trajectory_id\": \"final_ep032\",\n  \"final_label\": {\n    \"coarse_label\": \"partial_progress\",\n    \"detail_label\": \"approach_unstable\",\n    \"confidence\": 0.85\n  },\n  \"agree_with_rule\": true,\n  \"evidence_used\": [\n    \"distance_improvement=1.128 indicates real approach progress\",\n    \"final_distance_to_target=0.282 indicates proximity to pad\",\n    \"final_speed=0.993 is high, indicating unstable landing\",\n    \"contact_ratio_last20=0.15 indicates minimal leg contact\",\n    \"crash_penalty=-8.0 in component totals suggests crash termination\",\n    \"episode length=67, terminated=true (likely crash)\"\n  ],\n  \"conflict_warnings\": [],\n  \"use_for_memory\": true,\n  \"use_for_tage_pair\": true,\n  \"allowed_preference_role\": \"mid_reference\",\n  \"do_not_use_reason\": \"\"\n}",
+        "reasoning_content": "We are given a trajectory evidence card for LunarLander-v2. The trajectory ID is \"final_ep032\". The episode length is 67, terminated=true, truncated=false. Features: initial_distance_to_target=1.41, final_distance_to_target=0.282, distance_improvement=1.128, final_speed=0.993, final_vertical_speed_abs=0.827, final_horizontal_speed_abs=0.550, final_angle_abs=0.252, contact_ratio_last20=0.15. The rule label is \"partial_progress\" with detail \"approach_unstable\". Evidence: \"approached target but final_speed=0.993 is high\".\n\nWe need to produce a final judgment. We must follow the labeling cautions: do not treat high approach progress with unstable final speed or large angle as success_like. Also, both legs must be in contact and near pad for success_like. Here, final_legs_contact_both is not explicitly given, but we have contact_ratio_last20=0.15 which suggests very low leg contact. Also final_speed is high (0.993), final_vertical_speed is high (0.827), final_angle_abs is 0.252 (about 14 degrees). That is not stable. So definitely not success_like. Early failure? Episode length 67 out of 1000, so it ended early. Terminated true, but not truncated. Possibly crash? But we don't have explicit crash evidence except reward component totals: crash_penalty -8.0, which indicates a crash occurred. The env manifest says termination can occur due to crash. So this episode likely ended due to crash. However, the distance improvement is good (1.128), and min distance 0.282, so it did approach the pad but then crashed. That fits \"partial_progress\" because there is progress but then a crash. The rule label is partial_progress. We need to decide if we agree.\n\nLet's check the component totals: approach_progress is positive, velocity_control 0, angle_stability negative, landing_bonus 0, crash_penalty -8, survival_bonus small. So overall candidate return negative. The env_return is very negative. So evidence supports partial progress ending in crash.\n\nThus coarse_label should be \"partial_progress\". Detail label: \"approach_unstable\" or \"crash_after_approach\"? The rule label uses approach_unstable. I think that's appropriate because final speed is high.\n\nConfidence: I'll set 0.85 because evidence is clear.\n\nagree_with_rule: true.\n\nEvidence used: list key numeric evidence.\n\nConflict warnings: none.\n\nuse_for_memory: true, use_for_tage_pair: true, allowed_preference_role: mid_reference.\n\ndo_not_use_reason: \"\".\n\nNow output JSON."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3485,
+    "completion_tokens": 824,
+    "total_tokens": 4309,
+    "prompt_tokens_details": {
+      "cached_tokens": 3456
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 609
+    },
+    "prompt_cache_hit_tokens": 3456,
+    "prompt_cache_miss_tokens": 29
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

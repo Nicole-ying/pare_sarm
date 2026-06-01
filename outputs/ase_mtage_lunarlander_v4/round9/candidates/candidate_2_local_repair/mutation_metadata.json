@@ -1,0 +1,42 @@
+{
+  "candidate_id": "round9_candidate2_local_repair",
+  "round": 9,
+  "mutation_family": "local_repair",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale coefficients",
+      "do not construct success_like preference pairs; no high-confidence success_like trajectories",
+      "do not treat partial_progress as success_like"
+    ],
+    "required_changes": [
+      "restructure approach_progress to strongly penalize early_failure trajectories (e.g., negative baseline or quality-based scaling that yields negative reward for low progress or high speed/angle)",
+      "replace terminal_reward with separate crash_penalty (sufficiently negative, e.g., -10 or more) for unsafe terminations and safe_landing_bonus (positive under stringent conditions: both legs, very low speed, small angle, sustained leg contact)",
+      "preserve progress-conditioned gating (far/near stages) and the positive-favoring components: proximity_bonus, near_stability, leg_bonus, low_progress_timeout",
+      "ensure new crash_penalty and safe_landing_bonus are gated by stage (e.g., near_stage) to avoid affecting far-stage behavior"
+    ],
+    "preserve_components": [
+      "proximity_bonus",
+      "near_stability",
+      "leg_bonus",
+      "low_progress_timeout",
+      "progress-conditioned gating (far_stage, near_stage)"
+    ],
+    "remove_or_gate_components": [
+      "terminal_reward"
+    ]
+  },
+  "coverage_type_used": "partial_or_success_only",
+  "intended_fix": [
+    "make a conservative reward with clear components",
+    "use analyzer context to gate known failure patterns"
+  ],
+  "expected_effect": "Provide a simple, interpretable baseline candidate that reacts to known failures.",
+  "risk": "May be too weak for difficult tasks.",
+  "official_reward_used": false
+}

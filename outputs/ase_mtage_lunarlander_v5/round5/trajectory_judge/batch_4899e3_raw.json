@@ -1,0 +1,32 @@
+{
+  "id": "038c7c8a-5b0c-4a7f-b09a-24e34e3bdbb9",
+  "object": "chat.completion",
+  "created": 1780293927,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep030\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep031\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep032\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep033\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep034\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep035\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep036\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep037\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep038\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep039\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards (final_ep030 to final_ep039). All trajectories have episode length 1000, truncated (terminated false). They all have final distances to target around 1.04-1.12, initial distances around 1.4, so distance improvement around 0.3-0.37. Final speeds vary but are all low (<0.08). Contact ratio last20 is 0 for all, meaning no leg contact in last 20% of steps. No trajectory has any leg contact (contact_ratio_last20=0). Also, component totals show only far_approach_progress positive, and all have -5 timeout penalty. No mid_approach, stability, leg bonus, safe landing, or terminal failure.\n\nThese trajectories are all truncated at max steps; they never landed nor crashed. They all show some progress in approaching the pad (distance decreased by about 0.3-0.37), but final distance is still >1, meaning far from pad. No leg contact whatsoever. Speeds are low, but they are likely hovering or drifting far above the pad? Actually final distance >1 and no leg contact suggests they never reached the pad vicinity. The progress is moderate but they never entered the \"near\" zone. So these are all similar: truncated, some approach progress but not enough to reach pad, no landing, no crash.\n\nGiven the labeling guidelines: \n\n- early_failure: episode ends early with little useful progress. But these are max length (1000), so not early.\n- low_progress_survival: episode lasts but shows little task progress. They show some progress (distance improved 0.3-0.37), but final distance still >1. That is not little? Might be considered \"partial_progress\" since they made some progress but not success.\n- partial_progress: trajectory shows real progress but does not reach stable success. This seems fitting: they made real progress in approaching the pad (distance decreased), but they never landed (no leg contact, final distance >1). They are truncated, not crashed.\n- success_like: requires strong match to goal: both legs contact, low speeds, small angle, near pad. None of these have leg contact, final distance >1, so cannot be success_like.\n- ambiguous: evidence insufficient or conflicting. Not the case here; evidence is clear.\n\nAll trajectories have similar patterns, so classify as \"partial_progress\". Also, since they are not ambiguous, use_for_tage_pair should be true.\n\nThus for all 10 cards: coarse_label = \"partial_progress\", use_for_tage_pair = true.\n\nOutput JSON array with 10 objects."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7797,
+    "completion_tokens": 938,
+    "total_tokens": 8735,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 555
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5749
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

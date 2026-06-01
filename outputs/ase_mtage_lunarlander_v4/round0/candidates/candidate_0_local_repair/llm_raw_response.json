@@ -1,0 +1,32 @@
+{
+  "id": "c4cf5888-238f-44ce-9583-3a06324ef08c",
+  "object": "chat.completion",
+  "created": 1780235697,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "```python\nimport math\n\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except Exception:\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    # Current and next observations\n    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0\n    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0\n    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0\n    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0\n    vx1 = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0\n    vy1 = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0\n    angle1 = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0\n    ang_vel1 = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0\n    left_leg = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0\n    right_leg = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0\n\n    # Distance to landing pad (center at (0,0))\n    prev_distance = math.sqrt(x0 * x0 + y0 * y0)\n    next_distance = math.sqrt(x1 * x1 + y1 * y1)\n\n    # Approach progress (negative is good)\n    progress_delta = prev_distance - next_distance\n\n    # Stability penalty: penalize high velocities and large angle when near ground\n    # Use vertical distance as a proxy for ground proximity\n    is_near_ground = y1 < 0.2 and y1 > -0.1  # close to landing pad surface\n    stability_penalty = 0.0\n    if is_near_ground:\n        speed = math.sqrt(vx1 * vx1 + vy1 * vy1)\n        angle_abs = abs(angle1)\n        # Penalize high speed and large tilt near ground\n        stability_penalty = -0.5 * (speed + 2.0 * angle_abs + 0.5 * abs(ang_vel1))\n\n    # Safe landing bonus: both legs contact, low speed, small angle\n    both_legs_contact = (left_leg > 0.5) and (right_leg > 0.5)\n    is_stable = (abs(vy1) < 0.5) and (abs(vx1) < 0.3) and (abs(angle1) < 0.2) and (abs(ang_vel1) < 0.3)\n    safe_landing_bonus = 1.0 if (terminated and both_legs_contact and is_stable and y1 < 0.1) else 0.0\n\n    # Crash penalty: terminated without safe landing\n    crash_penalty = 0.0\n    if terminated and not (both_legs_contact and is_stable and y1 < 0.1):\n        # Penalize crashes\n        crash_penalty = -0.5\n\n    # Timeout penalty: truncated with significant remaining distance\n    timeout_penalty = 0.0\n    if truncated:\n        # If still far from pad, penalize\n        if next_distance > 0.5:\n            timeout_penalty = -0.3\n        elif next_distance > 0.2:\n            timeout_penalty = -0.1\n\n    # Components dictionary\n    components = {\n        \"approach_progress\": progress_delta,\n        \"stability_penalty\": stability_penalty,\n        \"safe_landing_bonus\": safe_landing_bonus,\n        \"crash_penalty\": crash_penalty,\n        \"timeout_penalty\": timeout_penalty,\n    }\n\n    # Weighted sum\n    total_reward = (\n        2.0 * progress_delta\n        + 1.0 * stability_penalty\n        + 3.0 * safe_landing_bonus\n        + 1.0 * crash_penalty\n        + 1.0 * timeout_penalty\n    )\n\n    return float(total_reward), components\n```",
+        "reasoning_content": "We need to generate a conservative repair mutation for LunarLander-v2. Since there's no parent code provided, we are starting from scratch. But the mutation family is \"local_repair\", which assumes a parent exists. However, the input has empty parent_reward_code_optional. In that case, we need to produce a reasonable first reward function that is conservative, with clear components, and gated appropriately.\n\nWe should follow the guidelines: avoid survival bonuses, include progress, stability, terminal conditions, use leg contacts, etc. Since there's no parent to repair, we will create a simple yet effective reward function that can serve as a base for future mutations.\n\nWe'll use the observation schema: [x, y, vx, vy, angle, angular_velocity, left_leg, right_leg] (indices 0-7). Components: approach_progress (distance decrease), stability penalty (velocity, angle), safe landing bonus (when terminated and both legs contact, low speed, low angle), crash penalty (terminated but not safe), timeout penalty (truncated with low progress). We'll gate components appropriately. We'll use _safe_float helper.\n\nWe'll output only Python code."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3192,
+    "completion_tokens": 1294,
+    "total_tokens": 4486,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 249
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 2808
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

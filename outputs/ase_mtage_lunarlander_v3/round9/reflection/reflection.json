@@ -1,0 +1,36 @@
+{
+  "round": 9,
+  "parent_reward_id": "round8_candidate2_local_repair",
+  "selected_candidate_id": "round9_candidate2_local_repair",
+  "mutation_family": "local_repair",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "no_success_like_trajectories",
+    "main_success_signal": "weak_pairwise_preference_improved"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "terminal_penalty penalized partial_progress more than failures; low_alt_stability lacked proximity gating",
+    "repair_attempt": "gated low_alt_stability by proximity, adjusted terminal_penalty to penalize low_progress_survival more, kept early_approach",
+    "outcome_after": "weak preference consistency improved (0.896) but no success-like trajectories yet; low_progress_survival still receives some reward"
+  },
+  "lesson": "Local repair that gates low_alt_stability and restructures terminal_penalty can improve weak preference for partial_progress over low_progress_survival, but success conversion requires further strengthening of near-pad stability and success bonus attainability.",
+  "future_guidance": [
+    "preserve early_approach component",
+    "gate low_alt_stability by pad proximity and leg contact",
+    "avoid terminal_penalty that penalizes partial_progress more than failures",
+    "make leg_bonus and terminal_bonus attainable for partial_progress with softer conditioning",
+    "ensure net reward on partial_progress is strictly higher than on low_progress_survival"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round9_candidate2_local_repair",
+    "reason": "Selected candidate showed improved weak preference consistency and was added to elite archive; no rollback needed."
+  },
+  "uncertainties": [
+    "No high-confidence success_like trajectories exist",
+    "Impact of low_alt_stability gating on low_progress_survival still uncertain",
+    "Component alignment of leg_bonus and terminal_bonus remains low"
+  ],
+  "agent_mode": "llm_reflector"
+}

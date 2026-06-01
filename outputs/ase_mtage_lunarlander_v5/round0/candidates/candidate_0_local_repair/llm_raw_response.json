@@ -1,0 +1,32 @@
+{
+  "id": "b431d8f9-8091-42eb-a51f-d612ddf905eb",
+  "object": "chat.completion",
+  "created": 1780289007,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "```python\nimport math\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except Exception:\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    # extract relevant state components from next_obs\n    x_pos = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0\n    y_pos = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0\n    x_vel = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0\n    y_vel = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0\n    angle = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0\n    angular_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0\n    left_leg = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0\n    right_leg = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0\n\n    # same for obs to compute progress\n    prev_x = _safe_float(obs[0]) if len(obs) > 0 else 0.0\n    prev_y = _safe_float(obs[1]) if len(obs) > 1 else 0.0\n\n    # distance to pad (pad at (0,0))\n    prev_dist = math.sqrt(prev_x * prev_x + prev_y * prev_y)\n    curr_dist = math.sqrt(x_pos * x_pos + y_pos * y_pos)\n\n    # progress: decreasing distance is positive\n    progress_delta = prev_dist - curr_dist\n\n    # component: approach progress (only if not extremely close to pad)\n    near_pad = 1.0 if curr_dist < 0.35 else 0.0\n    far_from_pad = 1.0 - near_pad\n    approach_progress = far_from_pad * progress_delta\n\n    # stability component when near pad\n    # penalize high speeds and large angle\n    speed_penalty = abs(x_vel) + abs(y_vel) + abs(angle) + abs(angular_vel)\n    terminal_stability = near_pad * (-speed_penalty)\n\n    # unsafe terminal: if terminated (likely crash) with high vertical velocity or large angle\n    unsafe_terminal = 0.0\n    if terminated:\n        if abs(y_vel) > 0.8 or abs(angle) > 0.3:\n            unsafe_terminal = -5.0\n        else:\n            # if terminated but stable, maybe success? but we only give a small bonus if both legs contact and low speed\n            if left_leg > 0.5 and right_leg > 0.5 and abs(x_vel) < 0.1 and abs(y_vel) < 0.1 and abs(angle) < 0.05 and abs(angular_vel) < 0.05:\n                unsafe_terminal = 5.0  # safe landing bonus\n            else:\n                unsafe_terminal = 0.0\n    # low progress timeout penalty\n    low_progress_timeout = 0.0\n    if truncated and curr_dist > 0.5:\n        low_progress_timeout = -2.0\n\n    components = {\n        \"approach_progress\": approach_progress,\n        \"terminal_stability\": terminal_stability,\n        \"unsafe_terminal\": unsafe_terminal,\n        \"low_progress_timeout\": low_progress_timeout\n    }\n\n    total_reward = 4.0 * approach_progress + 1.0 * terminal_stability + unsafe_terminal + low_progress_timeout\n    total_reward = float(total_reward)\n    return total_reward, components\n```",
+        "reasoning_content": "We are asked to produce a conservative repair (local_repair) mutation. However, the parent_reward_code_optional is empty, meaning there is no parent reward code. That is unusual. Perhaps we need to generate a reasonable initial reward function from scratch, given that there's no parent? The mutation family is \"local_repair\" which expects a parent to repair, but we have none. Possibly we need to treat this as a base case and write a reasonable reward that follows the guidelines, but the instruction says keep parent structure mostly intact. Since there is no parent, we must write a conservative reward that is simple and uses observable state.\n\nGiven the environment is LunarLander-v2, we can design a reward based on progress toward the landing pad, stability, and terminal conditions. We should avoid survival bonuses, and use the allowed observations.\n\nWe need to produce a Python module with compute_reward. We'll use safe_float helper. We'll write components for progress, stability, terminal penalties, etc.\n\nEnsure total_reward is finite and components dictionary.\n\nGiven reflection_guidance is empty, and no analyzer evaluation, we'll make a simple but reasonable reward.\n\nWe'll follow component design guidelines: progress-related terms, stability/safety, terminal penalties only when observable evidence (like crashes). Use approach progress (distance improvement), terminal stability (reward smooth landing), unsafe terminal (penalty for high velocity or angle at termination), low_progress_timeout (penalty for truncated with high distance).\n\nWe'll not use any official reward.\n\nGiven the policy, we must not use random behavior.\n\nWe'll output only Python code.\n\nLet's write the code."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3205,
+    "completion_tokens": 1251,
+    "total_tokens": 4456,
+    "prompt_tokens_details": {
+      "cached_tokens": 1792
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 337
+    },
+    "prompt_cache_hit_tokens": 1792,
+    "prompt_cache_miss_tokens": 1413
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

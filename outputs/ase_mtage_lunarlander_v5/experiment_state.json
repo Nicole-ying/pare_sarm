@@ -1,0 +1,29 @@
+{
+  "method": "ASE-MTAGE",
+  "env_id": "LunarLander-v2",
+  "exp_dir": "outputs/ase_mtage_lunarlander_v5",
+  "current_round": 9,
+  "last_completed_node": "EXPERIMENT_COMPLETED",
+  "completed_rounds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "max_rounds": 10,
+  "use_short_training": false,
+  "selected_long_train_per_round": 1,
+  "historical_best_health_used_as_gate": false,
+  "notes": [
+    "Closed-loop ASE-MTAGE with long training and trajectory-memory accumulation.",
+    "If llm.enabled=true and llm.fallback_on_error=false, LLM failures stop the run.",
+    "Analyzer receives full round evidence: coverage, trajectory labels, components, selection, TAGE, and memory.",
+    "No historical-best-health gate is used."
+  ]
+}

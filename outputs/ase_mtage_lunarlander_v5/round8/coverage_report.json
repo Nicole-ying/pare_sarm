@@ -1,0 +1,61 @@
+{
+  "num_trajectories": 380,
+  "num_labeled_non_ambiguous": 380,
+  "num_use_for_tage_pair": 380,
+  "label_counts": {
+    "early_failure": 53,
+    "partial_progress": 236,
+    "low_progress_survival": 91
+  },
+  "labeled_label_counts": {
+    "early_failure": 53,
+    "partial_progress": 236,
+    "low_progress_survival": 91
+  },
+  "preference_role_counts": {
+    "negative_reference": 144,
+    "mid_reference": 236
+  },
+  "dynamic_min_count_per_label": 12,
+  "nontrivial_labels": [
+    "early_failure",
+    "low_progress_survival",
+    "partial_progress"
+  ],
+  "label_margin": {
+    "is_margin_sufficient": true,
+    "positive_label_group": "partial_progress",
+    "num_failure_cards": 144,
+    "num_positive_cards": 236,
+    "failure_progress_mean": -1.0383761803988611,
+    "positive_progress_mean": 0.5460343389283886,
+    "progress_gap": 1.5844105193272497,
+    "failure_stability_proxy_mean": -1.263139142334721,
+    "positive_stability_proxy_mean": -0.42644998712918547,
+    "stability_gap": 0.8366891552055354,
+    "thresholds": {
+      "progress_gap_min": 0.05,
+      "stability_gap_min": -0.05
+    }
+  },
+  "coverage_type": "failure_plus_partial_progress",
+  "decision_level": "weak_pairwise_selection",
+  "can_build_preference_pairs": true,
+  "allowed_preference_relations": [
+    [
+      "partial_progress",
+      "early_failure"
+    ],
+    [
+      "partial_progress",
+      "low_progress_survival"
+    ]
+  ],
+  "allowed_decision": "Use weak preference pairs to select a candidate for long training with low-confidence warning.",
+  "forbidden_assumptions": [
+    "Do not construct success_like preference pairs because no high-confidence success_like trajectory exists.",
+    "Do not treat partial_progress as success_like; only weak preference pairs are allowed."
+  ],
+  "suggested_search_mode": "escape_known_failures_and_improve_partial_progress",
+  "phase": "error_aware_memory_coverage"
+}

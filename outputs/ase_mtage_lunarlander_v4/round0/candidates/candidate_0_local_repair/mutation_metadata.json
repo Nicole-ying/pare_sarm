@@ -1,0 +1,16 @@
+{
+  "candidate_id": "round0_candidate0_local_repair",
+  "round": 0,
+  "mutation_family": "local_repair",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": null,
+  "mutation_intent_used": {},
+  "coverage_type_used": null,
+  "intended_fix": [
+    "make a conservative reward with clear components",
+    "use analyzer context to gate known failure patterns"
+  ],
+  "expected_effect": "Provide a simple, interpretable baseline candidate that reacts to known failures.",
+  "risk": "May be too weak for difficult tasks.",
+  "official_reward_used": false
+}

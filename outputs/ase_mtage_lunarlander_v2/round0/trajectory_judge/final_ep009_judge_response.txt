@@ -1,0 +1,22 @@
+{
+  "trajectory_id": "final_ep009",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.8
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=0.763 indicates significant approach progress",
+    "final_distance_to_target=0.654 is still far from pad",
+    "final_speed=0.358 with high horizontal component (0.358) suggests instability",
+    "final_angle_abs=0.099 radians (5.7 degrees) is moderate but not negligible",
+    "contact_ratio_last20=0.1 shows legs rarely contact in last steps",
+    "episode_length=85 and terminated=true suggest early termination, possibly crash or out-of-bounds"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

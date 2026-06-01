@@ -1,0 +1,82 @@
+import math
+
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    # Current and next observations
+    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0
+    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0
+    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0
+    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0
+    vx1 = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0
+    vy1 = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0
+    angle1 = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0
+    ang_vel1 = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0
+    left_leg = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0
+    right_leg = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0
+
+    # Distance to landing pad (center at (0,0))
+    prev_distance = math.sqrt(x0 * x0 + y0 * y0)
+    next_distance = math.sqrt(x1 * x1 + y1 * y1)
+
+    # Approach progress (negative is good)
+    progress_delta = prev_distance - next_distance
+
+    # Stability penalty: penalize high velocities and large angle when near ground
+    # Use vertical distance as a proxy for ground proximity
+    is_near_ground = y1 < 0.2 and y1 > -0.1  # close to landing pad surface
+    stability_penalty = 0.0
+    if is_near_ground:
+        speed = math.sqrt(vx1 * vx1 + vy1 * vy1)
+        angle_abs = abs(angle1)
+        # Penalize high speed and large tilt near ground
+        stability_penalty = -0.5 * (speed + 2.0 * angle_abs + 0.5 * abs(ang_vel1))
+
+    # Safe landing bonus: both legs contact, low speed, small angle
+    both_legs_contact = (left_leg > 0.5) and (right_leg > 0.5)
+    is_stable = (abs(vy1) < 0.5) and (abs(vx1) < 0.3) and (abs(angle1) < 0.2) and (abs(ang_vel1) < 0.3)
+    safe_landing_bonus = 1.0 if (terminated and both_legs_contact and is_stable and y1 < 0.1) else 0.0
+
+    # Crash penalty: terminated without safe landing
+    crash_penalty = 0.0
+    if terminated and not (both_legs_contact and is_stable and y1 < 0.1):
+        # Penalize crashes
+        crash_penalty = -0.5
+
+    # Timeout penalty: truncated with significant remaining distance
+    timeout_penalty = 0.0
+    if truncated:
+        # If still far from pad, penalize
+        if next_distance > 0.5:
+            timeout_penalty = -0.3
+        elif next_distance > 0.2:
+            timeout_penalty = -0.1
+
+    # Components dictionary
+    components = {
+        "approach_progress": progress_delta,
+        "stability_penalty": stability_penalty,
+        "safe_landing_bonus": safe_landing_bonus,
+        "crash_penalty": crash_penalty,
+        "timeout_penalty": timeout_penalty,
+    }
+
+    # Weighted sum
+    total_reward = (
+        2.0 * progress_delta
+        + 1.0 * stability_penalty
+        + 3.0 * safe_landing_bonus
+        + 1.0 * crash_penalty
+        + 1.0 * timeout_penalty
+    )
+
+    return float(total_reward), components

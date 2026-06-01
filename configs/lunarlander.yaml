@@ -1,0 +1,47 @@
+# PARE-SARM configuration for LunarLander-v2
+env_id: LunarLander-v2
+
+# Training budget
+proxy_timesteps: 100000
+full_timesteps: 1000000
+n_envs_proxy: 8
+n_envs_full: 16
+seed: 42
+device: cuda:1
+normalize: false
+max_episode_steps: 1000
+
+# Pipeline
+n_rounds: 10
+k_candidates: 3
+
+# Evaluation during training
+eval_freq: 200000
+eval_episodes: 10
+
+# Checkpoints
+checkpoint_freq: 200000
+
+# GIF recording (full training only, candidates skip GIF)
+gif_steps: [1000000]
+gif_fps: 30
+gif_max_steps: 1000
+
+# PPO hyperparameters
+ppo:
+  policy: MlpPolicy
+  learning_rate: 0.0003
+  n_steps: 1024
+  batch_size: 64
+  n_epochs: 4
+  gamma: 0.999
+  gae_lambda: 0.98
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+
+# LLM
+llm_model: deepseek-reasoner
+llm_temperature: 0.6
+llm_api_key: ""  # Set your DeepSeek API key here, or use DEEPSEEK_API_KEY env var

@@ -1,0 +1,32 @@
+{
+  "id": "0234a467-6f98-406f-a4be-af16adcf7440",
+  "object": "chat.completion",
+  "created": 1780295748,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep030\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep031\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep032\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep033\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep034\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep035\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep036\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep037\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep038\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep039\",\n    \"coarse_label\": \"low_progress_survival\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards (final_ep030 to final_ep039). All episodes have length 1000, terminated=false, truncated=true (timeout). The task is to land safely on the landing pad. The evidence shows that all trajectories ended far from the pad (final_distance_to_target >2), with no leg contact (contact_ratio_last20=0.0), and the lander is drifting with non-zero horizontal speed and vertical speed. All have negative distance improvement, meaning they moved away from the pad. None show any leg contact. The final speeds are all low (<0.15), but that's because they are floating in space? Actually, the lander may be in a stable hover but not near the pad.\n\nGiven these features, none of them show any progress toward landing. They all survive the full episode but make no progress (distance increased). The candidate reward components show positive approach_progress but that's from the candidate reward function, not necessarily meaning real progress. The actual final distance is larger than initial, so they moved away. This suggests they are \"low_progress_survival\" or maybe \"partial_progress\" if they had some approach progress? But the distance improvement is negative, so they moved away. The \"approach_progress\" component may reward moving toward the pad at some point, but the net effect is moving away. The final state is far from pad with no leg contact and some drift.\n\nGiven the labeling cautions: \"Do not treat long episode length alone as success_like.\" These are all truncated at max steps. They show no sign of landing or even approaching. They are clearly not success_like. They are not early_failure because they didn't terminate early. They survived the whole episode but without making progress toward the goal. The \"low_progress_survival\" label is appropriate: \"episode lasts but shows little task progress.\" They have little to no progress (negative progress). Some have very small final speeds and angles, but they are not near the pad. So \"low_progress_survival\" fits.\n\nFor ambiguous: There is no conflict; all evidence points to low progress. So use_for_tage_pair should be true for all.\n\nThus, for all 10 trajectories, I'll set coarse_label=\"low_progress_survival\", use_for_tage_pair=true.\n\nNow output JSON array."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7722,
+    "completion_tokens": 902,
+    "total_tokens": 8624,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 489
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5674
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

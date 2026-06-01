@@ -1,0 +1,32 @@
+{
+  "id": "0746086a-3db7-4234-9418-515abeb04da3",
+  "object": "chat.completion",
+  "created": 1780041613,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\n  \"trajectory_id\": \"final_ep012\",\n  \"final_label\": {\n    \"coarse_label\": \"partial_progress\",\n    \"detail_label\": \"approach_unstable\",\n    \"confidence\": 0.85\n  },\n  \"agree_with_rule\": true,\n  \"evidence_used\": [\n    \"distance_improvement=0.880 indicates significant approach progress\",\n    \"final_speed=1.612 is high, indicating unstable final state\",\n    \"crash_penalty component suggests a crash occurred\",\n    \"contact_ratio_last20=0.1 indicates low leg contact stability near end\"\n  ],\n  \"conflict_warnings\": [],\n  \"use_for_memory\": true,\n  \"use_for_tage_pair\": true,\n  \"allowed_preference_role\": \"mid_reference\",\n  \"do_not_use_reason\": \"\"\n}",
+        "reasoning_content": "We are given a trajectory evidence card for LunarLander-v2. The trajectory is \"final_ep012\" with episode length 67, terminated=true, truncated=false. Features: initial_distance_to_target=1.408, min_distance=0.482, final_distance=0.528, distance_improvement=0.880, final_speed=1.612, final_vertical_speed_abs=1.113, final_horizontal_speed_abs=1.167, final_angle_abs=0.0833, contact_ratio_last20=0.1, progress_improvement=0.880. Reward component totals: approach_progress=4.226, velocity_control=0.0, angle_stability=-0.541, landing_bonus=0.0, crash_penalty=-10.0, timeout_penalty=0.0, survival_bonus=0.66. Candidate return=-5.655, env_return_recorded=-124.349. Rule label: partial_progress with detail approach_unstable, evidence: \"approached target but final_speed=1.612 is high\".\n\nWe need to judge using the evidence card only, not official reward. The task manifest says: \"Do not treat high approach progress with unstable final speed or large angle as success_like.\" and \"Both legs must be in contact with the ground and the lander must be near the pad (x near 0) for a safe landing; unstable final state (high speed, large angle) should not be classified as success_like.\"\n\nWe have contact_ratio_last20=0.1, meaning only 10% of last 20 steps had both legs in contact? Or contact ratio meaning fraction of steps with both legs contact? The feature is named \"contact_ratio_last20\", likely fraction of steps where both legs are in contact in the last 20 steps. 0.1 is low, so not stable. Final speed is high (1.612), vertical speed high (1.113), horizontal speed high (1.167). Final angle is small (0.0833 rad), which is good, but speed is too high for success. Also, episode length only 67, and crash_penalty=-10 was applied, so likely a crash. The reward component includes crash_penalty, so it terminated due to crash. That means it's not a successful landing. The trajectory shows approach progress (distance improvement 0.88) but ended in crash. Therefore, it's not success_like, not early_failure because there is progress, and not low_progress_survival because progress is significant. So partial_progress seems appropriate.\n\nWe must check if evidence is conflicting. It appears consistent: approach progress made, but final state unstable and crash ensued.\n\nConfidence: high, around 0.85.\n\nAgree with rule: yes.\n\nEvidence used: distance_improvement=0.880 shows approach; final_speed=1.612 high; crash_penalty suggests crash; contact_ratio low.\n\nConflict warnings: none.\n\nUse for memory: yes, can be stored.\n\nUse for tage pair: yes, partial_progress -> mid_reference.\n\nNow build JSON output.\n\nNote: allowed_preference_role must be \"mid_reference\" for partial_progress.\n\nAlso, use_for_tage_pair: true.\n\ndo_not_use_reason: empty.\n\nNow output JSON."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3483,
+    "completion_tokens": 898,
+    "total_tokens": 4381,
+    "prompt_tokens_details": {
+      "cached_tokens": 3456
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 713
+    },
+    "prompt_cache_hit_tokens": 3456,
+    "prompt_cache_miss_tokens": 27
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

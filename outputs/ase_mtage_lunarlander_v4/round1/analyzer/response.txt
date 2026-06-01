@@ -1,0 +1,73 @@
+{
+  "round": 1,
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "overall_judgment": "parent_reward_provides_weak_progress_signal_but_components_misalign_and_terminal_handling_is_too_strict",
+  "failure_summary": "The parent reward produces partial progress trajectories but the approach_progress component slightly favors early_failure trajectories, and the stability_near and terminal_penalty components penalize partial_progress trajectories more heavily than failures, preventing emergence of success-like behavior.",
+  "memory_interpretation": {
+    "coverage_type": "ambiguous",
+    "decision_level": "no_decision",
+    "usable_preference_level": "none",
+    "main_known_failures": ["early_failure"],
+    "main_useful_patterns": ["partial_progress trajectories show approach progress but are heavily penalized for instability near the pad"],
+    "uncertainties": [
+      "Label margin insufficient (progress_gap negative, stability_gap negative) so partial_progress cannot be considered reliably better than early_failure",
+      "Only 5 early_failure trajectories, making statistics unreliable",
+      "No success-like trajectories, so success-level preferences cannot be constructed",
+      "Memory too small for strong preference pair construction"
+    ]
+  },
+  "component_diagnosis": [
+    {
+      "component": "approach_progress",
+      "verdict": "restructure",
+      "evidence": "Component summary shows failure_mean (1.0189) > positive_mean (0.9783), indicating it slightly favors early_failure over partial_progress. This contradicts the intended progress signal."
+    },
+    {
+      "component": "stability_near",
+      "verdict": "restructure",
+      "evidence": "Component summary shows positive_mean (-45.87) is far more negative than failure_mean (-21.55), meaning partial_progress trajectories near the pad are heavily penalized, discouraging near-pad behavior."
+    },
+    {
+      "component": "terminal_penalty",
+      "verdict": "restructure",
+      "evidence": "Both failure and positive trajectories receive negative terminal_penalty (failure -10.0, positive -7.6), indicating it penalizes non-crash partial_progress trajectories and fails to clearly separate crash from safe landing."
+    },
+    {
+      "component": "terminal_bonus",
+      "verdict": "restructure",
+      "evidence": "Mean terminal_bonus for positive trajectories is only 2.2, suggesting the strict conditions (vy<0.1, vx<0.1, angle<0.1, both legs) are rarely met, so it rarely rewards success."
+    },
+    {
+      "component": "low_progress_timeout",
+      "verdict": "keep",
+      "evidence": "Component is always 0.0, indicating it does not influence behavior; can be kept as-is or removed."
+    }
+  ],
+  "mutation_intent": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add global survival bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like",
+      "do not construct preference pairs from weak memory"
+    ],
+    "required_changes": [
+      "preserve progress-conditioned structure but restructure approach_progress to ensure it correctly favors higher-quality trajectories",
+      "restructure terminal handling to clearly separate crash (high penalty), safe landing (achievable bonus), and ambiguous termination (neutral)",
+      "make terminal_bonus achievable with moderate speeds and both legs contact",
+      "reduce penalty on non-crash partial_progress trajectories, especially in near stage",
+      "replace or significantly soften stability_near penalties to avoid discouraging near-pad behavior",
+      "ensure terminal_penalty only applies to unmistakable crashes"
+    ],
+    "preserve_components": ["approach_progress (or reworked progress component)"],
+    "remove_or_gate_components": []
+  },
+  "rollback_decision": {
+    "recommend_rollback": false,
+    "rollback_target": null,
+    "reason": "Training return improved from -69.87 to -62.95, and memory contains weak but usable partial-progress evidence. Rollback not indicated; current parent continues as basis for restructuring."
+  },
+  "self_evaluation_lesson": "Despite ambiguous memory and insufficient label margins, component-level evidence clearly shows that the parent reward's terminal and near-stage components are too punishing and misaligned. Restructuring terminal handling is the critical next step, as reiterated by archival lessons. Progress conditioning remains valuable but needs recalibration to avoid favoring failure trajectories. No strong conclusions should be drawn from the weak memory."
+}

@@ -1,0 +1,105 @@
+import math
+
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    # Extract observations
+    x_curr = _safe_float(obs[0]) if len(obs) > 0 else 0.0
+    y_curr = _safe_float(obs[1]) if len(obs) > 1 else 0.0
+    x_pos = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0
+    y_pos = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0
+    x_vel = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0
+    y_vel = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0
+    angle = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0
+    ang_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0
+    left_leg = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0
+    right_leg = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0
+
+    # Distances to pad (pad at (0,0))
+    curr_distance = math.sqrt(x_curr * x_curr + y_curr * y_curr)
+    next_distance = math.sqrt(x_pos * x_pos + y_pos * y_pos)
+
+    # Progress toward pad (positive = moving closer)
+    progress = curr_distance - next_distance
+
+    # Stage detection
+    high_alt = 1.0 if y_pos > 0.5 else 0.0
+    medium_alt = 1.0 if (y_pos > 0.2 and y_pos <= 0.5) else 0.0
+    low_near = 1.0 if (y_pos <= 0.2 and abs(x_pos) < 0.2) else 0.0
+
+    # ===== Stage-based rewards =====
+
+    # Early stage (high altitude): reward approach progress
+    early_approach = high_alt * max(progress, 0.0) * 6.0
+
+    # Medium stage: reward approach and moderate stability (uprightness)
+    medium_progress = medium_alt * max(progress, 0.0) * 4.0
+    medium_stability = medium_alt * max(0.0, 1.0 - (abs(angle) * 2.0 + abs(ang_vel) * 1.5)) * 2.0
+
+    # Low/near-pad stage: reward precise landing (low velocities, upright, leg contact)
+    low_precision = 0.0
+    if low_near > 0.5:
+        # Reward stable state: small velocities, low angle, legs potentially contacting
+        speed_penalty = abs(x_vel) * 3.0 + abs(y_vel) * 3.0 + abs(angle) * 5.0 + abs(ang_vel) * 2.0
+        stability_bonus = max(0.0, 1.0 - speed_penalty) * 5.0
+        leg_bonus = (1.0 if left_leg > 0.5 and right_leg > 0.5 else 0.0) * 8.0
+        low_precision = stability_bonus + leg_bonus
+
+    # ===== Terminal evaluation =====
+    terminal_bonus = 0.0
+    terminal_penalty = 0.0
+    if terminated:
+        # Success-like landing: both legs contact, near pad, low velocities, upright
+        success = (
+            abs(x_pos) < 0.15 and
+            abs(y_pos) < 0.1 and
+            abs(x_vel) < 0.3 and
+            abs(y_vel) < 0.5 and
+            abs(angle) < 0.2 and
+            left_leg > 0.5 and
+            right_leg > 0.5
+        )
+        if success:
+            terminal_bonus = 20.0
+        else:
+            # Crash penalty: penalize severe crashes more than near-landing failures
+            # Compute crash severity based on vertical velocity and angle
+            crash_severity = abs(y_vel) * 5.0 + abs(angle) * 5.0 + abs(x_vel) * 2.0
+            # Cap severity and give negative penalty (mild for low severity)
+            terminal_penalty = -min(crash_severity, 15.0)
+    elif truncated:
+        # Timeout: penalize if still far from pad or low progress
+        if next_distance > 0.5:
+            terminal_penalty = -3.0
+        elif next_distance > 0.2:
+            terminal_penalty = -1.0
+
+    # ===== Assemble components =====
+    components = {
+        "early_approach": early_approach,
+        "medium_progress": medium_progress,
+        "medium_stability": medium_stability,
+        "low_precision": low_precision,
+        "terminal_bonus": terminal_bonus,
+        "terminal_penalty": terminal_penalty,
+    }
+
+    # Weighted sum
+    total_reward = (
+        2.0 * early_approach +
+        2.0 * medium_progress +
+        1.5 * medium_stability +
+        1.0 * low_precision +
+        terminal_bonus +
+        terminal_penalty
+    )
+    return float(total_reward), components

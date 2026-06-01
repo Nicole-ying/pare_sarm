@@ -1,0 +1,69 @@
+import math
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    # extract relevant state components from next_obs
+    x_pos = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0
+    y_pos = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0
+    x_vel = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0
+    y_vel = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0
+    angle = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0
+    angular_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0
+    left_leg = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0
+    right_leg = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0
+
+    # same for obs to compute progress
+    prev_x = _safe_float(obs[0]) if len(obs) > 0 else 0.0
+    prev_y = _safe_float(obs[1]) if len(obs) > 1 else 0.0
+
+    # distance to pad (pad at (0,0))
+    prev_dist = math.sqrt(prev_x * prev_x + prev_y * prev_y)
+    curr_dist = math.sqrt(x_pos * x_pos + y_pos * y_pos)
+
+    # progress: decreasing distance is positive
+    progress_delta = prev_dist - curr_dist
+
+    # component: approach progress (only if not extremely close to pad)
+    near_pad = 1.0 if curr_dist < 0.35 else 0.0
+    far_from_pad = 1.0 - near_pad
+    approach_progress = far_from_pad * progress_delta
+
+    # stability component when near pad
+    # penalize high speeds and large angle
+    speed_penalty = abs(x_vel) + abs(y_vel) + abs(angle) + abs(angular_vel)
+    terminal_stability = near_pad * (-speed_penalty)
+
+    # unsafe terminal: if terminated (likely crash) with high vertical velocity or large angle
+    unsafe_terminal = 0.0
+    if terminated:
+        if abs(y_vel) > 0.8 or abs(angle) > 0.3:
+            unsafe_terminal = -5.0
+        else:
+            # if terminated but stable, maybe success? but we only give a small bonus if both legs contact and low speed
+            if left_leg > 0.5 and right_leg > 0.5 and abs(x_vel) < 0.1 and abs(y_vel) < 0.1 and abs(angle) < 0.05 and abs(angular_vel) < 0.05:
+                unsafe_terminal = 5.0  # safe landing bonus
+            else:
+                unsafe_terminal = 0.0
+    # low progress timeout penalty
+    low_progress_timeout = 0.0
+    if truncated and curr_dist > 0.5:
+        low_progress_timeout = -2.0
+
+    components = {
+        "approach_progress": approach_progress,
+        "terminal_stability": terminal_stability,
+        "unsafe_terminal": unsafe_terminal,
+        "low_progress_timeout": low_progress_timeout
+    }
+
+    total_reward = 4.0 * approach_progress + 1.0 * terminal_stability + unsafe_terminal + low_progress_timeout
+    total_reward = float(total_reward)
+    return total_reward, components

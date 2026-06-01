@@ -1,0 +1,40 @@
+{
+  "candidate_id": "round1_candidate2_component_recomposition",
+  "round": 1,
+  "mutation_family": "component_recomposition",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round0_candidate2_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "local_repair",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not add dense alive bonus without progress gating",
+      "do not only scale all coefficients",
+      "do not treat partial_progress as success_like"
+    ],
+    "required_changes": [
+      "Make terminal bonus more attainable by relaxing landing criteria (e.g., require y<0.15, low velocity, near upright, but not necessarily both legs initially)",
+      "Reduce or gate terminal_penalty to only apply on clear crash (high velocity or large angle)",
+      "Reduce magnitude of late_stability and flight_stability penalties to avoid discouraging landing attempts",
+      "Ensure early_approach and leg_bonus are preserved"
+    ],
+    "preserve_components": [
+      "early_approach",
+      "leg_bonus"
+    ],
+    "remove_or_gate_components": [
+      "terminal_bonus",
+      "terminal_penalty"
+    ]
+  },
+  "coverage_type_used": "ambiguous",
+  "intended_fix": [
+    "use delta/progress-style components",
+    "avoid pure survival reward",
+    "recompose components flagged by analyzer"
+  ],
+  "expected_effect": "Separate progress, stability, and terminal terms based on analyzer intent.",
+  "risk": "Delta terms may be noisy if the progress proxy is imperfect.",
+  "official_reward_used": false
+}

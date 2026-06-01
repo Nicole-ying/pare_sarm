@@ -1,0 +1,32 @@
+{
+  "id": "2706dea1-a38d-458e-9b1f-b45fb53d4bbd",
+  "object": "chat.completion",
+  "created": 1780289015,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "```python\nimport math\n\ndef _safe_float(x, default=0.0):\n    try:\n        value = float(x)\n    except Exception:\n        return default\n    if not math.isfinite(value):\n        return default\n    return value\n\ndef compute_reward(obs, action, next_obs, terminated, truncated, info):\n    # Extract current and next observation components\n    # obs is assumed to be a list/array of 8 values\n    x_cur = _safe_float(obs[0])\n    y_cur = _safe_float(obs[1])\n    vx_cur = _safe_float(obs[2])\n    vy_cur = _safe_float(obs[3])\n    angle_cur = _safe_float(obs[4])\n    angvel_cur = _safe_float(obs[5])\n    leg_left_cur = _safe_float(obs[6])\n    leg_right_cur = _safe_float(obs[7])\n\n    x_next = _safe_float(next_obs[0])\n    y_next = _safe_float(next_obs[1])\n    vx_next = _safe_float(next_obs[2])\n    vy_next = _safe_float(next_obs[3])\n    angle_next = _safe_float(next_obs[4])\n    angvel_next = _safe_float(next_obs[5])\n    leg_left_next = _safe_float(next_obs[6])\n    leg_right_next = _safe_float(next_obs[7])\n\n    # Compute distances from landing pad center (0,0)\n    dist_cur = math.sqrt(x_cur*x_cur + y_cur*y_cur)\n    dist_next = math.sqrt(x_next*x_next + y_next*y_next)\n\n    # --- Progress term ---\n    # Positive delta if distance decreases\n    progress_delta = dist_cur - dist_next\n\n    # Discourage moving away (negative progress)\n    progress_reward = progress_delta  # direct delta, no scaling yet\n\n    # --- Stability/safety term ---\n    # Penalise high absolute velocities, angle, angular velocity\n    # Use a smooth exponential penalty to avoid hard thresholds\n    stability_penalty = 0.0\n    stability_penalty += 0.5 * (abs(vx_next) + abs(vy_next))\n    stability_penalty += 0.3 * abs(angle_next)\n    stability_penalty += 0.2 * abs(angvel_next)\n    # Negate to turn into reward (lower penalty = better)\n    stability_reward = -stability_penalty\n\n    # --- Terminal bonuses / penalties ---\n    terminal_reward = 0.0\n\n    if terminated:\n        # Check for successful landing\n        # Both legs contact, low velocities, small angle, near pad\n        both_legs = (leg_left_next > 0.5) and (leg_right_next > 0.5)\n        low_vertical_speed = abs(vy_next) < 0.5\n        low_horizontal_speed = abs(vx_next) < 0.5\n        small_angle = abs(angle_next) < 0.2  # ~11 degrees\n        small_angvel = abs(angvel_next) < 0.2\n        near_pad = dist_next < 0.3\n\n        successful_landing = (both_legs and low_vertical_speed and low_horizontal_speed\n                              and small_angle and small_angvel and near_pad)\n\n        if successful_landing:\n            terminal_reward += 5.0  # large bonus\n        else:\n            # Crash or bad ending\n            terminal_reward -= 5.0  # penalty\n    else:\n        # Not terminated, no terminal bonus/penalty here\n        pass\n\n    # --- Timeout penalty (truncated) ---\n    timeout_penalty = 0.0\n    if truncated:\n        # If truncated and still far from pad, penalise strongly\n        if dist_next > 1.0:\n            timeout_penalty -= 3.0\n        else:\n            timeout_penalty -= 0.5  # mild penalty even if close\n\n    # --- Leg contact safety bonus (episodic, not terminal) ---\n    # Encourage landing with both legs down\n    leg_contact_bonus = 0.0\n    if leg_left_next > 0.5 and leg_right_next > 0.5:\n        # Both legs contact: small continuous encouragement\n        leg_contact_bonus = 0.1 * (1.0 - dist_next)  # stronger when near pad\n    elif leg_left_next > 0.5 or leg_right_next > 0.5:\n        leg_contact_bonus = 0.05 * (1.0 - dist_next)  # half if one leg\n\n    # --- Assemble components ---\n    components = {\n        \"progress_delta\": progress_reward,\n        \"stability_penalty\": stability_reward,\n        \"terminal_bonus_or_penalty\": terminal_reward,\n        \"timeout_penalty\": timeout_penalty,\n        \"leg_contact_bonus\": leg_contact_bonus\n    }\n\n    # Weighted sum\n    total_reward = (2.0 * progress_reward +\n                    1.0 * stability_reward +\n                    1.0 * terminal_reward +\n                    1.0 * timeout_penalty +\n                    1.0 * leg_contact_bonus)\n\n    # Safety clamp\n    if not math.isfinite(total_reward):\n        total_reward = 0.0\n\n    return float(total_reward), components\n```",
+        "reasoning_content": "We need to generate a reward function for LunarLander-v2 using component_recomposition mutation. Since parent_reward_code_optional is empty and no previous evaluation, we start fresh. The goal is to land safely on pad. We need to extract obs indices: 0=x_pos, 1=y_pos, 2=x_vel, 3=y_vel, 4=angle, 5=angular_vel, 6=left_leg, 7=right_leg. Action is discrete 0-3. We should create components: progress toward pad (delta distance), stability, terminal bonuses/penalties based on safe landing or crash, timeout penalty. Avoid survival bonus unless progress gated. Use _safe_float helper.\n\nWe need separate categories: progress, stability/safety, terminal, penalties. Ensure no random.\n\nWe'll compute distance to pad (pad at (0,0) from obs?). In LunarLander, x and y are relative to landing pad (center 0,0). So distance = sqrt(x^2 + y^2). Progress delta = prev_dist - cur_dist. \n\nStability: penalize high speed, high angular velocity, large angle. \n\nTerminal: if terminated and good landing (both legs contact, low speeds, small angle) give bonus; if terminated and crash (high vertical speed, out of bounds) penalty. For truncated (timeout), penalty if still far from pad.\n\nWe'll implement clear categories.\n\nOutput code."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3217,
+    "completion_tokens": 1535,
+    "total_tokens": 4752,
+    "prompt_tokens_details": {
+      "cached_tokens": 1792
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 307
+    },
+    "prompt_cache_hit_tokens": 1792,
+    "prompt_cache_miss_tokens": 1425
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

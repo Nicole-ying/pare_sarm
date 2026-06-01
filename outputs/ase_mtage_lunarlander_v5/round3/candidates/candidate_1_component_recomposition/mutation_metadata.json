@@ -1,0 +1,36 @@
+{
+  "candidate_id": "round3_candidate1_component_recomposition",
+  "round": 3,
+  "mutation_family": "component_recomposition",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round2_candidate0_component_recomposition",
+  "mutation_intent_used": {
+    "primary_family": "progress_conditioned",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not treat partial_progress as success_like",
+      "do not add global survival bonus without progress gating",
+      "do not remove approach_progress"
+    ],
+    "required_changes": [
+      "introduce positive intermediate rewards for progress toward safe landing state (e.g., leg contact with low velocities, stable hovering near pad that does not penalize final descent)",
+      "restructure safe_landing_bonus to be achievable or provide partial credit for meeting sub-conditions",
+      "strengthen reward for achieving both legs contact when near pad and stable",
+      "preserve approach_progress as it drives partial_progress"
+    ],
+    "preserve_components": [
+      "approach_progress"
+    ],
+    "remove_or_gate_components": []
+  },
+  "coverage_type_used": "failure_plus_partial_progress",
+  "intended_fix": [
+    "use delta/progress-style components",
+    "avoid pure survival reward",
+    "recompose components flagged by analyzer"
+  ],
+  "expected_effect": "Separate progress, stability, and terminal terms based on analyzer intent.",
+  "risk": "Delta terms may be noisy if the progress proxy is imperfect.",
+  "official_reward_used": false
+}

@@ -1,0 +1,32 @@
+{
+  "id": "1f43267d-88e9-4850-bb82-16a78bdf9410",
+  "object": "chat.completion",
+  "created": 1780293935,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep040\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep041\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep042\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep043\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep044\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep045\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep046\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep047\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep048\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep049\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards (final_ep040 to final_ep049). Each card has features like final distance to target, final speed, final vertical/horizontal speed, final angle, contact ratio (all 0), and truncated True after 1000 steps with terminated false. \n\nThe task is LunarLander-v2: land safely on landing pad. Success requires both legs on ground, low speeds, small angle. None of these trajectories have leg contact (contact_ratio_last20=0) nor terminated (so no crash). All are truncated at max steps 1000. They have some distance improvement but still far from pad (final distance ~1.0-1.1). They have low final speeds (vertical <0.05, horizontal <0.14, angle small). But they never land (no leg contact). So they never achieve the landing state. They are hovering or floating near the surface but not making contact. The trajectories show some progress but not enough. \n\nAccording to labeling: \n- Early failure: episode ends early with little progress. These are not early, they run full length.\n- Low progress survival: episode lasts but shows little progress. Here they do show distance improvement (~0.3-0.38) so some progress, but not much relative to initial distance ~1.4. Final distance ~1.0 is still far from pad.\n- Partial progress: real progress but does not reach stable success. This fits: they have some progress (distance decreased), low speeds, but no landing.\n- Success like: must have both legs contact, near-zero velocities, small angle, within pad. None have leg contact, so not success.\n- Ambiguous: evidence insufficient/conflicting. Here evidence is consistent: all truncated, no crash, no landing, some progress. Not ambiguous.\n\nThus each trajectory fits \"partial_progress\" because there is observable progress (distance improved, low final velocities, small angle) but no final landing. They are not early failures, nor low progress (since progress is nontrivial), and not success.\n\nSo label all as partial_progress and use_for_tage_pair true.\n\nOne more check: The features include \"contact_ratio_last20\" = 0 for all, meaning no leg contact in last 20% of steps. So no landing attempt. The final states have low speed and angle, so they are stable hovering but not landing. That is partial progress.\n\nThus output array.\n\nReturn:"
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7796,
+    "completion_tokens": 891,
+    "total_tokens": 8687,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 508
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5748
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

@@ -1,0 +1,78 @@
+"""Proxy reward candidate."""
+
+import math
+import numpy as np
+
+
+def compute_reward(state, m_power, s_power, terminated):
+    # Extract state components
+    x = state[0]
+    y = state[1]
+    vx = state[2]
+    vy = state[3]
+    angle = state[4]
+    angvel = state[5]
+    left_leg = state[6]
+    right_leg = state[7]
+
+    # === Per-step components ===
+
+    # 1. Progress reward: encourages moving toward the pad and staying upright
+    progress = progress_fn(state)           # in [0, 1]
+    progress_reward = 5.0 * progress        # typical range [0, 5]
+
+    # 2. Speed penalty: discourage high horizontal/vertical speed
+    speed_sq = vx * vx + vy * vy
+    speed_penalty = -0.5 * speed_sq          # typical range [-12.5, 0]
+
+    # 3. Angle penalty: discourage tilt and angular velocity
+    angle_sq = angle * angle + angvel * angvel
+    angle_penalty = -0.5 * angle_sq          # typical range [-10, 0]
+
+    # 4. Alive bonus: small positive to keep episode going
+    alive_bonus = 0.05
+
+    # 5. Leg contact bonus: reward when both legs touch the ground (likely on pad)
+    leg_bonus = 1.0 if (left_leg == 1.0 and right_leg == 1.0) else 0.0
+
+    # 6. Fuel penalty: small cost for using engines
+    fuel_penalty = -0.01 * (m_power + abs(s_power))
+
+    # Per-step sum (terminal bonus added later)
+    per_step_total = progress_reward + alive_bonus + leg_bonus + fuel_penalty + speed_penalty + angle_penalty
+
+    # === Terminal bonus ===
+    safe_landing = (
+        terminated
+        and left_leg == 1.0
+        and right_leg == 1.0
+        and abs(x) < 0.2
+        and abs(y) < 0.2
+        and abs(angle) < 0.2
+        and speed_sq < 0.5
+    )
+
+    if safe_landing:
+        outcome_bonus = 200.0
+        outcome = 1.0
+    elif terminated:
+        outcome_bonus = -100.0
+        outcome = -1.0
+    else:
+        outcome_bonus = 0.0
+        outcome = 0.0
+
+    total = per_step_total + outcome_bonus
+
+    components = {
+        "progress_reward": progress_reward,
+        "speed_penalty": speed_penalty,
+        "angle_penalty": angle_penalty,
+        "alive_bonus": alive_bonus,
+        "leg_bonus": leg_bonus,
+        "fuel_penalty": fuel_penalty,
+        "outcome_bonus": outcome_bonus,
+        "_outcome": outcome,
+    }
+
+    return float(total), components

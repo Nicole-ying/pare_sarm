@@ -1,0 +1,107 @@
+import math
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    # Current and next observations
+    x_cur = _safe_float(obs[0])
+    y_cur = _safe_float(obs[1])
+    vx_cur = _safe_float(obs[2])
+    vy_cur = _safe_float(obs[3])
+    angle_cur = _safe_float(obs[4])
+    leg1_cur = _safe_float(obs[6])
+    leg2_cur = _safe_float(obs[7])
+
+    x_next = _safe_float(next_obs[0])
+    y_next = _safe_float(next_obs[1])
+    vx_next = _safe_float(next_obs[2])
+    vy_next = _safe_float(next_obs[3])
+    angle_next = _safe_float(next_obs[4])
+    leg1_next = _safe_float(next_obs[6])
+    leg2_next = _safe_float(next_obs[7])
+
+    # Distances
+    dist_cur = math.sqrt(x_cur * x_cur + y_cur * y_cur)
+    dist_next = math.sqrt(x_next * x_next + y_next * y_next)
+
+    # Progress (positive if moving closer)
+    distance_delta = dist_cur - dist_next
+
+    # Speed and angle
+    speed_next = math.sqrt(vx_next * vx_next + vy_next * vy_next)
+    angle_abs = abs(angle_next)
+
+    # Leg contact
+    both_legs = 1.0 if (leg1_next > 0.5 and leg2_next > 0.5) else 0.0
+
+    # Stage definitions
+    high_alt = 1.0 if y_next > 0.5 else 0.0
+    medium_alt = 1.0 if (y_next > 0.1 and y_next <= 0.5) else 0.0
+    low_alt = 1.0 if y_next <= 0.1 else 0.0
+
+    # ---------- Progress-conditioned components ----------
+
+    # 1. Approach progress (dense, gated by altitude)
+    approach_progress = (high_alt + 0.5 * medium_alt) * max(distance_delta, 0.0) * 5.0
+
+    # 2. Final approach: when low, reward progress toward pad more aggressively
+    final_approach = low_alt * max(distance_delta, 0.0) * 8.0
+
+    # 3. Velocity control
+    vel_ctrl_med = medium_alt * max(0.0, 1.0 - abs(vy_cur)) * 0.5
+    vel_ctrl_low = low_alt * max(0.0, 1.0 - speed_next * 2.0) * 1.5   # increased weight
+    velocity_control = vel_ctrl_med + vel_ctrl_low
+
+    # 4. Angle stability: stronger penalty near ground
+    angle_stability = -abs(angle_next) * (medium_alt * 2.0 + low_alt * 4.0)
+
+    # 5. Soft vertical speed shaping at low altitude
+    vertical_descent = low_alt * max(0.0, 0.5 - abs(vy_next + 0.3)) * 1.0  # encourage gentle descent
+
+    # 6. Landing bonus (both legs, near pad, low speed, small angle)
+    landing_bonus = 0.0
+    if terminated and abs(x_next) < 0.2 and y_next <= 0.1 and both_legs > 0.5 and speed_next < 0.5 and angle_abs < 0.2:
+        landing_bonus = 10.0
+
+    # 7. Crash penalty (high speed, large angle, out of bounds, or no legs)
+    crash_penalty = 0.0
+    if terminated:
+        if speed_next > 1.5 or angle_abs > 0.8 or abs(x_next) > 1.0:
+            crash_penalty = -10.0
+        if both_legs < 0.5 and dist_next > 0.35:  # crash into ground not on pad
+            crash_penalty = -8.0
+
+    # 8. Timeout penalty (truncated with poor progress)
+    timeout_penalty = 0.0
+    if truncated:
+        if dist_next > 0.8:
+            timeout_penalty = -2.0
+        elif speed_next > 1.0:
+            timeout_penalty = -1.0
+
+    # 9. Survival bonus (very small, only if not terminated/truncated)
+    survival_bonus = 0.01 if not terminated and not truncated else 0.0
+
+    total_reward = (approach_progress + final_approach + velocity_control + angle_stability +
+                    vertical_descent + landing_bonus + crash_penalty + timeout_penalty + survival_bonus)
+
+    components = {
+        "approach_progress": approach_progress,
+        "final_approach": final_approach,
+        "velocity_control": velocity_control,
+        "angle_stability": angle_stability,
+        "vertical_descent": vertical_descent,
+        "landing_bonus": landing_bonus,
+        "crash_penalty": crash_penalty,
+        "timeout_penalty": timeout_penalty,
+        "survival_bonus": survival_bonus
+    }
+
+    return float(total_reward), components

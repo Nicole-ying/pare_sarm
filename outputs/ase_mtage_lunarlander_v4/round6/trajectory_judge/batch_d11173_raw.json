@@ -1,0 +1,32 @@
+{
+  "id": "26f793e7-242f-49d8-bd99-f672b43ff65e",
+  "object": "chat.completion",
+  "created": 1780246007,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep000\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep001\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep002\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep003\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep004\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep005\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep006\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep007\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep008\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep009\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards for the LunarLander-v2 environment. The task is to classify each trajectory into one of the coarse labels: early_failure, low_progress_survival, partial_progress, success_like, or ambiguous. We must use only the evidence provided, not the official environment reward. The manifest provides labeling cautions.\n\nKey points from the labeling cautions:\n- Do not use official reward.\n- Episode length alone is not success_like.\n- High approach progress with unstable final speed, large tilt, or lack of leg contact is not success_like.\n- Termination should be due to explicit task completion (landing safely) rather than crash or out-of-bounds.\n- Both leg contact booleans are primary indicators of safe landing.\n- Consider final angle and angular velocity for stability.\n- Do not treat landing with high horizontal velocity or significant tilt as success.\n- Label as ambiguous if termination reason is unclear (e.g., time limit reached with partial progress).\n\nAll trajectories have episode length 1000, terminated false, truncated true. They all ended due to time limit (truncated). This is important: truncation means the episode did not naturally end due to landing or crash. Therefore, they cannot be success_like because they did not demonstrate a safe landing before the time limit. The environment's termination signals: terminated indicates crash or successful landing (sleep state). Since terminated is false, none of the trajectories resulted in a landing event. Thus, they cannot be success_like.\n\nNow, examine the features: all have distance_improvement positive (around 0.6-0.8), final distance to target around 0.6-0.8, final speeds moderate (0.02-0.06), final angle small (0.01-0.07 rad), but crucially contact_ratio_last20 is 0.0 for all. This means in the last 20 steps, the legs never touched the ground. So no landing occurred.\n\nTherefore, these trajectories represent partial progress towards the landing pad but did not achieve landing. They are not early_failure because they lasted the full episode and made progress. They are not low_progress_survival because they made significant progress (distance improvement > 0.6). They are partial_progress: real progress but not reaching success.\n\nCheck if any are ambiguous: the termination reason is clear (time limit). No conflicting evidence. So all should be partial_progress.\n\nNow, decide use_for_tage_pair: rule says false only if truly ambiguous. Since clear, set to true.\n\nThus, for each trajectory: coarse_label = \"partial_progress\", use_for_tage_pair = true.\n\nOutput JSON array with all 10 entries.\n\nWe must follow output schema exactly."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7809,
+    "completion_tokens": 952,
+    "total_tokens": 8761,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 569
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5761
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

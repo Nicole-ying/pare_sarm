@@ -1,0 +1,32 @@
+{
+  "id": "d7da7c03-e8cf-4d89-9859-2953f8b50cad",
+  "object": "chat.completion",
+  "created": 1780294473,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "[\n  {\n    \"trajectory_id\": \"final_ep010\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep011\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep012\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep013\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep014\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep015\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep016\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep017\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep018\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  },\n  {\n    \"trajectory_id\": \"final_ep019\",\n    \"coarse_label\": \"partial_progress\",\n    \"use_for_tage_pair\": true\n  }\n]",
+        "reasoning_content": "We are given 10 trajectory evidence cards for LunarLander-v2. The task is to classify each into a coarse label and indicate if it should be used for tage pair. The evidence shows that all trajectories have length 1000, truncated, not terminated. Key features: final distance to target around 0.6, final speed small (0.01 to 0.11), final vertical speed small, final horizontal speed small, final angle small, contact_ratio_last20 all 0.0. No leg contact at end. Reward component totals show approach_progress positive, but no leg_contact_bonus or safe_landing_bonus. Gated_timeout_penalty -1.0. All truncated, meaning episode ended due to time limit (1000 steps) without landing. The lander hovered near pad but never made contact. According to labeling cautions, safe landing requires both legs contact. None have leg contact. Thus they are not success_like. They show significant distance improvement (initial ~1.4, final ~0.6), so partial progress. They are not early failure because they survive entire episode. They are not low_progress_survival because they show real progress. They are not ambiguous because evidence is clear: they approached the pad but did not land. So label each as \"partial_progress\". use_for_tage_pair should be true because not ambiguous. Also note that all have similar pattern, so consistent.\n\nThus output JSON array with 10 entries."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7734,
+    "completion_tokens": 695,
+    "total_tokens": 8429,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 312
+    },
+    "prompt_cache_hit_tokens": 2048,
+    "prompt_cache_miss_tokens": 5686
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

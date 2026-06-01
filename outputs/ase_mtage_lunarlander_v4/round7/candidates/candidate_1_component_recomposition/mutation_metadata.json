@@ -1,0 +1,54 @@
+{
+  "candidate_id": "round7_candidate1_component_recomposition",
+  "round": 7,
+  "mutation_family": "component_recomposition",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "local_repair",
+    "secondary_family": "component_recomposition",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not only scale all coefficients",
+      "do not add global survival bonus without progress gating",
+      "do not treat noisy partial_progress as success_like"
+    ],
+    "required_changes": [
+      "explicitly avoid known failures: early_failure, low_progress_survival",
+      "preserve useful patterns: partial_progress trajectories exist and should be preserved or improved; success_like trajectories exist and should be strongly preferred",
+      "gate or remove components: approach_progress, low_progress_survival_gate, low_progress_timeout, stability_near, terminal_reward, ungated_contact_bonus, ungated_survival_bonus",
+      "preserve or strengthen components: crash_penalty, far_approach, far_quality_penalty, leg_bonus, low_progress_penalty, near_stability, proximity_bonus, safe_landing_bonus, terminal_bonus, terminal_failure_penalty, terminal_penalty"
+    ],
+    "preserve_components": [
+      "crash_penalty",
+      "far_approach",
+      "far_quality_penalty",
+      "leg_bonus",
+      "low_progress_penalty",
+      "near_stability",
+      "proximity_bonus",
+      "safe_landing_bonus",
+      "terminal_bonus",
+      "terminal_failure_penalty",
+      "terminal_penalty"
+    ],
+    "remove_or_gate_components": [
+      "approach_progress",
+      "low_progress_survival_gate",
+      "low_progress_timeout",
+      "stability_near",
+      "terminal_reward",
+      "ungated_contact_bonus",
+      "ungated_survival_bonus"
+    ]
+  },
+  "coverage_type_used": "partial_or_success_only",
+  "intended_fix": [
+    "use delta/progress-style components",
+    "avoid pure survival reward",
+    "recompose components flagged by analyzer"
+  ],
+  "expected_effect": "Separate progress, stability, and terminal terms based on analyzer intent.",
+  "risk": "Delta terms may be noisy if the progress proxy is imperfect.",
+  "official_reward_used": false
+}

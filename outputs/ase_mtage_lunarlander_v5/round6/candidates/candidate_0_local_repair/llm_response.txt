@@ -1,0 +1,67 @@
+```python
+import math
+
+
+def _safe_float(x, default=0.0):
+    try:
+        value = float(x)
+    except Exception:
+        return default
+    if not math.isfinite(value):
+        return default
+    return value
+
+
+def compute_reward(obs, action, next_obs, terminated, truncated, info):
+    # Unpack observations (indices 0-7)
+    x0 = _safe_float(obs[0]) if len(obs) > 0 else 0.0
+    y0 = _safe_float(obs[1]) if len(obs) > 1 else 0.0
+    x1 = _safe_float(next_obs[0]) if len(next_obs) > 0 else 0.0
+    y1 = _safe_float(next_obs[1]) if len(next_obs) > 1 else 0.0
+    vx = _safe_float(next_obs[2]) if len(next_obs) > 2 else 0.0
+    vy = _safe_float(next_obs[3]) if len(next_obs) > 3 else 0.0
+    ang = _safe_float(next_obs[4]) if len(next_obs) > 4 else 0.0
+    ang_vel = _safe_float(next_obs[5]) if len(next_obs) > 5 else 0.0
+    leg_left = _safe_float(next_obs[6]) if len(next_obs) > 6 else 0.0
+    leg_right = _safe_float(next_obs[7]) if len(next_obs) > 7 else 0.0
+
+    # Distance from pad (0,0)
+    prev_dist = math.sqrt(x0 * x0 + y0 * y0)
+    curr_dist = math.sqrt(x1 * x1 + y1 * y1)
+    delta_dist = prev_dist - curr_dist   # positive = moving closer
+
+    # Stage thresholds (unchanged)
+    FAR_THRESHOLD = 0.35
+    NEAR_THRESHOLD = 0.2
+    far_stage = 1.0 if curr_dist > FAR_THRESHOLD else 0.0
+    near_stage = 1.0 - far_stage
+
+    # ---- Approach progress (preserved) ----
+    progress = max(delta_dist, 0.0) * far_stage * 5.0
+
+    # ---- Leg contact bonus (preserved) ----
+    leg_bonus = near_stage * (leg_left + leg_right) * 0.5
+
+    # ---- Near-stage stability reward (preserved) ----
+    stability_score = math.exp(-(abs(vx) + abs(vy) + abs(ang) + abs(ang_vel)))
+    near_stage_stability = near_stage * stability_score * 1.0
+
+    # ---- Relaxed safe landing bonus (continuous progressive reward) ----
+    # Both legs in contact is the primary indicator of ground contact.
+    # When terminated, reward a smooth exponential of how small residual errors are.
+    both_legs = 1.0 if leg_left > 0.5 and leg_right > 0.5 else 0.0
+    landing_quality = math.exp(-3.0 * (abs(vy) + abs(vx) + abs(ang) + abs(ang_vel)))
+    safe_landing_bonus = 10.0 * both_legs * landing_quality if terminated else 0.0
+
+    # ---- Gated terminal failure penalty (only for early, far-away crashes) ----
+    # Penalty applies only when terminated, both legs are not in contact (so not a landing),
+    # and the lander is still far from the pad. This spares near-pad partial-progress crashes.
+    failure_penalty = -1.0 if terminated and (leg_left < 0.5 or leg_right < 0.5) and curr_dist > NEAR_THRESHOLD else 0.0
+
+    # ---- Gated timeout penalty (only when no progress was made) ----
+    # Penalty applies only when truncated, still far from pad, and no meaningful approach progress.
+    timeout_penalty = -5.0 if truncated and curr_dist > FAR_THRESHOLD and delta_dist < 0.001 else 0.0
+
+    # ---- Compose total reward ----
+    total_reward = (
+       

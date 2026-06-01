@@ -1,0 +1,49 @@
+{
+  "candidate_id": "round3_candidate1_progress_conditioned",
+  "round": 3,
+  "mutation_family": "progress_conditioned",
+  "generation_mode": "llm_mutator",
+  "parent_reward_id": "round3_candidate1_progress_conditioned",
+  "mutation_intent_used": {
+    "primary_family": "component_recomposition",
+    "secondary_family": "progress_conditioned",
+    "forbidden_changes": [
+      "do not use official reward",
+      "do not only scale all coefficients",
+      "do not add global survival bonus without progress gating",
+      "do not treat noisy partial_progress as success_like",
+      "do not use local_repair when training is declining or lessons repeat"
+    ],
+    "required_changes": [
+      "explicitly avoid known failures: early_failure, low_progress_survival",
+      "preserve useful patterns: partial_progress trajectories exist and should be preserved or improved; success_like trajectories exist and should be strongly preferred",
+      "gate or remove components: low_progress_survival_gate, stability_near, terminal_reward, ungated_contact_bonus, ungated_survival_bonus",
+      "preserve or strengthen components: approach_progress, leg_bonus, near_stability, proximity_bonus, terminal_bonus, terminal_failure_penalty, terminal_penalty",
+      "structural refactoring required: training evidence shows local_repair is insufficient"
+    ],
+    "preserve_components": [
+      "approach_progress",
+      "leg_bonus",
+      "near_stability",
+      "proximity_bonus",
+      "terminal_bonus",
+      "terminal_failure_penalty",
+      "terminal_penalty"
+    ],
+    "remove_or_gate_components": [
+      "low_progress_survival_gate",
+      "stability_near",
+      "terminal_reward",
+      "ungated_contact_bonus",
+      "ungated_survival_bonus"
+    ]
+  },
+  "coverage_type_used": "partial_or_success_only",
+  "intended_fix": [
+    "condition reward by progress or stability stage",
+    "reduce low-progress reward hacking"
+  ],
+  "expected_effect": "Handle stage-dependent task conflicts and discourage low-progress survival.",
+  "risk": "Stage gates may be imperfect before trajectory memory is available.",
+  "official_reward_used": false
+}

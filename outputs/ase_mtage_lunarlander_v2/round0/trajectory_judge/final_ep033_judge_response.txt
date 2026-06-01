@@ -1,0 +1,22 @@
+{
+  "trajectory_id": "final_ep033",
+  "final_label": {
+    "coarse_label": "partial_progress",
+    "detail_label": "approach_unstable",
+    "confidence": 0.85
+  },
+  "agree_with_rule": true,
+  "evidence_used": [
+    "distance_improvement=1.215 indicates substantial approach progress",
+    "min_distance_to_target=0.190 shows the lander reached close to the target",
+    "final_speed=0.077 is very low, indicating controlled descent",
+    "final_angle_abs=0.0074 is very small, indicating good orientation",
+    "contact_ratio_last20=0.1 indicates both legs are not consistently in contact (only 10% of last 20 steps)",
+    "landing_bonus=0 in reward components suggests the candidate reward did not detect a stable landing"
+  ],
+  "conflict_warnings": [],
+  "use_for_memory": true,
+  "use_for_tage_pair": true,
+  "allowed_preference_role": "mid_reference",
+  "do_not_use_reason": ""
+}

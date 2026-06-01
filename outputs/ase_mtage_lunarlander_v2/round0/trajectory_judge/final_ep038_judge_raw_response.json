@@ -1,0 +1,32 @@
+{
+  "id": "b95b4cd6-110e-4a80-90d9-20bf3ad33939",
+  "object": "chat.completion",
+  "created": 1780042578,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\n  \"trajectory_id\": \"final_ep038\",\n  \"final_label\": {\n    \"coarse_label\": \"partial_progress\",\n    \"detail_label\": \"approach_unstable\",\n    \"confidence\": 0.85\n  },\n  \"agree_with_rule\": true,\n  \"evidence_used\": [\n    \"distance_improvement=1.05 from initial 1.40 to final 0.35 shows significant approach progress\",\n    \"final_speed=1.65 (high) and crash_penalty=-10 indicate unstable high-speed crash near pad\",\n    \"contact_ratio_last20=0.1 shows legs not consistently in contact, no stable landing\",\n    \"episode_length=53 (short) with terminated=true suggests early crash\",\n    \"reward component crash_penalty -10 confirms crash event\"\n  ],\n  \"conflict_warnings\": [],\n  \"use_for_memory\": true,\n  \"use_for_tage_pair\": true,\n  \"allowed_preference_role\": \"mid_reference\",\n  \"do_not_use_reason\": \"\"\n}",
+        "reasoning_content": "We are given a trajectory evidence card for LunarLander-v2. The task is to classify the trajectory into a coarse outcome label. The rule label says \"partial_progress\" with detail \"approach_unstable\". We need to evaluate the evidence and decide if we agree.\n\nKey evidence:\n- Episode length 53, terminated true, truncated false. Short episode, likely ended due to crash or landing.\n- Initial distance to target: 1.4, final distance: 0.348, improvement ~1.05. The lander got much closer.\n- Final speed: 1.646 (high), vertical speed abs: 1.075, horizontal speed abs: 1.246, angle abs: 0.076 (small angle). Both legs contact? Not directly given, but contact_ratio_last20 is 0.1, meaning only 10% of last 20 steps had leg contact (likely both legs simultaneously). So not stable contact.\n- Reward components: approach_progress positive, velocity_control 0, angle_stability negative, landing_bonus 0, crash_penalty -10 (significant), survival_bonus small positive. So likely a crash occurred (crash_penalty). The terminal event is unknown but crash penalty suggests the lander crashed.\n\nGiven the high final speed and crash penalty, this is not a successful landing. The trajectory made good progress in approaching the pad but ended in a crash due to high speed. That matches \"partial_progress\" or possibly \"early_failure\"? But early_failure usually means very little progress. Here, distance improvement is significant (1.05), so it's not early failure. It's not low_progress_survival because there is clear progress. It's not success_like because final is unstable and crash penalty. So partial_progress is appropriate.\n\nWe agree with the rule label. Confidence high because evidence is clear.\n\nDetail label: \"approach_unstable\" is good.\n\nAgree with rule: true.\n\nEvidence used: distance improvement, final speed, crash penalty, short episode length, leg contact ratio.\n\nConflict warnings: none.\n\nUse for memory: yes, we can use it as a trajectory for preference learning.\n\nUse for TAGE pair: yes, it is a partial progress trajectory, can be used as mid_reference.\n\nAllowed preference role: mid_reference.\n\nDo not use reason: empty.\n\nNow produce JSON."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 3485,
+    "completion_tokens": 723,
+    "total_tokens": 4208,
+    "prompt_tokens_details": {
+      "cached_tokens": 3456
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 495
+    },
+    "prompt_cache_hit_tokens": 3456,
+    "prompt_cache_miss_tokens": 29
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}

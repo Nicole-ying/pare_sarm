@@ -1,0 +1,37 @@
+{
+  "round": 8,
+  "parent_reward_id": "round5_candidate1_component_recomposition",
+  "selected_candidate_id": "round8_candidate2_local_repair",
+  "mutation_family": "local_repair",
+  "observed_outcome": {
+    "coarse_result": "partial_progress_available",
+    "main_failure_remaining": "low_progress_survival persists (56 in memory, 3 in judgment) and no success-like behavior",
+    "main_success_signal": "partial_progress count increased to 161 in memory, moderate training return (35.82), high preference consistency (0.946) and failure avoidance (0.9925)"
+  },
+  "failure_repair_outcome": {
+    "failure_before": "low_alt_stability over-rewarded low-altitude survival, terminal_penalty penalized partial_progress more than failures, weak leg_bonus and terminal_bonus consistency",
+    "repair_attempt": "local_repair mutation reintroduced early_approach, leg_bonus, low_alt_stability, terminal_bonus, terminal_penalty with adjusted scaling and gating of pad_approach_stability",
+    "outcome_after": "High preference consistency and failure avoidance achieved, but low_progress_survival still present; leg_bonus (0.093) and terminal_bonus (0.050) components still show very low pairwise alignment, indicating they may over-reward low-quality trajectories"
+  },
+  "lesson": "Gating low-alt stability and adjusting terminal penalties can yield high overall preference for partial_progress over failures, but weak alignment of leg_bonus and terminal_bonus components limits the preference margin over low_progress_survival, preventing conversion to success-like behavior; individual component alignment must be improved to make partial_progress strictly preferred over low_progress_survival.",
+  "future_guidance": [
+    "preserve early_approach component which shows strong alignment (0.962)",
+    "strengthen or restructure leg_bonus and terminal_bonus to favor partial_progress over low_progress_survival",
+    "consider increasing terminal_penalty consistency to penalize low_progress_survival more than partial_progress",
+    "avoid adding ungated survival bonuses or components that may over-reward low-quality trajectories",
+    "continue to treat partial_progress as distinct from success_like until success_like trajectories appear"
+  ],
+  "archive_update": {
+    "add_to_elite_archive": true,
+    "rollback_triggered": false,
+    "next_parent_reward_id": "round8_candidate2_local_repair",
+    "reason": "Selected candidate shows high preference consistency (0.946) and failure avoidance (0.9925); added to elite archive as promising direction for converting partial_progress to success-like behavior despite weak leg_bonus and terminal_bonus alignment."
+  },
+  "uncertainties": [
+    "No high-confidence success_like trajectories exist; partial_progress may not translate to success without further tuning",
+    "Low consistency of leg_bonus (0.093) and terminal_bonus (0.050) may undermine preference for partial_progress over low_progress_survival",
+    "Effect of low_alt_stability and terminal_penalty on low_progress_survival not fully isolated",
+    "Training return (35.82) is lower than round5 elite (439.97), but may be more stable; true improvement in behavior is uncertain"
+  ],
+  "agent_mode": "llm_reflector"
+}
